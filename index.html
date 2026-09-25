@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>سستم استراحة الموظفين المشترك مع التقارير والمدة</title>
+    <title>سستم استراحة الموظفين المشترك مع التقارير وصلاحيات الأدمن</title>
     <!-- استدعاء قواعد بيانات Firebase السحابية الحية -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -41,6 +41,7 @@
             padding: 20px;
             text-align: center;
             margin-bottom: 20px;
+            position: relative;
         }
 
         h2 { font-size: 1.5rem; margin-bottom: 8px; }
@@ -60,6 +61,20 @@
             border-radius: 50%;
             display: inline-block;
             box-shadow: 0 0 8px var(--accent-green);
+        }
+
+        .admin-badge {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            background: rgba(59, 130, 246, 0.15);
+            color: var(--accent-blue);
+            border: 1px solid var(--accent-blue);
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            font-weight: bold;
         }
 
         .action-box {
@@ -101,7 +116,8 @@
         .btn-green { background: var(--accent-green); }
         .btn-amber { background: var(--accent-amber); color: #0b0f19; }
         .btn-red { background: var(--accent-red); padding: 6px 12px; font-size: 0.85rem; }
-        .btn-gray { background: #334155; font-size: 0.8rem; padding: 4px 10px; }
+        .btn-gray { background: #334155; font-size: 0.8rem; padding: 6px 12px; }
+        .btn-excel { background: #059669; font-size: 0.8rem; padding: 6px 12px; color: white; }
 
         .section-title {
             font-size: 1.1rem;
@@ -177,6 +193,7 @@
 
 <div class="container">
     <header>
+        <button class="admin-badge" id="adminBtn" onclick="toggleAdmin()">🔒 وضع الأدمن</button>
         <h2>☕ سستم استراحة الموظفين المشترك</h2>
         <span class="status-tag"><span class="dot"></span> متصل لايف ومزامن للجميع</span>
     </header>
@@ -196,11 +213,14 @@
     </div>
     <div id="waitingBox"></div>
 
-    <!-- قسم تقارير وسجل البريكات اليومية -->
+    <!-- قسم تقارير وسجل البريكات لآخر 24 ساعة -->
     <div class="report-box">
         <div class="section-title" style="margin: 0 0 10px 0; color: var(--text-main);">
-            <span>📊 تقارير البريكات المنتهية اليوم</span>
-            <button type="button" class="btn btn-gray" onclick="clearReports()">مسح السجل</button>
+            <span>📊 سجل آخر 24 ساعة</span>
+            <div style="display: flex; gap: 6px;">
+                <button type="button" class="btn btn-excel" onclick="exportToExcel()">📥 تحميل Excel</button>
+                <button type="button" class="btn btn-gray" id="clearBtn" style="display: none;" onclick="clearReports()">مسح السجل</button>
+            </div>
         </div>
         <div id="reportsBox"></div>
     </div>
@@ -214,23 +234,46 @@
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
-    const db = firebase.database().ref('shared_company_breaks_v2');
+    const db = firebase.database().ref('shared_company_breaks_v3');
 
     let state = { active: [], waiting: [], reports: [] };
+    let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
 
     db.on('value', (snapshot) => {
         const val = snapshot.val();
         if (val) {
+            // تنظيف السجل التلقائي لأخذ آخر 24 ساعة فقط (86400000 ميللي ثانية)
+            const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
+            let filteredReports = (val.reports || []).filter(rep => rep.endTimestamp > twentyFourHoursAgo);
+
             state = {
                 active: val.active || [],
                 waiting: val.waiting || [],
-                reports: val.reports || []
+                reports: filteredReports
             };
         } else {
             state = { active: [], waiting: [], reports: [] };
         }
         renderUI();
     });
+
+    function toggleAdmin() {
+        if (!isAdmin) {
+            const pass = prompt('الرجاء إدخال كلمة مرور الأدمن:');
+            if (pass === '1234') { // كلمة المرور الافتراضية، يمكنك تغييرها هنا
+                isAdmin = true;
+                localStorage.setItem('is_admin_mode', 'true');
+                alert('تم تفعيل وضع الأدمن بنجاح!');
+            } else if (pass !== null) {
+                alert('كلمة المرور غير صحيحة!');
+            }
+        } else {
+            isAdmin = false;
+            localStorage.setItem('is_admin_mode', 'false');
+            alert('تم الخروج من وضع الأدمن.');
+        }
+        renderUI();
+    }
 
     document.getElementById('breakForm').addEventListener('submit', function(e) {
         e.preventDefault();
@@ -270,18 +313,13 @@
             const durationText = durationMins === 0 ? 'أقل من دقيقة' : `${durationMins} دقيقة`;
             const endTimeStr = new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' });
 
-            // إضافة السجل للتقارير
             state.reports.unshift({
                 name: finishedItem.name,
                 startTime: finishedItem.timeStr,
                 endTime: endTimeStr,
-                duration: durationText
+                duration: durationText,
+                endTimestamp: endTime
             });
-
-            // الحفاظ على اخر 25 تقرير فقط لكي لا يتضخم السرفر
-            if (state.reports.length > 25) {
-                state.reports.pop();
-            }
         }
 
         if (state.waiting.length > 0) {
@@ -295,14 +333,57 @@
     }
 
     function clearReports() {
-        if (confirm('هل أنت متأكد من مسح سجل التقارير؟')) {
+        if (!isAdmin) {
+            alert('هذا الزر مخصص للأدمن فقط!');
+            return;
+        }
+        if (confirm('هل أنت متأكد من مسح سجل آخر 24 ساعة؟')) {
             state.reports = [];
             db.set(state);
         }
     }
 
+    function exportToExcel() {
+        if (!state.reports || state.reports.length === 0) {
+            alert('لا توجد تقارير لتصديرها حالياً!');
+            return;
+        }
+
+        // إنشاء ملف CSV يدعم اللغة العربية عبر Excel
+        let csvContent = "\uFEFFاسم الموظف,وقت الخروج,وقت العودة,مدة البريك\n";
+        state.reports.forEach(rep => {
+            csvContent += `"${rep.name}","${rep.startTime}","${rep.endTime}","${rep.duration}"\n`;
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `break_reports_${new Date().toISOString().slice(0,10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
     function renderUI() {
         const currentTime = Date.now();
+
+        // تحديث زر ومظهر الأدمن
+        const adminBtn = document.getElementById('adminBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        if (isAdmin) {
+            adminBtn.style.background = 'rgba(16, 185, 129, 0.2)';
+            adminBtn.style.color = 'var(--accent-green)';
+            adminBtn.style.borderColor = 'var(--accent-green)';
+            adminBtn.innerText = '🔓 أدمن (مفعل)';
+            clearBtn.style.display = 'inline-block';
+        } else {
+            adminBtn.style.background = 'rgba(59, 130, 246, 0.15)';
+            adminBtn.style.color = 'var(--accent-blue)';
+            adminBtn.style.borderColor = 'var(--accent-blue)';
+            adminBtn.innerText = '🔒 وضع الأدمن';
+            clearBtn.style.display = 'none';
+        }
 
         // عرض النشطين
         const aBox = document.getElementById('activeBox');
@@ -344,10 +425,10 @@
             }).join('');
         }
 
-        // عرض تقارير البريكات المنتهية
+        // عرض تقارير آخر 24 ساعة
         const rBox = document.getElementById('reportsBox');
         if (!state.reports || state.reports.length === 0) {
-            rBox.innerHTML = '<div class="empty-msg">لا توجد تقارير مسجلة حتى الآن اليوم</div>';
+            rBox.innerHTML = '<div class="empty-msg">لا توجد تقارير مسجلة في آخر 24 ساعة</div>';
         } else {
             rBox.innerHTML = state.reports.map(rep => `
                 <div class="report-item">
@@ -361,7 +442,6 @@
         }
     }
 
-    // تحديث الواجهة تلقائياً كل 30 ثانية لتحديث العدادات (الدقائق) بدون الحاجة لتحديث الصفحة
     setInterval(() => {
         if (state.active.length > 0 || state.waiting.length > 0) {
             renderUI();
