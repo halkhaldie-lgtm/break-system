@@ -77,6 +77,20 @@
             font-weight: bold;
         }
 
+        .notif-badge {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent-green);
+            border: 1px solid var(--accent-green);
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
         .action-box {
             background: var(--card-bg);
             border: 1px solid var(--border);
@@ -305,6 +319,7 @@
 <div class="container">
     <header>
         <button class="admin-badge" id="adminBtn" onclick="toggleAdmin()">🔒 وضع الأدمن</button>
+        <button class="notif-badge" id="notifBtn" onclick="requestNotificationPermission()">🔔 تفعيل الإشعارات</button>
         <h2>☕ سستم استراحة الموظفين المشترك</h2>
         <span class="status-tag"><span class="dot"></span> متصل لايف ومزامن للجميع</span>
     </header>
@@ -330,7 +345,7 @@
     <div id="activeBox"></div>
 
     <div class="section-title" style="color: var(--accent-amber);">
-        <span>📋 قائمة الانتظار</span>
+        <span>📋 قائمة الانتظار (ترتيب صارم)</span>
     </div>
     <div id="waitingBox"></div>
 
@@ -369,19 +384,55 @@
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
-    const db = firebase.database().ref('shared_company_breaks_v9');
+    const db = firebase.database().ref('shared_company_breaks_v10');
 
     let state = { active: [], waiting: [], reports: [] };
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
     let myName = localStorage.getItem('my_employee_name') || '';
     let lastKnownStateStr = '';
 
-    // طلب صلاحية إظهار الإشعارات من المتصفح عند بدء التشغيل
+    // التحقق من حالة الإشعارات عند التحميل لتحديث شكل الزر
     document.addEventListener('DOMContentLoaded', () => {
-        if ("Notification" in window && Notification.permission !== "granted") {
-            Notification.requestPermission();
-        }
+        updateNotificationButtonUI();
     });
+
+    function updateNotificationButtonUI() {
+        const btn = document.getElementById('notifBtn');
+        if (!("Notification" in window)) {
+            btn.style.display = 'none';
+            return;
+        }
+        if (Notification.permission === "granted") {
+            btn.innerText = '🔔 الإشعارات مفعلة';
+            btn.style.background = 'rgba(16, 185, 129, 0.2)';
+            btn.style.color = 'var(--accent-green)';
+        } else if (Notification.permission === "denied") {
+            btn.innerText = '🔕 الإشعارات محظورة';
+            btn.style.background = 'rgba(239, 68, 68, 0.2)';
+            btn.style.color = 'var(--accent-red)';
+        } else {
+            btn.innerText = '🔔 تفعيل الإشعارات';
+        }
+    }
+
+    function requestNotificationPermission() {
+        if (!("Notification" in window)) {
+            alert('متصفحك لا يدعم الإشعارات المنبثقة.');
+            return;
+        }
+        Notification.requestPermission().then(permission => {
+            updateNotificationButtonUI();
+            if (permission === "granted") {
+                new Notification("تم تفعيل الإشعارات بنجاح!", {
+                    body: "ستتلقى تنبيهاً هنا حالما يحين دورك في الاستراحة.",
+                    icon: "https://cdn-icons-png.flaticon.com/512/3176/3176366.png"
+                });
+                showToast("تم تفعيل إشعارات المتصفح بنجاح!", "success");
+            } else {
+                alert('تم رفض إذن الإشعارات. يرجى تفعيلها يدوياً من إعدادات المتصفح بجانب رابط الموقع.');
+            }
+        });
+    }
 
     function playBeep(type = 'normal') {
         try {
@@ -407,7 +458,7 @@
     }
 
     function showToast(message, type = 'info') {
-        // إشعار داخل الموقع
+        // إشعار داخل الموقع (Toast)
         const container = document.getElementById('toast-container');
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
@@ -418,18 +469,23 @@
             toast.remove();
         }, 5000);
 
-        // إشعار خارجي يظهر في نظام التشغيل حتى لو كنت تتصفح موقعاً آخر
+        // إشعار نظام التشغيل الخارجي (Browser Native Notification)
         if ("Notification" in window && Notification.permission === "granted") {
             try {
-                new Notification("تنبيه استراحة الموظفين", {
+                const notif = new Notification("☕ تنبيه استراحة الموظفين", {
                     body: message,
-                    icon: "https://cdn-icons-png.flaticon.com/512/3176/3176366.png"
+                    icon: "https://cdn-icons-png.flaticon.com/512/3176/3176366.png",
+                    requireInteraction: true // يظل ظاهراً حتى يتفاعل معه المستخدم
                 });
+                notif.onclick = function() {
+                    window.focus();
+                    notif.close();
+                };
             } catch(e) {}
         }
     }
 
-    // استماع محسن وسريع للتغييرات
+    // استماع للتغييرات السحابية
     db.on('value', (snapshot) => {
         const val = snapshot.val();
         const currentStateStr = JSON.stringify(val);
@@ -463,8 +519,6 @@
                 if (isMyTurn && !wasMyTurnBefore) {
                     showToast(`يا ${myName}: حان دورك للتوجه إلى الاستراحة! يرجى التأكيد.`, 'success');
                     playBeep('turn');
-                } else {
-                    // إشعار صامت بالتحديثات الأخرى لكي لا يزعجك إذا كنت بموقع آخر
                 }
             }
 
@@ -508,11 +562,6 @@
             return;
         }
 
-        // تفعيل طلب الإشعارات عند أول تفاعل
-        if ("Notification" in window && Notification.permission !== "granted") {
-            Notification.requestPermission();
-        }
-
         const nameLower = name.toLowerCase();
         const isInActive = state.active.some(item => item.name.trim().toLowerCase() === nameLower);
         const isInWaiting = state.waiting.some(item => item.name.trim().toLowerCase() === nameLower);
@@ -547,6 +596,7 @@
         if (canEnter) {
             state.active.push(newItem);
         } else {
+            // يتم وضعه في قائمة الانتظار بشكل نظامي دون أي تخطي
             state.waiting.push(newItem);
         }
 
@@ -565,10 +615,17 @@
         }
 
         const userItem = state.waiting[index];
-        const hasSameTypeActive = state.active.some(item => item.type === userItem.type);
 
+        // شرط صارم: التأكد أن هذا الشخص هو الأول في طابور نوعه (عادي أو سريع) ولم يتم تخطيه
+        const firstOfThisType = state.waiting.find(w => w.type === userItem.type);
+        if (!firstOfThisType || firstOfThisType.id !== userItem.id) {
+            alert('عذراً، يوجد شخص قبلك في طابور الانتظار يجب أن يأخذ دوره أولاً!');
+            return;
+        }
+
+        const hasSameTypeActive = state.active.some(item => item.type === userItem.type);
         if (hasSameTypeActive) {
-            alert(`مكان بريك (${userItem.type === 'normal' ? 'العادي' : 'السريع'}) ما زال ممتلئاً، يرجى الانتظار حتى يعود زميلك من نفس النوع.`);
+            alert(`مكان بريك (${userItem.type === 'normal' ? 'العادي' : 'السريع'}) ما زال ممتلئاً، يرجى الانتظار حتى يعود زميلك.`);
             return;
         }
 
@@ -614,7 +671,7 @@
             return;
         }
 
-        if (confirm(`هل أنت متأكد من إلغاء دورك (${item.name}) من قائمة الانتظار؟`)) {
+        if (confirm(`هل أنت متأكد من إلغاء دور (${item.name}) من قائمة الانتظار؟`)) {
             state.waiting.splice(index, 1);
             db.set(state);
         }
@@ -710,11 +767,7 @@
             }
         }
 
-        if (showMyPrompt) {
-            promptBox.style.display = 'block';
-        } else {
-            promptBox.style.display = 'none';
-        }
+        promptBox.style.display = showMyPrompt ? 'block' : 'none';
 
         const aBox = document.getElementById('activeBox');
         if (!state.active || state.active.length === 0) {
@@ -780,6 +833,8 @@
                 let noticeText = '';
                 if (isReadyToConfirm) {
                     noticeText = `<br><small style="color: var(--accent-green); font-weight: bold;">⚡ حان دورك بانتظار التأكيد!</small>`;
+                } else {
+                    noticeText = `<br><small style="color: var(--accent-amber);">⏳ في الانتظار (بانتظار دور من يسبقك)</small>`;
                 }
 
                 return `
