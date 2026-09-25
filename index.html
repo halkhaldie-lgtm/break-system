@@ -358,7 +358,7 @@
     </div>
 </div>
 
-<!-- حاوية الإشعارات المنبثقة -->
+<!-- حاوية الإشعارات المنبثقة داخل الصفحة -->
 <div id="toast-container"></div>
 
 <script>
@@ -369,12 +369,19 @@
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
-    const db = firebase.database().ref('shared_company_breaks_v8');
+    const db = firebase.database().ref('shared_company_breaks_v9');
 
     let state = { active: [], waiting: [], reports: [] };
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
     let myName = localStorage.getItem('my_employee_name') || '';
     let lastKnownStateStr = '';
+
+    // طلب صلاحية إظهار الإشعارات من المتصفح عند بدء التشغيل
+    document.addEventListener('DOMContentLoaded', () => {
+        if ("Notification" in window && Notification.permission !== "granted") {
+            Notification.requestPermission();
+        }
+    });
 
     function playBeep(type = 'normal') {
         try {
@@ -400,6 +407,7 @@
     }
 
     function showToast(message, type = 'info') {
+        // إشعار داخل الموقع
         const container = document.getElementById('toast-container');
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
@@ -409,6 +417,16 @@
         setTimeout(() => {
             toast.remove();
         }, 5000);
+
+        // إشعار خارجي يظهر في نظام التشغيل حتى لو كنت تتصفح موقعاً آخر
+        if ("Notification" in window && Notification.permission === "granted") {
+            try {
+                new Notification("تنبيه استراحة الموظفين", {
+                    body: message,
+                    icon: "https://cdn-icons-png.flaticon.com/512/3176/3176366.png"
+                });
+            } catch(e) {}
+        }
     }
 
     // استماع محسن وسريع للتغييرات
@@ -427,7 +445,6 @@
                 const oldData = JSON.parse(lastKnownStateStr);
                 const oldWaiting = oldData.waiting || [];
                 
-                // فحص إذا أصبح المستخدم هو الأول في صف الانتظار لنوعه المخصص
                 const myUserLower = myName.trim().toLowerCase();
                 const firstNormal = newWaiting.find(w => w.type === 'normal');
                 const firstQuick = newWaiting.find(w => w.type === 'quick');
@@ -444,10 +461,10 @@
                                         (oldFirstQuick && oldFirstQuick.name.trim().toLowerCase() === myUserLower);
 
                 if (isMyTurn && !wasMyTurnBefore) {
-                    showToast(`🔔 يا ${myName}: حان دورك للتوجه إلى الاستراحة! يرجى التأكيد.`, 'success');
+                    showToast(`يا ${myName}: حان دورك للتوجه إلى الاستراحة! يرجى التأكيد.`, 'success');
                     playBeep('turn');
                 } else {
-                    showToast('🔔 تم تحديث حالة الاستراحة من قبل أحد الزملاء', 'info');
+                    // إشعار صامت بالتحديثات الأخرى لكي لا يزعجك إذا كنت بموقع آخر
                 }
             }
 
@@ -491,6 +508,11 @@
             return;
         }
 
+        // تفعيل طلب الإشعارات عند أول تفاعل
+        if ("Notification" in window && Notification.permission !== "granted") {
+            Notification.requestPermission();
+        }
+
         const nameLower = name.toLowerCase();
         const isInActive = state.active.some(item => item.name.trim().toLowerCase() === nameLower);
         const isInWaiting = state.waiting.some(item => item.name.trim().toLowerCase() === nameLower);
@@ -512,7 +534,6 @@
             timeStr: new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' })
         };
 
-        // التحقق من إمكانية الدخول المباشر (يسمح بعادي واحد وسريع واحد كحد أقصى معاً)
         const hasNormal = state.active.some(item => item.type === 'normal');
         const hasQuick = state.active.some(item => item.type === 'quick');
 
@@ -533,12 +554,10 @@
         db.set(state);
     }
 
-    // زر تأكيد الدور مع مراعاة نوع البريك بدقة (العادي يستبدل العادي، والسريع يستبدل السريع)
     function confirmMyTurn() {
         if (!myName) return;
         const myUserLower = myName.trim().toLowerCase();
         
-        // البحث عن المستخدم في صف الانتظار
         const index = state.waiting.findIndex(item => item.name.trim().toLowerCase() === myUserLower);
         if (index === -1) {
             alert('أنت لست في قائمة الانتظار حالياً!');
@@ -553,14 +572,13 @@
             return;
         }
 
-        // سحب العنصر من الانتظار وتحديث وقته ووضعه في النشطين
         state.waiting.splice(index, 1);
         userItem.timestamp = Date.now();
         userItem.timeStr = new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' });
         state.active.push(userItem);
 
         db.set(state);
-        showToast('✅ تم تأكيد ذهابك إلى البريك بنجاح!', 'success');
+        showToast('تم تأكيد ذهابك إلى البريك بنجاح!', 'success');
     }
 
     function endBreak(index) {
@@ -674,7 +692,6 @@
             clearBtn.style.display = 'none';
         }
 
-        // فحص إذا حان دور الموظف الحالي بناءً على نوع بريكه ونوع المكان الشاغر
         const promptBox = document.getElementById('myTurnPromptBox');
         let showMyPrompt = false;
 
@@ -749,7 +766,6 @@
                 const showCancelBtn = (isOwner || isAdmin);
                 const isQuick = item.type === 'quick';
 
-                // التحقق مما إذا كان دوره قد حان للتوجه للاستراحة
                 let isReadyToConfirm = false;
                 if (isQuick) {
                     const firstQ = state.waiting.find(w => w.type === 'quick');
