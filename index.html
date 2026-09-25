@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>سستم استراحة الموظفين اللحظي السحابي</title>
+    <!-- مكتبات Firebase المباشرة -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
         :root {
             --bg: #0b0f19;
@@ -163,7 +166,7 @@
 <div class="container">
     <header>
         <h2>☕ سستم استراحة الموظفين اللحظي السحابي</h2>
-        <span class="status-tag"><span class="dot"></span> مزامنة مباشرة ومستجيبة للجميع</span>
+        <span class="status-tag"><span class="dot"></span> مزامنة مباشرة أونلاين لجميع الموظفين</span>
     </header>
 
     <form class="action-box" id="breakForm">
@@ -193,10 +196,31 @@
 </div>
 
 <script>
+    // إعداد السيرفر السحابي المباشر
+    const firebaseConfig = {
+        databaseURL: "https://break-system-live-default-rtdb.asia-southeast1.firebasedatabase.app/"
+    };
+    
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.database().ref('live_break_state');
+
     let state = { active: [], waiting: [] };
 
-    // قناة التزامن المباشر بدون محفزات حظر الشبكة
-    const channel = new BroadcastChannel('company_break_live_channel');
+    // استقبال التغييرات لحظياً من السحابة لكل الموظفين
+    db.on('value', (snapshot) => {
+        const val = snapshot.val();
+        if (val) {
+            state = {
+                active: val.active || [],
+                waiting: val.waiting || []
+            };
+        } else {
+            state = { active: [], waiting: [] };
+        }
+        renderUI();
+    });
 
     document.getElementById('breakForm').addEventListener('submit', function(e) {
         e.preventDefault();
@@ -221,8 +245,7 @@
         }
 
         input.value = '';
-        renderUI();
-        broadcastState();
+        db.set(state); // رفع التغيير للسحابة فوراً
     }
 
     function endBreak(index) {
@@ -232,8 +255,7 @@
             next.time = new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' });
             state.active.push(next);
         }
-        renderUI();
-        broadcastState();
+        db.set(state); // رفع التغيير للسحابة فوراً
     }
 
     function executeSwap() {
@@ -252,8 +274,7 @@
             const temp = state.waiting[idx1];
             state.waiting[idx1] = state.waiting[idx2];
             state.waiting[idx2] = temp;
-            renderUI();
-            broadcastState();
+            db.set(state); // رفع التغيير للسحابة فوراً
         }
     }
 
@@ -297,33 +318,6 @@
             document.getElementById('swapSection').style.display = 'none';
         }
     }
-
-    function broadcastState() {
-        localStorage.setItem('break_app_data', JSON.stringify(state));
-        channel.postMessage(state);
-    }
-
-    channel.onmessage = function(event) {
-        state = event.data;
-        renderUI();
-    };
-
-    window.addEventListener('storage', function(e) {
-        if (e.key === 'break_app_data' && e.newValue) {
-            state = JSON.parse(e.newValue);
-            renderUI();
-        }
-    });
-
-    function init() {
-        const local = localStorage.getItem('break_app_data');
-        if (local) {
-            state = JSON.parse(local);
-        }
-        renderUI();
-    }
-
-    init();
 </script>
 </body>
 </html>
