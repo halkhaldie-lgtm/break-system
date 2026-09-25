@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>سستم استراحة الموظفين المشترك</title>
+    <title>سستم استراحة الموظفين المشترك مع التقارير والمدة</title>
     <!-- استدعاء قواعد بيانات Firebase السحابية الحية -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -32,7 +32,7 @@
             min-height: 100vh;
         }
 
-        .container { width: 100%; max-width: 600px; }
+        .container { width: 100%; max-width: 650px; }
 
         header {
             background: var(--card-bg);
@@ -101,6 +101,7 @@
         .btn-green { background: var(--accent-green); }
         .btn-amber { background: var(--accent-amber); color: #0b0f19; }
         .btn-red { background: var(--accent-red); padding: 6px 12px; font-size: 0.85rem; }
+        .btn-gray { background: #334155; font-size: 0.8rem; padding: 4px 10px; }
 
         .section-title {
             font-size: 1.1rem;
@@ -108,6 +109,7 @@
             margin: 15px 0 10px 0;
             display: flex;
             justify-content: space-between;
+            align-items: center;
         }
 
         .card-active {
@@ -132,30 +134,40 @@
             align-items: center;
         }
 
-        .swap-box {
+        .report-box {
             background: var(--card-bg);
             border: 1px solid var(--border);
             border-radius: 14px;
             padding: 15px;
-            margin-top: 20px;
+            margin-top: 25px;
         }
 
-        .swap-controls {
+        .report-item {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border);
+            padding: 8px 0;
             display: flex;
-            gap: 10px;
+            justify-content: space-between;
             align-items: center;
-            margin-top: 10px;
-            flex-wrap: wrap;
         }
 
-        select {
-            flex: 1;
-            background: #0b0f19;
-            border: 1px solid var(--border);
-            color: white;
-            padding: 10px;
-            border-radius: 8px;
-            min-width: 120px;
+        .badge-time {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--accent-amber);
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .badge-duration {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent-green);
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: bold;
         }
 
         .empty-msg { color: var(--text-muted); font-size: 0.9rem; padding: 10px 0; }
@@ -184,19 +196,17 @@
     </div>
     <div id="waitingBox"></div>
 
-    <div class="swap-box" id="swapSection" style="display: none;">
-        <div style="font-weight: bold; color: var(--accent-amber);">🔄 تبديل الأدوار في قائمة الانتظار:</div>
-        <div class="swap-controls">
-            <select id="swap1"></select>
-            <span>مع</span>
-            <select id="swap2"></select>
-            <button type="button" class="btn btn-amber" onclick="executeSwap()">تبديل</button>
+    <!-- قسم تقارير وسجل البريكات اليومية -->
+    <div class="report-box">
+        <div class="section-title" style="margin: 0 0 10px 0; color: var(--text-main);">
+            <span>📊 تقارير البريكات المنتهية اليوم</span>
+            <button type="button" class="btn btn-gray" onclick="clearReports()">مسح السجل</button>
         </div>
+        <div id="reportsBox"></div>
     </div>
 </div>
 
 <script>
-    // ربط السستم حصرياً بقاعدة بياناتك الخاصة
     const firebaseConfig = {
         databaseURL: "https://break-system-4a453-default-rtdb.firebaseio.com/"
     };
@@ -204,20 +214,20 @@
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
-    const db = firebase.database().ref('shared_company_breaks');
+    const db = firebase.database().ref('shared_company_breaks_v2');
 
-    let state = { active: [], waiting: [] };
+    let state = { active: [], waiting: [], reports: [] };
 
-    // الاستماع الفوري والتلقائي لأي تغيير يحدث من أي جهاز أونلاين
     db.on('value', (snapshot) => {
         const val = snapshot.val();
         if (val) {
             state = {
                 active: val.active || [],
-                waiting: val.waiting || []
+                waiting: val.waiting || [],
+                reports: val.reports || []
             };
         } else {
-            state = { active: [], waiting: [] };
+            state = { active: [], waiting: [], reports: [] };
         }
         renderUI();
     });
@@ -232,10 +242,12 @@
         const name = input.value.trim();
         if (!name) return;
 
+        const now = Date.now();
         const newItem = {
-            id: String(Date.now()),
+            id: String(now),
             name: name,
-            time: new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' })
+            timestamp: now,
+            timeStr: new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' })
         };
 
         if (state.active.length < 2) {
@@ -245,80 +257,116 @@
         }
 
         input.value = '';
-        db.set(state); // تحديث فوري وسحابي يشاهده الجميع لحظياً
+        db.set(state);
     }
 
     function endBreak(index) {
-        state.active.splice(index, 1);
+        const finishedItem = state.active.splice(index, 1)[0];
+        
+        if (finishedItem) {
+            const endTime = Date.now();
+            const durationMs = endTime - finishedItem.timestamp;
+            const durationMins = Math.floor(durationMs / 60000);
+            const durationText = durationMins === 0 ? 'أقل من دقيقة' : `${durationMins} دقيقة`;
+            const endTimeStr = new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' });
+
+            // إضافة السجل للتقارير
+            state.reports.unshift({
+                name: finishedItem.name,
+                startTime: finishedItem.timeStr,
+                endTime: endTimeStr,
+                duration: durationText
+            });
+
+            // الحفاظ على اخر 25 تقرير فقط لكي لا يتضخم السرفر
+            if (state.reports.length > 25) {
+                state.reports.pop();
+            }
+        }
+
         if (state.waiting.length > 0) {
             const next = state.waiting.shift();
-            next.time = new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' });
+            next.timestamp = Date.now();
+            next.timeStr = new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' });
             state.active.push(next);
         }
-        db.set(state); // تحديث فوري للجميع
+
+        db.set(state);
     }
 
-    function executeSwap() {
-        const id1 = document.getElementById('swap1').value;
-        const id2 = document.getElementById('swap2').value;
-
-        if (!id1 || !id2 || id1 === id2) {
-            alert('يرجى اختيار اسمين مختلفين للتبديل!');
-            return;
-        }
-
-        const idx1 = state.waiting.findIndex(x => x.id === id1);
-        const idx2 = state.waiting.findIndex(x => x.id === id2);
-
-        if (idx1 > -1 && idx2 > -1) {
-            const temp = state.waiting[idx1];
-            state.waiting[idx1] = state.waiting[idx2];
-            state.waiting[idx2] = temp;
-            db.set(state); // تحديث فوري للجميع
+    function clearReports() {
+        if (confirm('هل أنت متأكد من مسح سجل التقارير؟')) {
+            state.reports = [];
+            db.set(state);
         }
     }
 
     function renderUI() {
+        const currentTime = Date.now();
+
+        // عرض النشطين
         const aBox = document.getElementById('activeBox');
         if (!state.active || state.active.length === 0) {
             aBox.innerHTML = '<div class="empty-msg">لا يوجد أحد بالبريك حالياً</div>';
         } else {
-            aBox.innerHTML = state.active.map((item, i) => `
-                <div class="card-active">
-                    <div><strong>${item.name}</strong> <small style="color:var(--text-muted)">(${item.time})</small></div>
-                    <button type="button" class="btn btn-red" onclick="endBreak(${i})">إنهاء البريك</button>
-                </div>
-            `).join('');
+            aBox.innerHTML = state.active.map((item, i) => {
+                const minsInBreak = Math.floor((currentTime - item.timestamp) / 60000);
+                const activeDurationStr = minsInBreak === 0 ? 'منذ أقل من دقيقة' : `منذ ${minsInBreak} دقيقة`;
+                return `
+                    <div class="card-active">
+                        <div>
+                            <strong>${item.name}</strong> 
+                            <span class="badge-duration" style="margin-right: 8px;">⏱️ ${activeDurationStr}</span>
+                            <br><small style="color:var(--text-muted)">وقت الخروج: ${item.timeStr}</small>
+                        </div>
+                        <button type="button" class="btn btn-red" onclick="endBreak(${i})">إنهاء البريك</button>
+                    </div>
+                `;
+            }).join('');
         }
 
+        // عرض قائمة الانتظار
         const wBox = document.getElementById('waitingBox');
         if (!state.waiting || state.waiting.length === 0) {
             wBox.innerHTML = '<div class="empty-msg">قائمة الانتظار فارغة</div>';
         } else {
-            wBox.innerHTML = state.waiting.map((item, i) => `
-                <div class="card-waiting">
-                    <span>#${i + 1} - ${item.name}</span>
-                    <span style="color:var(--accent-amber); font-size:0.85rem">في الانتظار</span>
+            wBox.innerHTML = state.waiting.map((item, i) => {
+                const minsWaiting = Math.floor((currentTime - item.timestamp) / 60000);
+                const waitingDurationStr = minsWaiting === 0 ? 'منذ أقل من دقيقة' : `انتظار: ${minsWaiting} دقيقة`;
+                return `
+                    <div class="card-waiting">
+                        <div>
+                            <span>#${i + 1} - <strong>${item.name}</strong></span>
+                        </div>
+                        <span class="badge-time">${waitingDurationStr}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // عرض تقارير البريكات المنتهية
+        const rBox = document.getElementById('reportsBox');
+        if (!state.reports || state.reports.length === 0) {
+            rBox.innerHTML = '<div class="empty-msg">لا توجد تقارير مسجلة حتى الآن اليوم</div>';
+        } else {
+            rBox.innerHTML = state.reports.map(rep => `
+                <div class="report-item">
+                    <div>
+                        <strong>${rep.name}</strong> 
+                        <span style="color:var(--text-muted); margin-right:6px;">(من ${rep.startTime} إلى ${rep.endTime})</span>
+                    </div>
+                    <span style="color: var(--accent-green); font-weight: bold;">المدة: ${rep.duration}</span>
                 </div>
             `).join('');
         }
-
-        const s1 = document.getElementById('swap1');
-        const s2 = document.getElementById('swap2');
-        s1.innerHTML = s2.innerHTML = '';
-
-        if (state.waiting && state.waiting.length >= 2) {
-            document.getElementById('swapSection').style.display = 'block';
-            state.waiting.reload = true;
-            state.waiting.forEach((item, i) => {
-                s1.add(new Option(`#${i + 1} - ${item.name}`, item.id));
-                s2.add(new Option(`#${i + 1} - ${item.name}`, item.id));
-            });
-            s2.selectedIndex = 1;
-        } else {
-            document.getElementById('swapSection').style.display = 'none';
-        }
     }
+
+    // تحديث الواجهة تلقائياً كل 30 ثانية لتحديث العدادات (الدقائق) بدون الحاجة لتحديث الصفحة
+    setInterval(() => {
+        if (state.active.length > 0 || state.waiting.length > 0) {
+            renderUI();
+        }
+    }, 30000);
 </script>
 </body>
 </html>
