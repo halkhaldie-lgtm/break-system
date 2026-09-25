@@ -301,12 +301,9 @@
 
     <!-- صندوق تبديل الأدوار -->
     <div class="swap-box" id="swapSection" style="display: none;">
-        <div style="font-weight: bold; color: var(--accent-amber);">🔄 تبديل الأدوار في قائمة الانتظار:</div>
-        <div class="swap-controls">
-            <select id="swap1"></select>
-            <span>مع</span>
-            <select id="swap2"></select>
-            <button type="button" class="btn btn-amber" onclick="executeSwap()">تبديل</button>
+        <div style="font-weight: bold; color: var(--accent-amber);" id="swapSectionTitle">🔄 تبديل دورك في الانتظار:</div>
+        <div class="swap-controls" id="swapControlsContainer">
+            <!-- سيتم تعبئتها ديناميكياً حسب صلاحية المستخدم -->
         </div>
     </div>
 
@@ -332,12 +329,12 @@
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
-    const db = firebase.database().ref('shared_company_breaks_v15');
+    const db = firebase.database().ref('shared_company_breaks_v17');
 
-    let state = { active: [], waiting: [], reports: [] };
+    let state = { active: [], waiting: [], reports: [], swapLogs: [] };
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
     let myName = localStorage.getItem('my_employee_name') || '';
-    let isReportsExpanded = false; // متغير لحفظ حالة التوسعة للسجل
+    let isReportsExpanded = false;
 
     document.addEventListener('DOMContentLoaded', () => {
         updateNotificationButtonUI();
@@ -371,20 +368,9 @@
     }
 
     function requestNotificationPermission() {
-        if (!("Notification" in window)) {
-            alert('متصفحك لا يدعم الإشعارات المنبثقة.');
-            return;
-        }
+        if (!("Notification" in window)) return;
         Notification.requestPermission().then(permission => {
             updateNotificationButtonUI();
-            if (permission === "granted") {
-                new Notification("☕ تم تفعيل الإشعارات بنجاح!", {
-                    body: "ستتلقى تنبيهات دورك هنا بشكل فوري.",
-                    icon: "https://cdn-icons-png.flaticon.com/512/3176/3176366.png"
-                });
-            } else {
-                alert('تم رفض إذن الإشعارات. يرجى تفعيلها من شريط العنوان في المتصفح.');
-            }
         });
     }
 
@@ -393,16 +379,13 @@
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
-            
             osc.type = 'sine';
             osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
-            gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
-
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
             osc.connect(gain);
             gain.connect(audioCtx.destination);
-            
             osc.start();
-            osc.stop(audioCtx.currentTime + 0.5);
+            osc.stop(audioCtx.currentTime + 0.4);
         } catch(e) {}
     }
 
@@ -410,15 +393,10 @@
         playBeep();
         if ("Notification" in window && Notification.permission === "granted") {
             try {
-                const notif = new Notification(title, {
+                new Notification(title, {
                     body: bodyText,
-                    icon: "https://cdn-icons-png.flaticon.com/512/3176/3176366.png",
-                    requireInteraction: true
+                    icon: "https://cdn-icons-png.flaticon.com/512/3176/3176366.png"
                 });
-                notif.onclick = function() {
-                    window.focus();
-                    notif.close();
-                };
             } catch(e) {}
         }
     }
@@ -430,14 +408,16 @@
         if (val) {
             const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
             let filteredReports = (val.reports || []).filter(rep => rep.endTimestamp > twentyFourHoursAgo);
+            let filteredSwaps = (val.swapLogs || []).filter(sw => sw.timestamp > twentyFourHoursAgo);
 
             state = {
                 active: val.active || [],
                 waiting: val.waiting || [],
-                reports: filteredReports
+                reports: filteredReports,
+                swapLogs: filteredSwaps
             };
         } else {
-            state = { active: [], waiting: [], reports: [] };
+            state = { active: [], waiting: [], reports: [], swapLogs: [] };
         }
 
         checkMyTurnAndNotify();
@@ -565,7 +545,6 @@
             else state.waiting.push(newItem);
         }
 
-        input.value = '';
         db.set(state);
     }
 
@@ -641,11 +620,28 @@
     }
 
     function executeSwap() {
-        const id1 = document.getElementById('swap1').value;
-        const id2 = document.getElementById('swap2').value;
+        let id1, id2;
+
+        if (isAdmin) {
+            id1 = document.getElementById('swap1').value;
+            id2 = document.getElementById('swap2').value;
+        } else {
+            if (!myName) {
+                alert('الرجاء إدخال اسمك أولاً!');
+                return;
+            }
+            const myUserLower = myName.trim().toLowerCase();
+            const myItem = state.waiting.find(w => w.name.trim().toLowerCase() === myUserLower);
+            if (!myItem) {
+                alert('أنت لست موجوداً في قائمة الانتظار للتبديل!');
+                return;
+            }
+            id1 = myItem.id;
+            id2 = document.getElementById('swapTarget').value;
+        }
 
         if (!id1 || !id2 || id1 === id2) {
-            alert('يرجى اختيار اسمين مختلفين للتبديل!');
+            alert('يرجى اختيار شخص مختلف للتبديل معه!');
             return;
         }
 
@@ -653,10 +649,42 @@
         const idx2 = state.waiting.findIndex(x => x.id === id2);
 
         if (idx1 > -1 && idx2 > -1) {
+            const name1 = state.waiting[idx1].name;
+            const name2 = state.waiting[idx2].name;
+            const oldPos1 = idx1 + 1;
+            const oldPos2 = idx2 + 1;
+
             const temp = state.waiting[idx1];
             state.waiting[idx1] = state.waiting[idx2];
             state.waiting[idx2] = temp;
+
+            const newPos1 = idx1 + 1;
+            const newPos2 = idx2 + 1;
+
+            if (!state.swapLogs) state.swapLogs = [];
+
+            state.swapLogs.unshift({
+                id: String(Date.now() + 1),
+                receiverName: name1,
+                initiatorName: isAdmin ? 'الأدمن' : name2,
+                oldPos: oldPos1,
+                newPos: newPos1,
+                timestamp: Date.now(),
+                timeStr: new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' })
+            });
+
+            state.swapLogs.unshift({
+                id: String(Date.now() + 2),
+                receiverName: name2,
+                initiatorName: isAdmin ? 'الأدمن' : name1,
+                oldPos: oldPos2,
+                newPos: newPos2,
+                timestamp: Date.now(),
+                timeStr: new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' })
+            });
+
             db.set(state);
+            alert('تم التبديل بنجاح!');
         }
     }
 
@@ -665,8 +693,9 @@
             alert('هذا الإجراء مخصص للأدمن فقط!');
             return;
         }
-        if (confirm('هل أنت متأكد من مسح السجل؟')) {
+        if (confirm('هل أنت متأكد من مسح السجل والتقارير؟')) {
             state.reports = [];
+            state.swapLogs = [];
             db.set(state);
         }
     }
@@ -676,21 +705,26 @@
             alert('هذا الخيار مخصص للأدمن فقط!');
             return;
         }
-        if (!state.reports || state.reports.length === 0) {
-            alert('لا توجد تقارير لتصديرها حالياً!');
+        if ((!state.reports || state.reports.length === 0) && (!state.swapLogs || state.swapLogs.length === 0)) {
+            alert('لا توجد تقارير أو سجلات لتصديرها حالياً!');
             return;
         }
 
-        let csvContent = "\uFEFFاسم الموظف,نوع البريك,وقت الخروج,وقت العودة,مدة البريك\n";
-        state.reports.forEach(rep => {
+        let csvContent = "\uFEFF--- سجل البريكات والانتهاء ---\nاسم الموظف,نوع البريك,وقت الخروج,وقت العودة,مدة البريك\n";
+        (state.reports || []).forEach(rep => {
             csvContent += `"${rep.name}","${rep.type}","${rep.startTime}","${rep.endTime}","${rep.duration}"\n`;
+        });
+
+        csvContent += "\n\uFEFF--- سجل تبديل الأدوار ---\nالمستقبل للإشعار,بواسطة / المبدل,الرقم القديم,الرقم الجديد,الوقت\n";
+        (state.swapLogs || []).forEach(sw => {
+            csvContent += `"${sw.receiverName}","${sw.initiatorName}","${sw.oldPos}","${sw.newPos}","${sw.timeStr}"\n`;
         });
 
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.setAttribute("href", url);
-        link.setAttribute("download", `break_reports_${new Date().toISOString().slice(0,10)}.csv`);
+        link.setAttribute("download", `break_and_swap_reports_${new Date().toISOString().slice(0,10)}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -784,6 +818,15 @@
                 const showCancelBtn = (isOwner || isAdmin);
                 const isQuick = item.type === 'quick';
 
+                let swapMessageHtml = '';
+                if (state.swapLogs && state.swapLogs.length > 0) {
+                    const itemNameLower = item.name.trim().toLowerCase();
+                    const recentLog = state.swapLogs.find(log => log.receiverName.trim().toLowerCase() === itemNameLower && (currentTime - log.timestamp < 600000));
+                    if (recentLog) {
+                        swapMessageHtml = `<br><span style="color: var(--accent-blue); font-size: 0.8rem; font-weight: bold;">💬 تم تغيير دورك مع ${recentLog.initiatorName === 'الأدمن' ? 'الأدمن' : recentLog.initiatorName}، كان دورك رقم ${recentLog.oldPos} وأصبح ${recentLog.newPos}</span>`;
+                    }
+                }
+
                 let isReadyToConfirm = false;
                 if (isQuick) {
                     const firstQ = state.waiting.find(w => w.type === 'quick');
@@ -801,6 +844,7 @@
                             <span>#${i + 1} - <strong>${item.name}</strong></span>
                             <span style="margin-right: 8px; color:var(--text-muted);">${waitingDurationStr}</span>
                             ${isQuick ? '<span style="color:var(--accent-blue);">[سريع]</span>' : '<span style="color:var(--accent-amber);">[عادي]</span>'}
+                            ${swapMessageHtml}
                             ${isReadyToConfirm ? '<br><small style="color: var(--accent-green); font-weight: bold;">⚡ حان دورك بانتظار التأكيد!</small>' : (i === 0 ? '<br><small style="color: var(--accent-amber);">⏳ أنت التالي (هناك شخص واحد قبلك)</small>' : '')}
                         </div>
                         ${showCancelBtn ? `<button type="button" class="btn btn-red" style="padding: 4px 10px; font-size: 0.75rem;" onclick="cancelWaiting(${i})">إلغاء الدور</button>` : ``}
@@ -809,41 +853,73 @@
             }).join('');
         }
 
-        const s1 = document.getElementById('swap1');
-        const s2 = document.getElementById('swap2');
-        s1.innerHTML = s2.innerHTML = '';
+        const swapSection = document.getElementById('swapSection');
+        const swapTitle = document.getElementById('swapSectionTitle');
+        const swapControls = document.getElementById('swapControlsContainer');
 
         if (state.waiting && state.waiting.length >= 2) {
-            document.getElementById('swapSection').style.display = 'block';
-            state.waiting.forEach((item, i) => {
-                s1.add(new Option(`#${i + 1} - ${item.name} (${item.type === 'quick' ? 'سريع' : 'عادي'})`, item.id));
-                s2.add(new Option(`#${i + 1} - ${item.name} (${item.type === 'quick' ? 'سريع' : 'عادي'})`, item.id));
-            });
-            if (s2.options.length > 1) s2.selectedIndex = 1;
+            swapSection.style.display = 'block';
+            if (isAdmin) {
+                swapTitle.innerText = '🔄 تبديل الأدوار في الانتظار (صلاحية الأدمن):';
+                swapControls.innerHTML = `
+                    <select id="swap1"></select>
+                    <span>مع</span>
+                    <select id="swap2"></select>
+                    <button type="button" class="btn btn-amber" onclick="executeSwap()">تبديل</button>
+                `;
+                const s1 = document.getElementById('swap1');
+                const s2 = document.getElementById('swap2');
+                state.waiting.forEach((item, i) => {
+                    s1.add(new Option(`#${i + 1} - ${item.name} (${item.type === 'quick' ? 'سريع' : 'عادي'})`, item.id));
+                    s2.add(new Option(`#${i + 1} - ${item.name} (${item.type === 'quick' ? 'سريع' : 'عادي'})`, item.id));
+                });
+                if (s2.options.length > 1) s2.selectedIndex = 1;
+            } else {
+                swapTitle.innerText = '🔄 تبديل دوري في الانتظار مع موظف آخر:';
+                swapControls.innerHTML = `
+                    <span>دوري الحالي تبديله مع:</span>
+                    <select id="swapTarget"></select>
+                    <button type="button" class="btn btn-amber" onclick="executeSwap()">تبديل دوري</button>
+                `;
+                const sTarget = document.getElementById('swapTarget');
+                const myUserLower = myName ? myName.trim().toLowerCase() : '';
+                state.waiting.forEach((item, i) => {
+                    if (item.name.trim().toLowerCase() !== myUserLower) {
+                        sTarget.add(new Option(`#${i + 1} - ${item.name} (${item.type === 'quick' ? 'سريع' : 'عادي'})`, item.id));
+                    }
+                });
+            }
         } else {
-            document.getElementById('swapSection').style.display = 'none';
+            swapSection.style.display = 'none';
         }
 
-        // عرض السجل بحيث يظهر آخر 4 أسماء افتراضياً، وتوسعتها بالكامل عند الضغط على زر السهم
         const rBox = document.getElementById('reportsBox');
         if (!state.reports || state.reports.length === 0) {
             rBox.innerHTML = '<div class="empty-msg">لا توجد تقارير مسجلة في آخر 24 ساعة</div>';
         } else {
             const reportsToDisplay = isReportsExpanded ? state.reports : state.reports.slice(0, 4);
             
-            let htmlContent = reportsToDisplay.map(rep => `
-                <div class="report-item">
-                    <div>
-                        <strong>${rep.name}</strong> 
-                        <span style="color:var(--text-muted); margin-right:6px;">(${rep.type})</span>
-                        <span style="color:var(--text-muted); margin-right:6px;">(من ${rep.startTime} إلى ${rep.endTime})</span>
+            let htmlContent = reportsToDisplay.map(rep => {
+                // للموظف العادي: نظهر فقط الاسم ونوع البريك دون أوقات أو مدة
+                let detailsText = `<strong>${rep.name}</strong> <span style="color:var(--text-muted); margin-right:6px;">(${rep.type})</span>`;
+                let durationText = '';
+                
+                // للأدمن حصرياً: نظهر أوقات الخروج/العودة والمدة
+                if (isAdmin) {
+                    detailsText += ` <span style="color:var(--text-muted); margin-right:6px;">(من ${rep.startTime} إلى ${rep.endTime})</span>`;
+                    durationText = `<span style="color: var(--accent-green); font-weight: bold;">المدة: ${rep.duration}</span>`;
+                }
+
+                return `
+                    <div class="report-item">
+                        <div>${detailsText}</div>
+                        ${durationText}
                     </div>
-                    <span style="color: var(--accent-green); font-weight: bold;">المدة: ${rep.duration}</span>
-                </div>
-            `).join('');
+                `;
+            }).join('');
 
             if (!isReportsExpanded && state.reports.length > 4) {
-                htmlContent += `<div style="text-align: center; font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">يتم عرض آخر 4 أسماء فقط (اضغط على السهم للأعلى لتوسعة ورؤية باقي السجل)</div>`;
+                htmlContent += `<div style="text-align: center; font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">يتم عرض آخر 4 أسماء فقط (اضغط على السهم للتوسعة ورؤية باقي السجل)</div>`;
             }
 
             rBox.innerHTML = htmlContent;
