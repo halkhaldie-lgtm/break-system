@@ -395,8 +395,7 @@
         }
     }
 
-    let previousWasMyTurn = false;
-    let previousWasAlmostTurn = false;
+    let previousStatusState = "";
 
     db.on('value', (snapshot) => {
         const val = snapshot.val();
@@ -428,29 +427,28 @@
         const hasNormalSlot = !newActive.some(a => a.type === 'normal');
         const hasQuickSlot = !newActive.some(a => a.type === 'quick');
 
-        // 1. تحقق ما إذا حان دوري فعلياً
         const isMyTurn = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) ||
                          (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot);
 
-        if (isMyTurn && !previousWasMyTurn) {
-            sendDesktopNotification(
-                "🚨 حان دورك بالبريك", 
-                "حان دورك بالبريك الرجاء التاكيد"
-            );
-        }
-        previousWasMyTurn = isMyTurn;
-
-        // 2. تحقق ما إذا كان الشخص الذي قبلي قد خرج (وأصبحت أنا رقم 1 في الطابور وأنتظر شغر المكان)
         const myIndex = newWaiting.findIndex(w => w.name.trim().toLowerCase() === myUserLower);
         const isAlmostMyTurn = (myIndex === 0 && !isMyTurn);
 
-        if (isAlmostMyTurn && !previousWasAlmostTurn) {
-            sendDesktopNotification(
-                "⏳ تنبيه قرب الدور", 
-                "هناك شخص واحد قبلك استعد"
-            );
+        // تحديد الحالة الحالية بدقة لمنع التكرار المزعج وإرسالها عند التغير الفعلي فقط
+        let currentStatusState = "waiting";
+        if (isMyTurn) {
+            currentStatusState = "my_turn";
+        } else if (isAlmostMyTurn) {
+            currentStatusState = "almost_turn";
         }
-        previousWasAlmostTurn = isAlmostMyTurn;
+
+        if (currentStatusState !== previousStatusState) {
+            if (currentStatusState === "my_turn") {
+                sendDesktopNotification("🚨 حان دورك بالبريك", "حان دورك بالبريك الرجاء التاكيد");
+            } else if (currentStatusState === "almost_turn") {
+                sendDesktopNotification("⏳ تنبيه قرب الدور", "هناك شخص واحد قبلك استعد");
+            }
+            previousStatusState = currentStatusState;
+        }
 
         // ترحيل الانتظار التلقائي (في حال بقاء الشخص أكثر من 5 دقائق بدون تأكيد)
         if (newWaiting.length > 0) {
@@ -516,8 +514,7 @@
 
         myName = name;
         localStorage.setItem('my_employee_name', myName);
-        previousWasMyTurn = false;
-        previousWasAlmostTurn = false;
+        previousStatusState = ""; // إعادة تعيين حالة التنبيه للإسم الجديد
 
         const now = Date.now();
         const newItem = {
