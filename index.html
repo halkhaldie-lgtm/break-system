@@ -152,7 +152,6 @@
         .btn-gray { background: rgba(51, 65, 85, 0.6); border: 1px solid var(--glass-border); font-size: 0.8rem; padding: 6px 12px; border-radius: 8px; }
         .btn-excel { background: linear-gradient(135deg, #047857, #059669); font-size: 0.8rem; padding: 6px 12px; color: white; display: none; border-radius: 8px; }
 
-        /* حاوية قسم البريك الحالي المميزة بمستطيل وتدرج فريد */
         .section-container-active {
             background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(6, 78, 59, 0.15) 100%);
             border: 2px solid rgba(16, 185, 129, 0.35);
@@ -162,7 +161,6 @@
             box-shadow: 0 8px 25px rgba(16, 185, 129, 0.1);
         }
 
-        /* حاوية قائمة الانتظار المميزة بمستطيل وتدرج فريد */
         .section-container-waiting {
             background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(120, 53, 15, 0.15) 100%);
             border: 2px solid rgba(245, 158, 11, 0.35);
@@ -252,7 +250,6 @@
             outline: none;
         }
 
-        /* حاوية السجل المخفية بشكل افتراضي مع سهم إظهار */
         .report-box {
             background: var(--glass-bg);
             backdrop-filter: blur(16px);
@@ -263,7 +260,7 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
         }
         .report-content-wrapper {
-            display: none; /* مخفي تماماً بشكل افتراضي */
+            display: none;
             margin-top: 12px;
         }
         .report-item {
@@ -305,14 +302,12 @@
         <span class="status-tag"><span class="dot"></span> متصل لايف ومزامن للجميع</span>
     </header>
 
-    <!-- صندوق تنبيه وتأكيد الدور الخاص بك -->
     <div id="myTurnPromptBox" class="my-turn-prompt">
         <h3 id="promptTitle">🎉 حان دورك بالبريك!</h3>
         <p id="promptDesc">الرجاء التأكيد والدخول الآن.</p>
         <button type="button" class="btn" style="background: #ffffff; color: #065f46; font-size: 1.05rem; width: 100%; border-radius: 10px;" onclick="confirmMyTurn()">✅ تأكيد ودخول البريك الآن</button>
     </div>
 
-    <!-- صندوق الإدخال الأساسي -->
     <div class="action-box">
         <input type="text" id="empName" placeholder="أدخل اسمك أولاً..." autocomplete="off" />
         <div class="action-buttons">
@@ -321,7 +316,6 @@
         </div>
     </div>
 
-    <!-- قسم في البريك الآن (داخل مستطيل مخصص ومميز بلون وتدرج أخضر) -->
     <div class="section-container-active">
         <div class="section-header-title" style="color: #34d399;">
             <span>🏃 في البريك الآن (عادي + سريع)</span>
@@ -329,7 +323,6 @@
         <div id="activeBox"></div>
     </div>
 
-    <!-- قسم قائمة الانتظار (داخل مستطيل مخصص ومميز بلون وتدرج برتقالي/ذهبي) -->
     <div class="section-container-waiting">
         <div class="section-header-title" style="color: #fbbf24;">
             <span>📋 قائمة الانتظار</span>
@@ -337,13 +330,11 @@
         <div id="waitingBox"></div>
     </div>
 
-    <!-- صندوق تبديل الأدوار -->
     <div class="swap-box" id="swapSection" style="display: none;">
         <div style="font-weight: bold; color: var(--accent-amber);" id="swapSectionTitle">🔄 تبديل دورك في الانتظار:</div>
         <div class="swap-controls" id="swapControlsContainer"></div>
     </div>
 
-    <!-- قسم السجل والتقارير (مخفي تماماً بشكل افتراضي مع سهم للإظهار) -->
     <div class="report-box">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <div style="font-size: 0.95rem; font-weight: bold; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
@@ -369,7 +360,7 @@
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
-    const db = firebase.database().ref('shared_company_breaks_v18');
+    const db = firebase.database().ref('shared_company_breaks_v19');
 
     let state = { active: [], waiting: [], reports: [], swapLogs: [] };
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
@@ -695,15 +686,16 @@
                 }
             }
 
-            const name1 = state.waiting[idx1].name;
-            const name2 = state.waiting[idx2].name;
             const oldPos1 = idx1 + 1;
             const oldPos2 = idx2 + 1;
 
+            // تنفيذ عملية التبديل بدقة صحيحة في المصفوفة
             const temp = state.waiting[idx1];
             state.waiting[idx1] = state.waiting[idx2];
             state.waiting[idx2] = temp;
 
+            const name1 = state.waiting[idx1].name;
+            const name2 = state.waiting[idx2].name;
             const newPos1 = idx1 + 1;
             const newPos2 = idx2 + 1;
 
@@ -713,8 +705,8 @@
                 id: String(Date.now() + 1),
                 receiverName: name1,
                 initiatorName: isAdmin ? 'الأدمن' : name2,
-                oldPos: oldPos1,
-                newPos: newPos1,
+                oldPos: oldPos2, // الرقم القديم الصحيح للشخص قبل التبديل
+                newPos: newPos1, // الرقم الجديد بعد التبديل
                 timestamp: Date.now(),
                 timeStr: new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' })
             });
@@ -723,8 +715,8 @@
                 id: String(Date.now() + 2),
                 receiverName: name2,
                 initiatorName: isAdmin ? 'الأدمن' : name1,
-                oldPos: oldPos2,
-                newPos: newPos2,
+                oldPos: oldPos1, // الرقم القديم الصحيح للشخص قبل التبديل
+                newPos: newPos2, // الرقم الجديد بعد التبديل
                 timestamp: Date.now(),
                 timeStr: new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' })
             });
@@ -913,10 +905,11 @@
         if (!state.reports || state.reports.length === 0) {
             rBox.innerHTML = '<div class="empty-msg">لا توجد تقارير مسجلة في آخر 24 ساعة</div>';
         } else {
+            // الموظف العادي يرى الاسم ونوع البريك فقط، بينما الأدمن يرى الأوقات والمدة الكاملة
             rBox.innerHTML = state.reports.map(rep => `
                 <div class="report-item">
                     <div><strong>${rep.name}</strong> <span style="color:var(--text-muted)">(${rep.type})</span></div>
-                    <span style="color: var(--accent-green); font-weight: bold;">${rep.duration}</span>
+                    ${isAdmin ? `<span style="color: var(--accent-green); font-weight: bold;">خروج: ${rep.startTime} | عودة: ${rep.endTime} (${rep.duration})</span>` : ``}
                 </div>
             `).join('');
         }
