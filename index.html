@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>سستم استراحة الموظفين اللحظي السحابي</title>
-    <!-- مكتبات التحديث السحابي المباشر Firebase -->
+    <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
@@ -166,13 +166,13 @@
 <div class="container">
     <header>
         <h2>☕ سستم استراحة الموظفين اللحظي السحابي</h2>
-        <span class="status-tag"><span class="dot"></span> مزمون أونلاين لمباشرة الجميع</span>
+        <span class="status-tag"><span class="dot"></span> مزامن أونلاين لجميع الموظفين</span>
     </header>
 
-    <form class="action-box" onsubmit="event.preventDefault(); submitBreak();">
-        <input type="text" id="empName" placeholder="أدخل اسمك واضغط Enter أو الزر..." autocomplete="off" />
-        <button type="submit" class="btn btn-green">طلب بريك 🏃</button>
-    </form>
+    <div class="action-box">
+        <input type="text" id="empName" placeholder="أدخل اسمك واضغط Enter أو الزر..." autocomplete="off" onkeydown="if(event.key === 'Enter') submitBreak();" />
+        <button type="button" class="btn btn-green" onclick="submitBreak()">طلب بريك 🏃</button>
+    </div>
 
     <div class="section-title" style="color: var(--accent-green);">
         <span>🏃 في البريك الآن (أقصى حد 2)</span>
@@ -184,30 +184,34 @@
     </div>
     <div id="waitingBox"></div>
 
-    <!-- قسم تبديل الأدوار -->
     <div class="swap-box" id="swapSection" style="display: none;">
         <div style="font-weight: bold; color: var(--accent-amber);">🔄 تبديل الأدوار في قائمة الانتظار:</div>
         <div class="swap-controls">
             <select id="swap1"></select>
             <span>مع</span>
             <select id="swap2"></select>
-            <button class="btn btn-amber" onclick="executeSwap()">تبديل</button>
+            <button type="button" class="btn btn-amber" onclick="executeSwap()">تبديل</button>
         </div>
     </div>
 </div>
 
 <script>
-    // تهيئة قاعدة البيانات السحابية الحية (Live Cloud Database)
+    // إعدادات المزامنة اللحظية
     const firebaseConfig = {
-        databaseURL: "https://enterprise-break-system-default-rtdb.firebaseio.com/"
+        databaseURL: "https://break-system-cloud-default-rtdb.firebaseio.com/"
     };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database().ref('company_break_queue');
+    
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.database().ref('company_break_live');
 
-    // الاستماع الحي والمباشر للتغيرات من أجهزة كل الموظفين
+    // المزامنة الحية المباشرة
     db.on('value', (snapshot) => {
         const data = snapshot.val() || { active: [], waiting: [] };
         renderUI(data.active || [], data.waiting || []);
+    }, (error) => {
+        console.error("Firebase Sync Error: ", error);
     });
 
     function submitBreak() {
@@ -215,7 +219,7 @@
         const name = input.value.trim();
         if (!name) return;
 
-        db.once('value', (snapshot) => {
+        db.once('value').then((snapshot) => {
             const data = snapshot.val() || { active: [], waiting: [] };
             let active = data.active || [];
             let waiting = data.waiting || [];
@@ -232,13 +236,16 @@
                 waiting.push(newItem);
             }
 
-            db.set({ active, waiting });
+            return db.set({ active, waiting });
+        }).then(() => {
             input.value = '';
+        }).catch((err) => {
+            alert("حدث خطأ أثناء الإرسال، حاول مجدداً");
         });
     }
 
     function endBreak(index) {
-        db.once('value', (snapshot) => {
+        db.once('value').then((snapshot) => {
             const data = snapshot.val() || { active: [], waiting: [] };
             let active = data.active || [];
             let waiting = data.waiting || [];
@@ -250,7 +257,7 @@
                 active.push(next);
             }
 
-            db.set({ active, waiting });
+            return db.set({ active, waiting });
         });
     }
 
@@ -263,7 +270,7 @@
             return;
         }
 
-        db.once('value', (snapshot) => {
+        db.once('value').then((snapshot) => {
             const data = snapshot.val() || { active: [], waiting: [] };
             let waiting = data.waiting || [];
 
@@ -274,13 +281,12 @@
                 const temp = waiting[idx1];
                 waiting[idx1] = waiting[idx2];
                 waiting[idx2] = temp;
-                db.set({ active: data.active || [], waiting });
+                return db.set({ active: data.active || [], waiting });
             }
         });
     }
 
     function renderUI(active, waiting) {
-        // قائمة البريك الحالي
         const aBox = document.getElementById('activeBox');
         if (active.length === 0) {
             aBox.innerHTML = '<div class="empty-msg">لا يوجد أحد بالبريك حالياً</div>';
@@ -288,12 +294,11 @@
             aBox.innerHTML = active.map((item, i) => `
                 <div class="card-active">
                     <div><strong>${item.name}</strong> <small style="color:var(--text-muted)">(${item.time})</small></div>
-                    <button class="btn btn-red" onclick="endBreak(${i})">إنهاء البريك</button>
+                    <button type="button" class="btn btn-red" onclick="endBreak(${i})">إنهاء البريك</button>
                 </div>
             `).join('');
         }
 
-        // قائمة الانتظار
         const wBox = document.getElementById('waitingBox');
         if (waiting.length === 0) {
             wBox.innerHTML = '<div class="empty-msg">قائمة الانتظار فارغة</div>';
@@ -306,7 +311,6 @@
             `).join('');
         }
 
-        // خيارات التبديل
         const s1 = document.getElementById('swap1');
         const s2 = document.getElementById('swap2');
         s1.innerHTML = s2.innerHTML = '';
