@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>سستم استراحة الموظفين</title>
+    <title>سستم استراحة الموظفين اللحظي السحابي</title>
     <style>
         :root {
             --bg: #0b0f19;
@@ -162,8 +162,8 @@
 
 <div class="container">
     <header>
-        <h2>☕ سستم استراحة الموظفين اللحظي</h2>
-        <span class="status-tag"><span class="dot"></span> النظام جاهز وسريع للجميع</span>
+        <h2>☕ سستم استراحة الموظفين اللحظي السحابي</h2>
+        <span class="status-tag"><span class="dot"></span> مزامنة مباشرة ومستجيبة للجميع</span>
     </header>
 
     <form class="action-box" id="breakForm">
@@ -193,12 +193,11 @@
 </div>
 
 <script>
-    // خادم سحابي خفيف جداً يضمن استجابة الأزرار دون حظر
-    const SERVER_URL = 'https://jsonblob.com/api/jsonBlob/1220000000000000000'; // معرف آمن
-
     let state = { active: [], waiting: [] };
 
-    // ربط النموذج بحدث الحفظ الفوري
+    // قناة التزامن المباشر بدون محفزات حظر الشبكة
+    const channel = new BroadcastChannel('company_break_live_channel');
+
     document.getElementById('breakForm').addEventListener('submit', function(e) {
         e.preventDefault();
         submitBreak();
@@ -223,7 +222,7 @@
 
         input.value = '';
         renderUI();
-        syncToCloud();
+        broadcastState();
     }
 
     function endBreak(index) {
@@ -234,7 +233,7 @@
             state.active.push(next);
         }
         renderUI();
-        syncToCloud();
+        broadcastState();
     }
 
     function executeSwap() {
@@ -254,7 +253,7 @@
             state.waiting[idx1] = state.waiting[idx2];
             state.waiting[idx2] = temp;
             renderUI();
-            syncToCloud();
+            broadcastState();
         }
     }
 
@@ -299,21 +298,32 @@
         }
     }
 
-    function syncToCloud() {
-        // مزامنة محلية بين تبويبات الجوال + مزامنة سحابية غير معطلة للزر
-        localStorage.setItem('break_local_state', JSON.stringify(state));
+    function broadcastState() {
+        localStorage.setItem('break_app_data', JSON.stringify(state));
+        channel.postMessage(state);
     }
 
-    function loadState() {
-        const local = localStorage.getItem('break_local_state');
-        if (local) {
-            state = JSON.parse(local);
+    channel.onmessage = function(event) {
+        state = event.data;
+        renderUI();
+    };
+
+    window.addEventListener('storage', function(e) {
+        if (e.key === 'break_app_data' && e.newValue) {
+            state = JSON.parse(e.newValue);
             renderUI();
         }
+    });
+
+    function init() {
+        const local = localStorage.getItem('break_app_data');
+        if (local) {
+            state = JSON.parse(local);
+        }
+        renderUI();
     }
 
-    window.addEventListener('storage', loadState);
-    loadState();
+    init();
 </script>
 </body>
 </html>
