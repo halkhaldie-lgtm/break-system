@@ -384,7 +384,7 @@
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
-    const db = firebase.database().ref('shared_company_breaks_v11');
+    const db = firebase.database().ref('shared_company_breaks_v12');
 
     let state = { active: [], waiting: [], reports: [] };
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
@@ -457,7 +457,6 @@
     }
 
     function showToast(message, type = 'info', external = false) {
-        // إشعار داخل الموقع (Toast)
         const container = document.getElementById('toast-container');
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
@@ -468,7 +467,6 @@
             toast.remove();
         }, 5000);
 
-        // إشعار نظام التشغيل الخارجي (فقط عند الحاجة القصيى كحلول الدور)
         if (external && "Notification" in window && Notification.permission === "granted") {
             try {
                 const notif = new Notification("☕ دورك قد حان في الاستراحة!", {
@@ -484,7 +482,6 @@
         }
     }
 
-    // استماع للتغييرات السحابية
     db.on('value', (snapshot) => {
         const val = snapshot.val();
         const currentStateStr = JSON.stringify(val);
@@ -515,7 +512,6 @@
                 const wasMyTurnBefore = (oldFirstNormal && oldFirstNormal.name.trim().toLowerCase() === myUserLower) ||
                                         (oldFirstQuick && oldFirstQuick.name.trim().toLowerCase() === myUserLower);
 
-                // يتم إطلاق الإشعار الخارجي والصوتي فقط عندما يتغير الحالة ويصبح دور المستخدم هو الأول بانتظار التأكيد
                 if (isMyTurn && !wasMyTurnBefore) {
                     showToast(`يا ${myName}: انتهى من يسبقك وحان دورك! يرجى الضغط على زر التأكيد ودخول البريك.`, 'success', true);
                     playBeep('turn');
@@ -583,20 +579,27 @@
             timeStr: new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' })
         };
 
-        const hasNormal = state.active.some(item => item.type === 'normal');
-        const hasQuick = state.active.some(item => item.type === 'quick');
-
-        let canEnter = false;
-        if (type === 'normal' && !hasNormal) {
-            canEnter = true;
-        } else if (type === 'quick' && !hasQuick) {
-            canEnter = true;
-        }
-
-        if (canEnter) {
-            state.active.push(newItem);
-        } else {
+        // **التعديل الجذري هنا:** 
+        // بغض النظر عما إذا كان مكان البريك فارغاً أم لا، طالما أن هناك أي شخص مسبقاً في قائمة الانتظار، 
+        // سيتم إرسال الشخص الجديد مباشرة إلى قائمة الانتظار لضمان عدم تخطي أي شخص ينتظر دوره.
+        if (state.waiting.length > 0) {
             state.waiting.push(newItem);
+        } else {
+            const hasNormal = state.active.some(item => item.type === 'normal');
+            const hasQuick = state.active.some(item => item.type === 'quick');
+
+            let canEnter = false;
+            if (type === 'normal' && !hasNormal) {
+                canEnter = true;
+            } else if (type === 'quick' && !hasQuick) {
+                canEnter = true;
+            }
+
+            if (canEnter) {
+                state.active.push(newItem);
+            } else {
+                state.waiting.push(newItem);
+            }
         }
 
         input.value = '';
