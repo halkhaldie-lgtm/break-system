@@ -165,7 +165,6 @@
             align-items: center;
         }
 
-        /* صندوق مطالبة الدور المرتقب */
         .my-turn-prompt {
             background: linear-gradient(135deg, #065f46, #047857);
             border: 2px solid var(--accent-green);
@@ -259,7 +258,6 @@
 
         .empty-msg { color: var(--text-muted); font-size: 0.9rem; padding: 10px 0; }
 
-        /* تصميم الإشعارات المنبثقة أسفل الشاشة */
         #toast-container {
             position: fixed;
             bottom: 20px;
@@ -327,7 +325,7 @@
     </div>
 
     <div class="section-title" style="color: var(--accent-green);">
-        <span>🏃 في البريك الآن (أقصى حد 2)</span>
+        <span>🏃 في البريك الآن (عادي + سريع)</span>
     </div>
     <div id="activeBox"></div>
 
@@ -371,14 +369,13 @@
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
-    const db = firebase.database().ref('shared_company_breaks_v7');
+    const db = firebase.database().ref('shared_company_breaks_v8');
 
     let state = { active: [], waiting: [], reports: [] };
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
     let myName = localStorage.getItem('my_employee_name') || '';
     let lastKnownStateStr = '';
 
-    // دالة لتوليد صوت تنبيه خفيف عبر المتصفح
     function playBeep(type = 'normal') {
         try {
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -399,12 +396,9 @@
             
             osc.start();
             osc.stop(audioCtx.currentTime + 0.2);
-        } catch(e) {
-            console.log("Audio policy restricted");
-        }
+        } catch(e) {}
     }
 
-    // إشعار منبثق أسفل الشاشة
     function showToast(message, type = 'info') {
         const container = document.getElementById('toast-container');
         const toast = document.createElement('div');
@@ -417,6 +411,7 @@
         }, 5000);
     }
 
+    // استماع محسن وسريع للتغييرات
     db.on('value', (snapshot) => {
         const val = snapshot.val();
         const currentStateStr = JSON.stringify(val);
@@ -428,20 +423,31 @@
             const newActive = val.active || [];
             const newWaiting = val.waiting || [];
 
-            // التحقق إذا أصبح دوري هو الأول (في المركز الأول بالانتظار) وشاغر مكان في النشطين
-            if (myName && lastKnownStateStr) {
+            if (myName && lastKnownStateStr && currentStateStr !== lastKnownStateStr) {
                 const oldData = JSON.parse(lastKnownStateStr);
                 const oldWaiting = oldData.waiting || [];
-                const wasFirstInWaiting = oldWaiting.length > 0 && oldWaiting[0].name.trim().toLowerCase() === myName.trim().toLowerCase();
-                const isNowFirstInWaiting = newWaiting.length > 0 && newWaiting[0].name.trim().toLowerCase() === myName.trim().toLowerCase();
+                
+                // فحص إذا أصبح المستخدم هو الأول في صف الانتظار لنوعه المخصص
+                const myUserLower = myName.trim().toLowerCase();
+                const firstNormal = newWaiting.find(w => w.type === 'normal');
+                const firstQuick = newWaiting.find(w => w.type === 'quick');
 
-                // إذا أصبح هو الأول في الانتظار ومقاعد البريك تسمح بدخوله ولم يؤكد بعد
-                if (!wasFirstInWaiting && isNowFirstInWaiting && newActive.length < 2) {
+                const hasNormalSlot = !newActive.some(a => a.type === 'normal');
+                const hasQuickSlot = !newActive.some(a => a.type === 'quick');
+
+                const isMyTurn = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) ||
+                                 (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot);
+
+                const oldFirstNormal = oldWaiting.find(w => w.type === 'normal');
+                const oldFirstQuick = oldWaiting.find(w => w.type === 'quick');
+                const wasMyTurnBefore = (oldFirstNormal && oldFirstNormal.name.trim().toLowerCase() === myUserLower) ||
+                                        (oldFirstQuick && oldFirstQuick.name.trim().toLowerCase() === myUserLower);
+
+                if (isMyTurn && !wasMyTurnBefore) {
                     showToast(`🔔 يا ${myName}: حان دورك للتوجه إلى الاستراحة! يرجى التأكيد.`, 'success');
                     playBeep('turn');
-                } else if (currentStateStr !== lastKnownStateStr) {
+                } else {
                     showToast('🔔 تم تحديث حالة الاستراحة من قبل أحد الزملاء', 'info');
-                    playBeep('normal');
                 }
             }
 
@@ -506,8 +512,18 @@
             timeStr: new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' })
         };
 
-        // الدخول المباشر فقط إذا كانت الاستراحة فارغة تماماً
-        if (state.active.length === 0) {
+        // التحقق من إمكانية الدخول المباشر (يسمح بعادي واحد وسريع واحد كحد أقصى معاً)
+        const hasNormal = state.active.some(item => item.type === 'normal');
+        const hasQuick = state.active.some(item => item.type === 'quick');
+
+        let canEnter = false;
+        if (type === 'normal' && !hasNormal) {
+            canEnter = true;
+        } else if (type === 'quick' && !hasQuick) {
+            canEnter = true;
+        }
+
+        if (canEnter) {
             state.active.push(newItem);
         } else {
             state.waiting.push(newItem);
@@ -517,26 +533,31 @@
         db.set(state);
     }
 
-    // زر تأكيد الدور عندما يحين دور الموظف
+    // زر تأكيد الدور مع مراعاة نوع البريك بدقة (العادي يستبدل العادي، والسريع يستبدل السريع)
     function confirmMyTurn() {
         if (!myName) return;
-        const index = state.waiting.findIndex(item => item.name.trim().toLowerCase() === myName.trim().toLowerCase());
+        const myUserLower = myName.trim().toLowerCase();
         
+        // البحث عن المستخدم في صف الانتظار
+        const index = state.waiting.findIndex(item => item.name.trim().toLowerCase() === myUserLower);
         if (index === -1) {
             alert('أنت لست في قائمة الانتظار حالياً!');
             return;
         }
 
-        if (state.active.length >= 2) {
-            alert('الاستراحة ممتلئة حالياً، يرجى الانتظار حتى يفرغ مكان.');
+        const userItem = state.waiting[index];
+        const hasSameTypeActive = state.active.some(item => item.type === userItem.type);
+
+        if (hasSameTypeActive) {
+            alert(`مكان بريك (${userItem.type === 'normal' ? 'العادي' : 'السريع'}) ما زال ممتلئاً، يرجى الانتظار حتى يعود زميلك من نفس النوع.`);
             return;
         }
 
         // سحب العنصر من الانتظار وتحديث وقته ووضعه في النشطين
-        const item = state.waiting.splice(index, 1)[0];
-        item.timestamp = Date.now();
-        item.timeStr = new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' });
-        state.active.push(item);
+        state.waiting.splice(index, 1);
+        userItem.timestamp = Date.now();
+        userItem.timeStr = new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' });
+        state.active.push(userItem);
 
         db.set(state);
         showToast('✅ تم تأكيد ذهابك إلى البريك بنجاح!', 'success');
@@ -563,7 +584,6 @@
             });
         }
 
-        // ملاحظة: تم إيقاف الانتقال التلقائي بناءً على طلبك، لكي يضطر الموظف للضغط على زر التأكيد بنفسه.
         db.set(state);
     }
 
@@ -654,13 +674,21 @@
             clearBtn.style.display = 'none';
         }
 
-        // إظهار أو إخفاء صندوق التأكيد الخاص بك بناءً على ما إذا كان دورك قد حان وهناك مكان شاغر
+        // فحص إذا حان دور الموظف الحالي بناءً على نوع بريكه ونوع المكان الشاغر
         const promptBox = document.getElementById('myTurnPromptBox');
         let showMyPrompt = false;
 
-        if (myName && state.waiting.length > 0 && state.active.length < 2) {
-            const firstWaiting = state.waiting[0];
-            if (firstWaiting.name.trim().toLowerCase() === myName.trim().toLowerCase()) {
+        if (myName && state.waiting.length > 0) {
+            const myUserLower = myName.trim().toLowerCase();
+            const firstNormal = state.waiting.find(w => w.type === 'normal');
+            const firstQuick = state.waiting.find(w => w.type === 'quick');
+
+            const hasNormalSlot = !state.active.some(a => a.type === 'normal');
+            const hasQuickSlot = !state.active.some(a => a.type === 'quick');
+
+            if (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) {
+                showMyPrompt = true;
+            } else if (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot) {
                 showMyPrompt = true;
             }
         }
@@ -721,13 +749,25 @@
                 const showCancelBtn = (isOwner || isAdmin);
                 const isQuick = item.type === 'quick';
 
+                // التحقق مما إذا كان دوره قد حان للتوجه للاستراحة
+                let isReadyToConfirm = false;
+                if (isQuick) {
+                    const firstQ = state.waiting.find(w => w.type === 'quick');
+                    const hasQSlot = !state.active.some(a => a.type === 'quick');
+                    if (firstQ && firstQ.id === item.id && hasQSlot) isReadyToConfirm = true;
+                } else {
+                    const firstN = state.waiting.find(w => w.type === 'normal');
+                    const hasNSlot = !state.active.some(a => a.type === 'normal');
+                    if (firstN && firstN.id === item.id && hasNSlot) isReadyToConfirm = true;
+                }
+
                 let noticeText = '';
-                if (i === 0) {
-                    noticeText = `<br><small style="color: var(--accent-green); font-weight: bold;">⚡ الدور الحالي بانتظار التأكيد!</small>`;
+                if (isReadyToConfirm) {
+                    noticeText = `<br><small style="color: var(--accent-green); font-weight: bold;">⚡ حان دورك بانتظار التأكيد!</small>`;
                 }
 
                 return `
-                    <div class="card-waiting" style="${i === 0 ? 'border-color: var(--accent-green); background: rgba(16,185,129,0.05);' : ''}">
+                    <div class="card-waiting" style="${isReadyToConfirm ? 'border-color: var(--accent-green); background: rgba(16,185,129,0.05);' : ''}">
                         <div>
                             <span>#${i + 1} - <strong>${item.name}</strong></span>
                             <span class="badge-time" style="margin-right: 8px;">${waitingDurationStr}</span>
@@ -747,8 +787,8 @@
         if (state.waiting && state.waiting.length >= 2) {
             document.getElementById('swapSection').style.display = 'block';
             state.waiting.forEach((item, i) => {
-                s1.add(new Option(`#${i + 1} - ${item.name}`, item.id));
-                s2.add(new Option(`#${i + 1} - ${item.name}`, item.id));
+                s1.add(new Option(`#${i + 1} - ${item.name} (${item.type === 'quick' ? 'سريع' : 'عادي'})`, item.id));
+                s2.add(new Option(`#${i + 1} - ${item.name} (${item.type === 'quick' ? 'سريع' : 'عادي'})`, item.id));
             });
             if (s2.options.length > 1) s2.selectedIndex = 1;
         } else {
@@ -771,12 +811,6 @@
             `).join('');
         }
     }
-
-    setInterval(() => {
-        if (state.active.length > 0 || state.waiting.length > 0) {
-            renderUI();
-        }
-    }, 10000);
 </script>
 </body>
 </html>
