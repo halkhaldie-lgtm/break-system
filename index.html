@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>سستم استراحة الموظفين المشترك مع التقارير وصلاحيات الأدمن</title>
+    <title>سستم استراحة الموظفين المشترك</title>
     <!-- استدعاء قواعد بيانات Firebase السحابية الحية -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -150,6 +150,32 @@
             align-items: center;
         }
 
+        .swap-box {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+
+        .swap-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+
+        select {
+            flex: 1;
+            background: #0b0f19;
+            border: 1px solid var(--border);
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            min-width: 120px;
+        }
+
         .report-box {
             background: var(--card-bg);
             border: 1px solid var(--border);
@@ -212,6 +238,17 @@
         <span>📋 قائمة الانتظار</span>
     </div>
     <div id="waitingBox"></div>
+
+    <!-- صندوق تبديل الأدوار -->
+    <div class="swap-box" id="swapSection" style="display: none;">
+        <div style="font-weight: bold; color: var(--accent-amber);">🔄 تبديل الأدوار في قائمة الانتظار:</div>
+        <div class="swap-controls">
+            <select id="swap1"></select>
+            <span>مع</span>
+            <select id="swap2"></select>
+            <button type="button" class="btn btn-amber" onclick="executeSwap()">تبديل</button>
+        </div>
+    </div>
 
     <!-- قسم تقارير وسجل البريكات لآخر 24 ساعة -->
     <div class="report-box">
@@ -332,6 +369,26 @@
         db.set(state);
     }
 
+    function executeSwap() {
+        const id1 = document.getElementById('swap1').value;
+        const id2 = document.getElementById('swap2').value;
+
+        if (!id1 || !id2 || id1 === id2) {
+            alert('يرجى اختيار اسمين مختلفين للتبديل!');
+            return;
+        }
+
+        const idx1 = state.waiting.findIndex(x => x.id === id1);
+        const idx2 = state.waiting.findIndex(x => x.id === id2);
+
+        if (idx1 > -1 && idx2 > -1) {
+            const temp = state.waiting[idx1];
+            state.waiting[idx1] = state.waiting[idx2];
+            state.waiting[idx2] = temp;
+            db.set(state);
+        }
+    }
+
     function clearReports() {
         if (!isAdmin) {
             alert('هذا الإجراء مخصص للأدمن فقط!');
@@ -367,7 +424,6 @@
     function renderUI() {
         const currentTime = Date.now();
 
-        // تحديث مظهر زر الأدمن وإخفاء زر المسح للموظفين العاديين تماماً
         const adminBtn = document.getElementById('adminBtn');
         const clearBtn = document.getElementById('clearBtn');
         
@@ -376,13 +432,13 @@
             adminBtn.style.color = 'var(--accent-green)';
             adminBtn.style.borderColor = 'var(--accent-green)';
             adminBtn.innerText = '🔓 أدمن (مفعل)';
-            clearBtn.style.display = 'inline-block'; // يظهر فقط إذا كان الأدمن مفعلًا في هذا الجهاز
+            clearBtn.style.display = 'inline-block';
         } else {
             adminBtn.style.background = 'rgba(59, 130, 246, 0.15)';
             adminBtn.style.color = 'var(--accent-blue)';
             adminBtn.style.borderColor = 'var(--accent-blue)';
             adminBtn.innerText = '🔒 وضع الأدمن';
-            clearBtn.style.display = 'none'; // مخفي تماماً عن أي موظف عادي
+            clearBtn.style.display = 'none';
         }
 
         const aBox = document.getElementById('activeBox');
@@ -421,6 +477,22 @@
                     </div>
                 `;
             }).join('');
+        }
+
+        // إظهار أو إخفاء خيار تبديل الأدوار تلقائياً إذا كان هناك شخصان أو أكثر في الانتظار
+        const s1 = document.getElementById('swap1');
+        const s2 = document.getElementById('swap2');
+        s1.innerHTML = s2.innerHTML = '';
+
+        if (state.waiting && state.waiting.length >= 2) {
+            document.getElementById('swapSection').style.display = 'block';
+            state.waiting.forEach((item, i) => {
+                s1.add(new Option(`#${i + 1} - ${item.name}`, item.id));
+                s2.add(new Option(`#${i + 1} - ${item.name}`, item.id));
+            });
+            if (s2.options.length > 1) s2.selectedIndex = 1;
+        } else {
+            document.getElementById('swapSection').style.display = 'none';
         }
 
         const rBox = document.getElementById('reportsBox');
