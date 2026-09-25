@@ -345,7 +345,7 @@
     <div id="activeBox"></div>
 
     <div class="section-title" style="color: var(--accent-amber);">
-        <span>📋 قائمة الانتظار (ترتيب صارم)</span>
+        <span>📋 قائمة الانتظار</span>
     </div>
     <div id="waitingBox"></div>
 
@@ -384,14 +384,13 @@
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
-    const db = firebase.database().ref('shared_company_breaks_v10');
+    const db = firebase.database().ref('shared_company_breaks_v11');
 
     let state = { active: [], waiting: [], reports: [] };
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
     let myName = localStorage.getItem('my_employee_name') || '';
     let lastKnownStateStr = '';
 
-    // التحقق من حالة الإشعارات عند التحميل لتحديث شكل الزر
     document.addEventListener('DOMContentLoaded', () => {
         updateNotificationButtonUI();
     });
@@ -457,7 +456,7 @@
         } catch(e) {}
     }
 
-    function showToast(message, type = 'info') {
+    function showToast(message, type = 'info', external = false) {
         // إشعار داخل الموقع (Toast)
         const container = document.getElementById('toast-container');
         const toast = document.createElement('div');
@@ -469,13 +468,13 @@
             toast.remove();
         }, 5000);
 
-        // إشعار نظام التشغيل الخارجي (Browser Native Notification)
-        if ("Notification" in window && Notification.permission === "granted") {
+        // إشعار نظام التشغيل الخارجي (فقط عند الحاجة القصيى كحلول الدور)
+        if (external && "Notification" in window && Notification.permission === "granted") {
             try {
-                const notif = new Notification("☕ تنبيه استراحة الموظفين", {
+                const notif = new Notification("☕ دورك قد حان في الاستراحة!", {
                     body: message,
                     icon: "https://cdn-icons-png.flaticon.com/512/3176/3176366.png",
-                    requireInteraction: true // يظل ظاهراً حتى يتفاعل معه المستخدم
+                    requireInteraction: true
                 });
                 notif.onclick = function() {
                     window.focus();
@@ -516,8 +515,9 @@
                 const wasMyTurnBefore = (oldFirstNormal && oldFirstNormal.name.trim().toLowerCase() === myUserLower) ||
                                         (oldFirstQuick && oldFirstQuick.name.trim().toLowerCase() === myUserLower);
 
+                // يتم إطلاق الإشعار الخارجي والصوتي فقط عندما يتغير الحالة ويصبح دور المستخدم هو الأول بانتظار التأكيد
                 if (isMyTurn && !wasMyTurnBefore) {
-                    showToast(`يا ${myName}: حان دورك للتوجه إلى الاستراحة! يرجى التأكيد.`, 'success');
+                    showToast(`يا ${myName}: انتهى من يسبقك وحان دورك! يرجى الضغط على زر التأكيد ودخول البريك.`, 'success', true);
                     playBeep('turn');
                 }
             }
@@ -596,7 +596,6 @@
         if (canEnter) {
             state.active.push(newItem);
         } else {
-            // يتم وضعه في قائمة الانتظار بشكل نظامي دون أي تخطي
             state.waiting.push(newItem);
         }
 
@@ -615,8 +614,6 @@
         }
 
         const userItem = state.waiting[index];
-
-        // شرط صارم: التأكد أن هذا الشخص هو الأول في طابور نوعه (عادي أو سريع) ولم يتم تخطيه
         const firstOfThisType = state.waiting.find(w => w.type === userItem.type);
         if (!firstOfThisType || firstOfThisType.id !== userItem.id) {
             alert('عذراً، يوجد شخص قبلك في طابور الانتظار يجب أن يأخذ دوره أولاً!');
@@ -635,7 +632,7 @@
         state.active.push(userItem);
 
         db.set(state);
-        showToast('تم تأكيد ذهابك إلى البريك بنجاح!', 'success');
+        showToast('تم تأكيد ذهابك إلى البريك بنجاح!', 'success', false);
     }
 
     function endBreak(index) {
