@@ -258,8 +258,8 @@
 
     <!-- صندوق تنبيه وتأكيد الدور الخاص بك -->
     <div id="myTurnPromptBox" class="my-turn-prompt">
-        <h3 id="promptTitle">🎉 لقد حان دورك في الاستراحة!</h3>
-        <p id="promptDesc">بإمكانك الآن تأكيد الذهاب للبريك لينتقل اسمك مباشرة إلى قائمة النشطين.</p>
+        <h3 id="promptTitle">🎉 حان دورك بالبريك!</h3>
+        <p id="promptDesc">الرجاء التأكيد والدخول الآن.</p>
         <button type="button" class="btn btn-amber" style="background: #ffffff; color: #065f46; font-size: 1.05rem;" onclick="confirmMyTurn()">✅ تأكيد ودخول البريك الآن</button>
     </div>
 
@@ -382,7 +382,6 @@
         playBeep();
         if ("Notification" in window && Notification.permission === "granted") {
             try {
-                // استخدام دالة إشعار قياسية مباشرة مدعومة بالكامل من كروم وإيدج
                 const notif = new Notification(title, {
                     body: bodyText,
                     icon: "https://cdn-icons-png.flaticon.com/512/3176/3176366.png",
@@ -397,6 +396,7 @@
     }
 
     let previousWasMyTurn = false;
+    let previousWasAlmostTurn = false;
 
     db.on('value', (snapshot) => {
         const val = snapshot.val();
@@ -413,7 +413,6 @@
             state = { active: [], waiting: [], reports: [] };
         }
 
-        // فحص الدور وإطلاق الإشعار بشكل مباشر وفوري
         checkMyTurnAndNotify();
         renderUI();
     });
@@ -429,16 +428,29 @@
         const hasNormalSlot = !newActive.some(a => a.type === 'normal');
         const hasQuickSlot = !newActive.some(a => a.type === 'quick');
 
+        // 1. تحقق ما إذا حان دوري فعلياً
         const isMyTurn = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) ||
                          (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot);
 
         if (isMyTurn && !previousWasMyTurn) {
             sendDesktopNotification(
-                "🚨 حان دورك في البريك!", 
-                `يا ${myName}: حان وقت بريكك الآن. اضغط هنا للدخول والتأكيد!`
+                "🚨 حان دورك بالبريك", 
+                "حان دورك بالبريك الرجاء التاكيد"
             );
         }
         previousWasMyTurn = isMyTurn;
+
+        // 2. تحقق ما إذا كان الشخص الذي قبلي قد خرج (وأصبحت أنا رقم 1 في الطابور وأنتظر شغر المكان)
+        const myIndex = newWaiting.findIndex(w => w.name.trim().toLowerCase() === myUserLower);
+        const isAlmostMyTurn = (myIndex === 0 && !isMyTurn);
+
+        if (isAlmostMyTurn && !previousWasAlmostTurn) {
+            sendDesktopNotification(
+                "⏳ تنبيه قرب الدور", 
+                "هناك شخص واحد قبلك استعد"
+            );
+        }
+        previousWasAlmostTurn = isAlmostMyTurn;
 
         // ترحيل الانتظار التلقائي (في حال بقاء الشخص أكثر من 5 دقائق بدون تأكيد)
         if (newWaiting.length > 0) {
@@ -504,7 +516,8 @@
 
         myName = name;
         localStorage.setItem('my_employee_name', myName);
-        previousWasMyTurn = false; // إعادة تعيين حالة التنبيه للإسم الجديد
+        previousWasMyTurn = false;
+        previousWasAlmostTurn = false;
 
         const now = Date.now();
         const newItem = {
@@ -762,8 +775,8 @@
                 let noticeText = '';
                 if (isReadyToConfirm) {
                     noticeText = `<br><small style="color: var(--accent-green); font-weight: bold;">⚡ حان دورك بانتظار التأكيد!</small>`;
-                } else if (i === 1) {
-                    noticeText = `<br><small style="color: var(--accent-amber);">⏳ دورك سيكون بعد شخص واحد (استعد)</small>`;
+                } else if (i === 0) {
+                    noticeText = `<br><small style="color: var(--accent-amber);">⏳ أنت التالي (هناك شخص واحد قبلك)</small>`;
                 } else {
                     noticeText = `<br><small style="color: var(--accent-amber);">⏳ في الانتظار</small>`;
                 }
