@@ -275,8 +275,6 @@
 
     let state = { active: [], waiting: [], reports: [] };
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
-
-    // حفظ اسم الموظف محلياً في جهازه ليعرف النظام من هو صاحبه
     let myName = localStorage.getItem('my_employee_name') || '';
 
     db.on('value', (snapshot) => {
@@ -324,6 +322,16 @@
         const input = document.getElementById('empName');
         const name = input.value.trim();
         if (!name) return;
+
+        // التحقق مما إذا كان الاسم مسجلاً مسبقاً (في البريك أو الانتظار) لمنع التكرار
+        const nameLower = name.toLowerCase();
+        const isInActive = state.active.some(item => item.name.trim().toLowerCase() === nameLower);
+        const isInWaiting = state.waiting.some(item => item.name.trim().toLowerCase() === nameLower);
+
+        if (isInActive || isInWaiting) {
+            alert('عذراً، هذا الاسم موجود بالفعل (إما في البريك أو في قائمة الانتظار)! لا يمكنك تسجيل دور جديد حتى تنتهي من دورك الحالي.');
+            return;
+        }
 
         myName = name;
         localStorage.setItem('my_employee_name', myName);
@@ -373,6 +381,22 @@
         }
 
         db.set(state);
+    }
+
+    // دالة جديدة لإلغاء الدور من قائمة الانتظار (خاصة بصاحب الدور أو الأدمن)
+    function cancelWaiting(index) {
+        const item = state.waiting[index];
+        const isOwner = myName && item.name.trim().toLowerCase() === myName.trim().toLowerCase();
+
+        if (!isOwner && !isAdmin) {
+            alert('يمكنك إلغاء دورك الخاص فقط!');
+            return;
+        }
+
+        if (confirm(`هل أنت متأكد من إلغاء دورك (${item.name}) من قائمة الانتظار؟`)) {
+            state.waiting.splice(index, 1);
+            db.set(state);
+        }
     }
 
     function executeSwap() {
@@ -455,7 +479,6 @@
                 const minsInBreak = Math.floor((currentTime - item.timestamp) / 60000);
                 const activeDurationStr = minsInBreak === 0 ? 'منذ أقل من دقيقة' : `منذ ${minsInBreak} دقيقة`;
                 
-                // زر إنهاء البريك يظهر فقط إذا كان هذا الموظف هو صاحب الجهاز (أو إذا كان وضع الأدمن مفعلًا)
                 const isOwner = myName && item.name.trim().toLowerCase() === myName.trim().toLowerCase();
                 const showEndBtn = (isOwner || isAdmin);
 
@@ -479,12 +502,18 @@
             wBox.innerHTML = state.waiting.map((item, i) => {
                 const minsWaiting = Math.floor((currentTime - item.timestamp) / 60000);
                 const waitingDurationStr = minsWaiting === 0 ? 'منذ أقل من دقيقة' : `انتظار: ${minsWaiting} دقيقة`;
+                
+                const isOwner = myName && item.name.trim().toLowerCase() === myName.trim().toLowerCase();
+                // زر إلغاء الدور يظهر لصاحب الدور أو للأدمن
+                const showCancelBtn = (isOwner || isAdmin);
+
                 return `
                     <div class="card-waiting">
                         <div>
                             <span>#${i + 1} - <strong>${item.name}</strong></span>
+                            <span class="badge-time" style="margin-right: 8px;">${waitingDurationStr}</span>
                         </div>
-                        <span class="badge-time">${waitingDurationStr}</span>
+                        ${showCancelBtn ? `<button type="button" class="btn btn-red" style="padding: 4px 10px; font-size: 0.75rem;" onclick="cancelWaiting(${i})">إلغاء الدور</button>` : ``}
                     </div>
                 `;
             }).join('');
