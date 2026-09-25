@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>سستم استراحة الموظفين اللحظي السحابي</title>
-    <!-- مكتبات Firebase المباشرة -->
+    <title>سستم استراحة الموظفين المشترك</title>
+    <!-- استدعاء قواعد بيانات Firebase السحابية الحية -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
@@ -165,8 +165,8 @@
 
 <div class="container">
     <header>
-        <h2>☕ سستم استراحة الموظفين اللحظي السحابي</h2>
-        <span class="status-tag"><span class="dot"></span> مزامنة مباشرة أونلاين لجميع الموظفين</span>
+        <h2>☕ سستم استراحة الموظفين المشترك</h2>
+        <span class="status-tag"><span class="dot"></span> متصل لايف ومزامن للجميع</span>
     </header>
 
     <form class="action-box" id="breakForm">
@@ -196,7 +196,7 @@
 </div>
 
 <script>
-    // إعداد السيرفر السحابي المباشر
+    // إعدادات الاتصال بالسيرفر المشترك
     const firebaseConfig = {
         databaseURL: "https://break-system-live-default-rtdb.asia-southeast1.firebasedatabase.app/"
     };
@@ -204,11 +204,11 @@
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
-    const db = firebase.database().ref('live_break_state');
+    const db = firebase.database().ref('shared_company_breaks');
 
     let state = { active: [], waiting: [] };
 
-    // استقبال التغييرات لحظياً من السحابة لكل الموظفين
+    // الاستماع الفوري لأي تغيير يحدث من أي موظف أونلاين
     db.on('value', (snapshot) => {
         const val = snapshot.val();
         if (val) {
@@ -245,7 +245,7 @@
         }
 
         input.value = '';
-        db.set(state); // رفع التغيير للسحابة فوراً
+        db.set(state); // تحديث فوري وسحابي يشاهده الجميع
     }
 
     function endBreak(index) {
@@ -255,7 +255,7 @@
             next.time = new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' });
             state.active.push(next);
         }
-        db.set(state); // رفع التغيير للسحابة فوراً
+        db.set(state); // تحديث فوري للجميع
     }
 
     function executeSwap() {
@@ -274,7 +274,7 @@
             const temp = state.waiting[idx1];
             state.waiting[idx1] = state.waiting[idx2];
             state.waiting[idx2] = temp;
-            db.set(state); // رفع التغيير للسحابة فوراً
+            db.set(state); // تحديث فوري للجميع
         }
     }
 
