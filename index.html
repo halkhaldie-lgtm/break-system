@@ -368,13 +368,13 @@
             
             osc.type = 'sine';
             osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
-            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
 
             osc.connect(gain);
             gain.connect(audioCtx.destination);
             
             osc.start();
-            osc.stop(audioCtx.currentTime + 0.4);
+            osc.stop(audioCtx.currentTime + 0.5);
         } catch(e) {}
     }
 
@@ -382,10 +382,11 @@
         playBeep();
         if ("Notification" in window && Notification.permission === "granted") {
             try {
+                // إظهار إشعار سطح المكتب بخصائص تضمن ظهوره واستمراره
                 const notif = new Notification(title, {
                     body: bodyText,
                     icon: "https://cdn-icons-png.flaticon.com/512/3176/3176366.png",
-                    tag: "break-turn-notification"
+                    requireInteraction: true
                 });
                 notif.onclick = function() {
                     window.focus();
@@ -395,8 +396,7 @@
         }
     }
 
-    let previousMyTurnState = false;
-    let previousAlmostTurnState = false;
+    let lastNotifiedTurnState = "";
 
     db.on('value', (snapshot) => {
         const val = snapshot.val();
@@ -428,23 +428,29 @@
         const hasNormalSlot = !newActive.some(a => a.type === 'normal');
         const hasQuickSlot = !newActive.some(a => a.type === 'quick');
 
-        // هل حان دوري فعلياً ودخلت مكان البريك المتاح؟
+        // حالة 1: حان دوري فعلياً
         const isMyTurn = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) ||
                          (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot);
 
-        if (isMyTurn && !previousMyTurnState) {
-            sendDesktopNotification("🚨 حان دورك بالبريك", "حان دورك بالبريك الرجاء التأكيد");
-        }
-        previousMyTurnState = isMyTurn;
-
-        // هل أنا رقم 1 في الطابور وأنتظر شغر المكان (أي أن الشخص الذي قبلي خرج)؟
+        // حالة 2: أنا رقم 1 في الطابور وأنتظر شغر المكان (أي أن الشخص الذي قبلي خرج وبقي شخص واحد فقط قبلي ليفرغ المكان)
         const myIndex = newWaiting.findIndex(w => w.name.trim().toLowerCase() === myUserLower);
         const isAlmostMyTurn = (myIndex === 0 && !isMyTurn);
 
-        if (isAlmostMyTurn && !previousAlmostTurnState) {
-            sendDesktopNotification("⏳ تنبيه قرب الدور", "هناك شخص واحد قبلك استعد");
+        if (isMyTurn) {
+            if (lastNotifiedTurnState !== "my_turn") {
+                lastNotifiedTurnState = "my_turn";
+                sendDesktopNotification("🚨 حان دورك بالبريك", "حان دورك بالبريك الرجاء التأكيد والدخول الآن");
+            }
+        } else if (isAlmostMyTurn) {
+            if (lastNotifiedTurnState !== "almost_turn") {
+                lastNotifiedTurnState = "almost_turn";
+                sendDesktopNotification("⏳ تنبيه قرب الدور", "هناك شخص واحد قبلك استعد");
+            }
+        } else {
+            if (myIndex > 0 || myIndex === -1) {
+                lastNotifiedTurnState = ""; // إعادة ضبط الحالة إذا تغير الوضع
+            }
         }
-        previousAlmostTurnState = isAlmostMyTurn;
 
         if (newWaiting.length > 0) {
             let targetToShift = null;
@@ -509,8 +515,7 @@
 
         myName = name;
         localStorage.setItem('my_employee_name', myName);
-        previousMyTurnState = false;
-        previousAlmostTurnState = false;
+        lastNotifiedTurnState = "";
 
         const now = Date.now();
         const newItem = {
