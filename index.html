@@ -243,33 +243,6 @@
             align-items: center;
         }
 
-        .badge-time {
-            background: rgba(245, 158, 11, 0.15);
-            color: var(--accent-amber);
-            padding: 2px 8px;
-            border-radius: 6px;
-            font-size: 0.8rem;
-            font-weight: bold;
-        }
-
-        .badge-duration {
-            background: rgba(16, 185, 129, 0.15);
-            color: var(--accent-green);
-            padding: 2px 8px;
-            border-radius: 6px;
-            font-size: 0.8rem;
-            font-weight: bold;
-        }
-
-        .badge-quick {
-            background: rgba(59, 130, 246, 0.15);
-            color: var(--accent-blue);
-            padding: 2px 8px;
-            border-radius: 6px;
-            font-size: 0.8rem;
-            font-weight: bold;
-        }
-
         .empty-msg { color: var(--text-muted); font-size: 0.9rem; padding: 10px 0; }
 
         #toast-container {
@@ -384,12 +357,15 @@
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
-    const db = firebase.database().ref('shared_company_breaks_v13');
+    const db = firebase.database().ref('shared_company_breaks_v14');
 
     let state = { active: [], waiting: [], reports: [] };
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
     let myName = localStorage.getItem('my_employee_name') || '';
     let lastKnownStateStr = '';
+
+    // مؤقت لمراقبة عدم التجاوب (مهلة 60 ثانية للتأكيد قبل ترحيل الشخص لنهاية القائمة تلقائياً)
+    let autoShiftTimer = null;
 
     document.addEventListener('DOMContentLoaded', () => {
         updateNotificationButtonUI();
@@ -423,7 +399,7 @@
             updateNotificationButtonUI();
             if (permission === "granted") {
                 new Notification("تم تفعيل الإشعارات بنجاح!", {
-                    body: "ستتلقى تنبيهاً هنا حالما يحين دورك أو يقترب دورك.",
+                    body: "ستتلقى تنبيهاً خارجياً هنا حالما يحين دورك أو يقترب.",
                     icon: "https://cdn-icons-png.flaticon.com/512/3176/3176366.png"
                 });
                 showToast("تم تفعيل إشعارات المتصفح بنجاح!", "success");
@@ -452,7 +428,7 @@
             gain.connect(audioCtx.destination);
             
             osc.start();
-            osc.stop(audioCtx.currentTime + 0.2);
+            osc.stop(audioCtx.currentTime + 0.3);
         } catch(e) {}
     }
 
@@ -493,16 +469,45 @@
             const newActive = val.active || [];
             const newWaiting = val.waiting || [];
 
+            // ميزة عدم ضياع الدور وانتقاله التلقائي في حال عدم التأكيد (بعد 60 ثانية من حلول الدور)
+            if (newWaiting.length > 0) {
+                const firstNormal = newWaiting.find(w => w.type === 'normal');
+                const firstQuick = newWaiting.find(w => w.type === 'quick');
+                
+                const hasNormalSlot = !newActive.some(a => a.type === 'normal');
+                const hasQuickSlot = !newActive.some(a => a.type === 'quick');
+
+                let targetToShift = null;
+                if (firstNormal && hasNormalSlot) targetToShift = firstNormal;
+                else if (firstQuick && hasQuickSlot) targetToShift = firstQuick;
+
+                if (targetToShift) {
+                    if (!targetToShift.turnStartTime) {
+                        targetToShift.turnStartTime = Date.now();
+                        db.set({ active: newActive, waiting: newWaiting, reports: filteredReports });
+                    } else {
+                        // إذا مرّت أكثر من 60 ثانية ولم يؤكد، يرحل تلقائياً لآخر الطابور
+                        if (Date.now() - targetToShift.turnStartTime > 60000) {
+                            const idx = newWaiting.findIndex(w => w.id === targetToShift.id);
+                            if (idx > -1) {
+                                const shiftedItem = newWaiting.splice(idx, 1)[0];
+                                delete shiftedItem.turnStartTime;
+                                newWaiting.push(shiftedItem);
+                                db.set({ active: newActive, waiting: newWaiting, reports: filteredReports });
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+
             if (myName && lastKnownStateStr && currentStateStr !== lastKnownStateStr) {
                 const oldData = JSON.parse(lastKnownStateStr);
                 const oldWaiting = oldData.waiting || [];
-                
                 const myUserLower = myName.trim().toLowerCase();
                 
-                // فحص دور المستخدم الحالي (هل أصبح الأول وبانتظار التأكيد؟)
                 const firstNormal = newWaiting.find(w => w.type === 'normal');
                 const firstQuick = newWaiting.find(w => w.type === 'quick');
-
                 const hasNormalSlot = !newActive.some(a => a.type === 'normal');
                 const hasQuickSlot = !newActive.some(a => a.type === 'quick');
 
@@ -514,21 +519,22 @@
                 const wasMyTurnBefore = (oldFirstNormal && oldFirstNormal.name.trim().toLowerCase() === myUserLower) ||
                                         (oldFirstQuick && oldFirstQuick.name.trim().toLowerCase() === myUserLower);
 
-                // فحص ما إذا أصبح دور المستخدم في المرتبة الثانية (بينه وبين دوره شخص واحد فقط)
+                // فحص إذا أصبح دورك بعد شخص واحد (الترتيب الثاني في نوعه أو الثاني إجمالاً إذا تأثر بوجود خانة فارغة)
                 const myIndexNew = newWaiting.findIndex(w => w.name.trim().toLowerCase() === myUserLower);
                 const myIndexOld = oldWaiting.findIndex(w => w.name.trim().toLowerCase() === myUserLower);
-                const isSecondInLine = (myIndexNew === 1); // الترتيب الثاني (index 1) يعني أمامه شخص واحد (index 0)
+                
+                const isSecondInLine = (myIndexNew === 1); 
                 const wasSecondInLineBefore = (myIndexOld === 1);
 
-                // 1. إشعار حان دورك
+                // 1. إشعار حان دورك (يصلك بالخارج حتى لو فاتح صفحة أخرى)
                 if (isMyTurn && !wasMyTurnBefore) {
-                    showToast(`يا ${myName}: انتهى من يسبقك وحان دورك! يرجى الضغط على زر التأكيد ودخول البريك.`, 'success', true);
+                    showToast(`يا ${myName}: انتهى من يسبقك وحان وقت بريكك! الرجاء التأكيد فوراً.`, 'success', true);
                     playBeep('turn');
                 }
                 
-                // 2. إشعار دورك سيكون بعد شخص واحد
+                // 2. إشعار أن دورك سيكون بعد شخص واحد
                 if (isSecondInLine && !wasSecondInLineBefore) {
-                    showToast(`يا ${myName}: استعد، دورك سيكون بعد شخص واحد فقط!`, 'alert', true);
+                    showToast(`يا ${myName}: استعد، دورك القادم سيكون بعد شخص واحد فقط!`, 'alert', true);
                     playBeep('normal');
                 }
             }
@@ -594,7 +600,6 @@
             timeStr: new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' })
         };
 
-        // الترتيب الصارم: طالما أن هناك أي شخص في قائمة الانتظار، يتم إضافتك بعده مباشرة دون تخطي
         if (state.waiting.length > 0) {
             state.waiting.push(newItem);
         } else {
@@ -602,17 +607,11 @@
             const hasQuick = state.active.some(item => item.type === 'quick');
 
             let canEnter = false;
-            if (type === 'normal' && !hasNormal) {
-                canEnter = true;
-            } else if (type === 'quick' && !hasQuick) {
-                canEnter = true;
-            }
+            if (type === 'normal' && !hasNormal) canEnter = true;
+            else if (type === 'quick' && !hasQuick) canEnter = true;
 
-            if (canEnter) {
-                state.active.push(newItem);
-            } else {
-                state.waiting.push(newItem);
-            }
+            if (canEnter) state.active.push(newItem);
+            else state.waiting.push(newItem);
         }
 
         input.value = '';
@@ -638,13 +637,14 @@
 
         const hasSameTypeActive = state.active.some(item => item.type === userItem.type);
         if (hasSameTypeActive) {
-            alert(`مكان بريك (${userItem.type === 'normal' ? 'العادي' : 'السريع'}) ما زال ممتلئاً، يرجى الانتظار حتى يعود زميلك.`);
+            alert(`مكان بريك (${userItem.type === 'normal' ? 'العادي' : 'السريع'}) ما زال ممتلئاً، يرجى الانتظار لحين عودة زميلك.`);
             return;
         }
 
         state.waiting.splice(index, 1);
         userItem.timestamp = Date.now();
         userItem.timeStr = new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' });
+        delete userItem.turnStartTime;
         state.active.push(userItem);
 
         db.set(state);
@@ -792,7 +792,6 @@
                 
                 const isOwner = myName && item.name.trim().toLowerCase() === myName.trim().toLowerCase();
                 const showEndBtn = (isOwner || isAdmin);
-
                 const isQuick = item.type === 'quick';
                 const isOvertime = isQuick && minsInBreak > 5;
 
@@ -809,8 +808,8 @@
                     <div class="card-active ${isOvertime ? 'overtime' : ''}">
                         <div>
                             <strong>${item.name}</strong> 
-                            <span class="badge-duration" style="margin-right: 8px;">⏱️ ${activeDurationStr}</span>
-                            ${isQuick ? '<span class="badge-quick" style="margin-right: 4px;">سريع</span>' : '<span class="badge-time" style="margin-right: 4px;">عادي</span>'}
+                            <span style="margin-right: 8px;">⏱️ ${activeDurationStr}</span>
+                            ${isQuick ? '<span style="color:var(--accent-blue); margin-right: 4px;">[سريع]</span>' : '<span style="color:var(--accent-amber); margin-right: 4px;">[عادي]</span>'}
                             <br><small style="color:var(--text-muted)">وقت الخروج: ${item.timeStr}</small>
                             ${warningHtml}
                         </div>
@@ -845,19 +844,19 @@
 
                 let noticeText = '';
                 if (isReadyToConfirm) {
-                    noticeText = `<br><small style="color: var(--accent-green); font-weight: bold;">⚡ حان دورك بانتظار التأكيد!</small>`;
+                    noticeText = `<br><small style="color: var(--accent-green); font-weight: bold;">⚡ حان دورك بانتظار التأكيد (سيتم الترحيل تلقائياً خلال دقيقة إن لم تؤكد)!</small>`;
                 } else if (i === 1) {
                     noticeText = `<br><small style="color: var(--accent-amber);">⏳ دورك سيكون بعد شخص واحد (استعد)</small>`;
                 } else {
-                    noticeText = `<br><small style="color: var(--accent-amber);">⏳ في الانتظار (بانتظار دور من يسبقك)</small>`;
+                    noticeText = `<br><small style="color: var(--accent-amber);">⏳ في الانتظار</small>`;
                 }
 
                 return `
                     <div class="card-waiting" style="${isReadyToConfirm ? 'border-color: var(--accent-green); background: rgba(16,185,129,0.05);' : ''}">
                         <div>
                             <span>#${i + 1} - <strong>${item.name}</strong></span>
-                            <span class="badge-time" style="margin-right: 8px;">${waitingDurationStr}</span>
-                            ${isQuick ? '<span class="badge-quick" style="margin-right: 4px;">سريع</span>' : '<span class="badge-time" style="margin-right: 4px;">عادي</span>'}
+                            <span style="margin-right: 8px; color:var(--text-muted);">${waitingDurationStr}</span>
+                            ${isQuick ? '<span style="color:var(--accent-blue);">[سريع]</span>' : '<span style="color:var(--accent-amber);">[عادي]</span>'}
                             ${noticeText}
                         </div>
                         ${showCancelBtn ? `<button type="button" class="btn btn-red" style="padding: 4px 10px; font-size: 0.75rem;" onclick="cancelWaiting(${i})">إلغاء الدور</button>` : ``}
