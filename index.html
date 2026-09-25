@@ -244,47 +244,6 @@
         }
 
         .empty-msg { color: var(--text-muted); font-size: 0.9rem; padding: 10px 0; }
-
-        #toast-container {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            z-index: 9999;
-            width: 90%;
-            max-width: 450px;
-            pointer-events: none;
-        }
-
-        .toast {
-            background: #1e293b;
-            color: #f8fafc;
-            border: 1px solid var(--accent-blue);
-            padding: 12px 18px;
-            border-radius: 10px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-            font-size: 0.95rem;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            animation: slideUp 0.3s ease, fadeOut 0.3s ease 4.7s forwards;
-            pointer-events: auto;
-        }
-
-        .toast.success { border-color: var(--accent-green); background: #064e3b; }
-        .toast.alert { border-color: var(--accent-amber); background: #78350f; }
-
-        @keyframes slideUp {
-            from { transform: translateY(50px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-
-        @keyframes fadeOut {
-            to { opacity: 0; transform: translateY(10px); }
-        }
     </style>
 </head>
 <body>
@@ -346,9 +305,6 @@
     </div>
 </div>
 
-<!-- حاوية الإشعارات المنبثقة داخل الصفحة -->
-<div id="toast-container"></div>
-
 <script>
     const firebaseConfig = {
         databaseURL: "https://break-system-4a453-default-rtdb.firebaseio.com/"
@@ -357,15 +313,12 @@
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
-    const db = firebase.database().ref('shared_company_breaks_v14');
+    const db = firebase.database().ref('shared_company_breaks_v15');
 
     let state = { active: [], waiting: [], reports: [] };
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
     let myName = localStorage.getItem('my_employee_name') || '';
     let lastKnownStateStr = '';
-
-    // مؤقت لمراقبة عدم التجاوب (مهلة 60 ثانية للتأكيد قبل ترحيل الشخص لنهاية القائمة تلقائياً)
-    let autoShiftTimer = null;
 
     document.addEventListener('DOMContentLoaded', () => {
         updateNotificationButtonUI();
@@ -398,13 +351,12 @@
         Notification.requestPermission().then(permission => {
             updateNotificationButtonUI();
             if (permission === "granted") {
-                new Notification("تم تفعيل الإشعارات بنجاح!", {
-                    body: "ستتلقى تنبيهاً خارجياً هنا حالما يحين دورك أو يقترب.",
+                new Notification("☕ تم تفعيل الإشعارات بنجاح!", {
+                    body: "ستتلقى تنبيهات خارجية هنا حتى لو كنت تتصفح صفحة أخرى.",
                     icon: "https://cdn-icons-png.flaticon.com/512/3176/3176366.png"
                 });
-                showToast("تم تفعيل إشعارات المتصفح بنجاح!", "success");
             } else {
-                alert('تم رفض إذن الإشعارات. يرجى تفعيلها يدوياً من إعدادات المتصفح بجانب رابط الموقع.');
+                alert('تم رفض إذن الإشعارات. يرجى تفعيلها يدوياً من إعدادات المتصفح.');
             }
         });
     }
@@ -418,40 +370,32 @@
             osc.type = 'sine';
             if (type === 'turn') {
                 osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
-                gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
             } else {
                 osc.frequency.setValueAtTime(440, audioCtx.currentTime);
-                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
             }
 
             osc.connect(gain);
             gain.connect(audioCtx.destination);
             
             osc.start();
-            osc.stop(audioCtx.currentTime + 0.3);
+            osc.stop(audioCtx.currentTime + 0.4);
         } catch(e) {}
     }
 
-    function showToast(message, type = 'info', external = false) {
-        const container = document.getElementById('toast-container');
-        const toast = document.createElement('div');
-        toast.className = `toast ${type}`;
-        toast.innerHTML = `<span>${message}</span>`;
-        container.appendChild(toast);
-
-        setTimeout(() => {
-            toast.remove();
-        }, 5000);
-
-        if (external && "Notification" in window && Notification.permission === "granted") {
+    // إرسال إشعار خارج المتصفح (يعمل حتى وأنت بصفحة أخرى)
+    function sendDesktopNotification(title, bodyText) {
+        playBeep('turn');
+        if ("Notification" in window && Notification.permission === "granted") {
             try {
-                const notif = new Notification("☕ تنبيه سستم الاستراحة", {
-                    body: message,
+                const notif = new Notification(title, {
+                    body: bodyText,
                     icon: "https://cdn-icons-png.flaticon.com/512/3176/3176366.png",
-                    requireInteraction: true
+                    requireInteraction: true // يظل ظاهرًا حتى تتفاعل معه
                 });
                 notif.onclick = function() {
-                    window.focus();
+                    window.focus(); // يعيدك لصفحة النظام فور النقر على الإشعار
                     notif.close();
                 };
             } catch(e) {}
@@ -469,11 +413,10 @@
             const newActive = val.active || [];
             const newWaiting = val.waiting || [];
 
-            // ميزة عدم ضياع الدور وانتقاله التلقائي في حال عدم التأكيد (بعد 60 ثانية من حلول الدور)
+            // نظام الترحيل التلقائي بعد 60 ثانية لعدم تعطيل الدور
             if (newWaiting.length > 0) {
                 const firstNormal = newWaiting.find(w => w.type === 'normal');
                 const firstQuick = newWaiting.find(w => w.type === 'quick');
-                
                 const hasNormalSlot = !newActive.some(a => a.type === 'normal');
                 const hasQuickSlot = !newActive.some(a => a.type === 'quick');
 
@@ -486,7 +429,6 @@
                         targetToShift.turnStartTime = Date.now();
                         db.set({ active: newActive, waiting: newWaiting, reports: filteredReports });
                     } else {
-                        // إذا مرّت أكثر من 60 ثانية ولم يؤكد، يرحل تلقائياً لآخر الطابور
                         if (Date.now() - targetToShift.turnStartTime > 60000) {
                             const idx = newWaiting.findIndex(w => w.id === targetToShift.id);
                             if (idx > -1) {
@@ -519,23 +461,26 @@
                 const wasMyTurnBefore = (oldFirstNormal && oldFirstNormal.name.trim().toLowerCase() === myUserLower) ||
                                         (oldFirstQuick && oldFirstQuick.name.trim().toLowerCase() === myUserLower);
 
-                // فحص إذا أصبح دورك بعد شخص واحد (الترتيب الثاني في نوعه أو الثاني إجمالاً إذا تأثر بوجود خانة فارغة)
                 const myIndexNew = newWaiting.findIndex(w => w.name.trim().toLowerCase() === myUserLower);
                 const myIndexOld = oldWaiting.findIndex(w => w.name.trim().toLowerCase() === myUserLower);
                 
                 const isSecondInLine = (myIndexNew === 1); 
                 const wasSecondInLineBefore = (myIndexOld === 1);
 
-                // 1. إشعار حان دورك (يصلك بالخارج حتى لو فاتح صفحة أخرى)
+                // 1. إشعار حان دورك (يظهر خارج المتصفح بالكامل)
                 if (isMyTurn && !wasMyTurnBefore) {
-                    showToast(`يا ${myName}: انتهى من يسبقك وحان وقت بريكك! الرجاء التأكيد فوراً.`, 'success', true);
-                    playBeep('turn');
+                    sendDesktopNotification(
+                        "🚨 حان دورك في البريك!", 
+                        `يا ${myName}: انتهى من يسبقك وحان وقت بريكك الآن. اضغط للتأكيد!`
+                    );
                 }
                 
-                // 2. إشعار أن دورك سيكون بعد شخص واحد
+                // 2. إشعار أن دورك بعد شخص واحد (يظهر خارج المتصفح بالكامل)
                 if (isSecondInLine && !wasSecondInLineBefore) {
-                    showToast(`يا ${myName}: استعد، دورك القادم سيكون بعد شخص واحد فقط!`, 'alert', true);
-                    playBeep('normal');
+                    sendDesktopNotification(
+                        "⏳ استعد، دورك قادم!", 
+                        `يا ${myName}: متبقي شخص واحد فقط أمامك، استعد لدورك القادم.`
+                    );
                 }
             }
 
@@ -584,7 +529,7 @@
         const isInWaiting = state.waiting.some(item => item.name.trim().toLowerCase() === nameLower);
 
         if (isInActive || isInWaiting) {
-            alert('عذراً، هذا الاسم موجود بالفعل (إما في البريك أو في قائمة الانتظار)!');
+            alert('عذراً، هذا الاسم موجود بالفعل (إما في البريك أو في الانتظار)!');
             return;
         }
 
@@ -637,7 +582,7 @@
 
         const hasSameTypeActive = state.active.some(item => item.type === userItem.type);
         if (hasSameTypeActive) {
-            alert(`مكان بريك (${userItem.type === 'normal' ? 'العادي' : 'السريع'}) ما زال ممتلئاً، يرجى الانتظار لحين عودة زميلك.`);
+            alert(`مكان بريك (${userItem.type === 'normal' ? 'العادي' : 'السريع'}) ما زال ممتلئاً.`);
             return;
         }
 
@@ -648,7 +593,6 @@
         state.active.push(userItem);
 
         db.set(state);
-        showToast('تم تأكيد ذهابك إلى البريك بنجاح!', 'success', false);
     }
 
     function endBreak(index) {
@@ -684,7 +628,7 @@
             return;
         }
 
-        if (confirm(`هل أنت متأكد من إلغاء دور (${item.name}) من قائمة الانتظار؟`)) {
+        if (confirm(`هل أنت متأكد من إلغاء دور (${item.name})؟`)) {
             state.waiting.splice(index, 1);
             db.set(state);
         }
@@ -715,7 +659,7 @@
             alert('هذا الإجراء مخصص للأدمن فقط!');
             return;
         }
-        if (confirm('هل أنت متأكد من مسح سجل آخر 24 ساعة؟')) {
+        if (confirm('هل أنت متأكد من مسح السجل؟')) {
             state.reports = [];
             db.set(state);
         }
@@ -744,7 +688,6 @@
 
     function renderUI() {
         const currentTime = Date.now();
-
         const adminBtn = document.getElementById('adminBtn');
         const clearBtn = document.getElementById('clearBtn');
         
@@ -769,7 +712,6 @@
             const myUserLower = myName.trim().toLowerCase();
             const firstNormal = state.waiting.find(w => w.type === 'normal');
             const firstQuick = state.waiting.find(w => w.type === 'quick');
-
             const hasNormalSlot = !state.active.some(a => a.type === 'normal');
             const hasQuickSlot = !state.active.some(a => a.type === 'quick');
 
@@ -789,7 +731,6 @@
             aBox.innerHTML = state.active.map((item, i) => {
                 const minsInBreak = Math.floor((currentTime - item.timestamp) / 60000);
                 const activeDurationStr = minsInBreak === 0 ? 'منذ أقل من دقيقة' : `منذ ${minsInBreak} دقيقة`;
-                
                 const isOwner = myName && item.name.trim().toLowerCase() === myName.trim().toLowerCase();
                 const showEndBtn = (isOwner || isAdmin);
                 const isQuick = item.type === 'quick';
@@ -798,7 +739,7 @@
                 let warningHtml = '';
                 if (isQuick) {
                     if (isOvertime) {
-                        warningHtml = `<br><span style="color: var(--accent-red); font-weight: bold; font-size: 0.85rem;">⚠️ تجاوزت الوقت المسموح (5 دقائق)!</span>`;
+                        warningHtml = `<br><span style="color: var(--accent-red); font-weight: bold; font-size: 0.85rem;">⚠️ تجاوزت الوقت (5 دقائق)!</span>`;
                     } else {
                         warningHtml = `<br><span style="color: var(--accent-blue); font-size: 0.8rem;">⚡ بريك سريع (متبقي ${Math.max(0, 5 - minsInBreak)} دقائق)</span>`;
                     }
@@ -809,7 +750,7 @@
                         <div>
                             <strong>${item.name}</strong> 
                             <span style="margin-right: 8px;">⏱️ ${activeDurationStr}</span>
-                            ${isQuick ? '<span style="color:var(--accent-blue); margin-right: 4px;">[سريع]</span>' : '<span style="color:var(--accent-amber); margin-right: 4px;">[عادي]</span>'}
+                            ${isQuick ? '<span style="color:var(--accent-blue);">[سريع]</span>' : '<span style="color:var(--accent-amber);">[عادي]</span>'}
                             <br><small style="color:var(--text-muted)">وقت الخروج: ${item.timeStr}</small>
                             ${warningHtml}
                         </div>
@@ -826,7 +767,6 @@
             wBox.innerHTML = state.waiting.map((item, i) => {
                 const minsWaiting = Math.floor((currentTime - item.timestamp) / 60000);
                 const waitingDurationStr = minsWaiting === 0 ? 'منذ أقل من دقيقة' : `انتظار: ${minsWaiting} دقيقة`;
-                
                 const isOwner = myName && item.name.trim().toLowerCase() === myName.trim().toLowerCase();
                 const showCancelBtn = (isOwner || isAdmin);
                 const isQuick = item.type === 'quick';
