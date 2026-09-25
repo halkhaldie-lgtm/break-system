@@ -256,7 +256,7 @@
     <div class="action-box">
         <input type="text" id="empName" placeholder="أدخل اسمك أولاً..." autocomplete="off" />
         <div class="action-buttons">
-            <button type="button" class="btn btn-green" onclick="submitBreak('normal')">طلب بريك عادي 🏃</button>
+            <button type="button" class="btn btn-green" onclick="submitBreak('normal')">بريك عادي 🏃</button>
             <button type="button" class="btn btn-amber" onclick="submitBreak('quick')">⚡ بريك سريع (5 دقائق)</button>
         </div>
     </div>
@@ -303,7 +303,7 @@
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
-    const db = firebase.database().ref('shared_company_breaks_v4');
+    const db = firebase.database().ref('shared_company_breaks_v5');
 
     let state = { active: [], waiting: [], reports: [] };
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
@@ -374,7 +374,26 @@
             timeStr: new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' })
         };
 
-        if (state.active.length < 2) {
+        // الشروط المنطقية الجديدة:
+        // 1. إذا كانت الاستراحة فارغة (0) -> يدخل الموظف مباشرة أياً كان نوع البريك.
+        // 2. إذا كان هناك شخص واحد في الاستراحة (طول active == 1):
+        //    - إذا كان الشخص الموجود في البريك "عادي" وكان الموظف الجديد يريد "سريع" -> يسمح له بالدخول ليصبحا 2.
+        //    - أما إذا كان يريد "عادي" (أو كان الموجود سريعاً ويريد عادي بحسب الحالة) -> يتم تحويله لقائمة الانتظار.
+        let canEnterDirectly = false;
+        if (state.active.length === 0) {
+            canEnterDirectly = true;
+        } else if (state.active.length === 1) {
+            const currentInBreak = state.active[0];
+            if (currentInBreak.type === 'normal' && type === 'quick') {
+                canEnterDirectly = true;
+            } else {
+                canEnterDirectly = false;
+            }
+        } else {
+            canEnterDirectly = false;
+        }
+
+        if (canEnterDirectly) {
             state.active.push(newItem);
         } else {
             state.waiting.push(newItem);
@@ -405,11 +424,30 @@
             });
         }
 
+        // عند خروج شخص، نعالج الدور التالي من قائمة الانتظار بناءً على النوع
         if (state.waiting.length > 0) {
-            const next = state.waiting.shift();
-            next.timestamp = Date.now();
-            next.timeStr = new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' });
-            state.active.push(next);
+            // هل يوجد شخص "بريك سريع" في قائمة الانتظار يمكن سحبه إذا كانت الشروط تسمح؟
+            // أو نسحب الأول في الانتظار مباشرة بشرط أن مكان الاستراحة يتسع
+            while (state.active.length < 2 && state.waiting.length > 0) {
+                // نتحقق من إمكانية إدخال الشخص التالي
+                let nextIndexToPull = 0;
+                
+                // إذا كان في الاستراحة حالياً شخص "عادي"، والشخص الأول في الانتظار "عادي" أيضاً، لا يمكن إدخاله الآن بل يجب البحث عن "سريع" إن وجد، أو الانتظار
+                if (state.active.length === 1 && state.active[0].type === 'normal') {
+                    const quickIndex = state.waiting.findIndex(item => item.type === 'quick');
+                    if (quickIndex > -1) {
+                        nextIndexToPull = quickIndex; // نسحب صاحب البريك السريع ليدخل فوراً بجانب البريك العادي
+                    } else {
+                        // لا يوجد سريع في الانتظار، وبما أن الموجود عادي والمسجلين بالانتظار عاديين، لا يمكن إدخال العادي حتى يفرغ مكان كامل (يصبح active.length == 0)
+                        break;
+                    }
+                }
+
+                const next = state.waiting.splice(nextIndexToPull, 1)[0];
+                next.timestamp = Date.now();
+                next.timeStr = new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' });
+                state.active.push(next);
+            }
         }
 
         db.set(state);
@@ -530,7 +568,7 @@
                         <div>
                             <strong>${item.name}</strong> 
                             <span class="badge-duration" style="margin-right: 8px;">⏱️ ${activeDurationStr}</span>
-                            ${isQuick ? '<span class="badge-quick" style="margin-right: 4px;">سريع</span>' : ''}
+                            ${isQuick ? '<span class="badge-quick" style="margin-right: 4px;">سريع</span>' : '<span class="badge-time" style="margin-right: 4px;">عادي</span>'}
                             <br><small style="color:var(--text-muted)">وقت الخروج: ${item.timeStr}</small>
                             ${warningHtml}
                         </div>
@@ -552,12 +590,18 @@
                 const showCancelBtn = (isOwner || isAdmin);
                 const isQuick = item.type === 'quick';
 
+                let noticeText = '';
+                if (isQuick) {
+                    noticeText = `<br><small style="color: var(--accent-blue); font-weight: bold;">⚡ بريك سريع (له الأسبقية في الدخول بجانب العادي ولا يتقيد بالترتيب التام)</small>`;
+                }
+
                 return `
                     <div class="card-waiting">
                         <div>
                             <span>#${i + 1} - <strong>${item.name}</strong></span>
                             <span class="badge-time" style="margin-right: 8px;">${waitingDurationStr}</span>
-                            ${isQuick ? '<span class="badge-quick" style="margin-right: 4px;">سريع</span>' : ''}
+                            ${isQuick ? '<span class="badge-quick" style="margin-right: 4px;">سريع</span>' : '<span class="badge-time" style="margin-right: 4px;">عادي</span>'}
+                            ${noticeText}
                         </div>
                         ${showCancelBtn ? `<button type="button" class="btn btn-red" style="padding: 4px 10px; font-size: 0.75rem;" onclick="cancelWaiting(${i})">إلغاء الدور</button>` : ``}
                     </div>
