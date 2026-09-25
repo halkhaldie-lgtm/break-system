@@ -319,10 +319,127 @@
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
     let myName = localStorage.getItem('my_employee_name') || '';
     let lastKnownStateStr = '';
+    let backgroundWorker = null;
 
     document.addEventListener('DOMContentLoaded', () => {
         updateNotificationButtonUI();
+        initBackgroundWorker();
     });
+
+    // تقنية الـ Web Worker لضمان استمرار عمل فحص البيانات والإشعارات في الخلفية دون توقف
+    function initBackgroundWorker() {
+        if (window.Worker) {
+            const workerCode = `
+                importScripts('https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js');
+                importScripts('https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js');
+
+                let initialized = false;
+                self.onmessage = function(e) {
+                    if (!initialized && e.data && e.data.config) {
+                        firebase.initializeApp(e.data.config);
+                        const workerDb = firebase.database().ref('shared_company_breaks_v15');
+                        let cachedStateStr = '';
+
+                        workerDb.on('value', (snapshot) => {
+                            const val = snapshot.val();
+                            if (!val) return;
+                            const currentStr = JSON.stringify(val);
+                            
+                            if (cachedStateStr && currentStr !== cachedStateStr) {
+                                postMessage({ type: 'DATA_CHANGED', newVal: val, oldVal: JSON.parse(cachedStateStr) });
+                            }
+                            
+                            // نظام الترحيل التلقائي بعد 5 دقائق (300,000 ملي ثانية)
+                            const newActive = val.active || [];
+                            const newWaiting = val.waiting || [];
+                            if (newWaiting.length > 0) {
+                                const firstNormal = newWaiting.find(w => w.type === 'normal');
+                                const firstQuick = newWaiting.find(w => w.type === 'quick');
+                                const hasNormalSlot = !newActive.some(a => a.type === 'normal');
+                                const hasQuickSlot = !newActive.some(a => a.type === 'quick');
+
+                                let targetToShift = null;
+                                if (firstNormal && hasNormalSlot) targetToShift = firstNormal;
+                                else if (firstQuick && hasQuickSlot) targetToShift = firstQuick;
+
+                                if (targetToShift) {
+                                    const now = Date.now();
+                                    if (!targetToShift.turnStartTime) {
+                                        targetToShift.turnStartTime = now;
+                                        workerDb.set({ active: newActive, waiting: newWaiting, reports: val.reports || [] });
+                                    } else {
+                                        if (now - targetToShift.turnStartTime > 300000) {
+                                            const idx = newWaiting.findIndex(w => w.id === targetToShift.id);
+                                            if (idx > -1) {
+                                                const shiftedItem = newWaiting.splice(idx, 1)[0];
+                                                delete shiftedItem.turnStartTime;
+                                                newWaiting.push(shiftedItem);
+                                                let filteredReports = (val.reports || []).filter(rep => rep.endTimestamp > (now - (24 * 60 * 60 * 1000)));
+                                                workerDb.set({ active: newActive, waiting: newWaiting, reports: filteredReports });
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            cachedStateStr = currentStr;
+                        });
+                        initialized = true;
+                    }
+                };
+            `;
+
+            const blob = new Blob([workerCode], { type: 'application/javascript' });
+            backgroundWorker = new Worker(URL.createObjectURL(blob));
+            backgroundWorker.postMessage({ config: firebaseConfig });
+
+            backgroundWorker.onmessage = function(e) {
+                if (e.data && e.data.type === 'DATA_CHANGED') {
+                    handleBackgroundStateChange(e.data.newVal, e.data.oldVal);
+                }
+            };
+        }
+    }
+
+    function handleBackgroundStateChange(val, oldData) {
+        if (!myName) return;
+        const myUserLower = myName.trim().toLowerCase();
+        const newActive = val.active || [];
+        const newWaiting = val.waiting || [];
+        const oldWaiting = oldData.waiting || [];
+
+        const firstNormal = newWaiting.find(w => w.type === 'normal');
+        const firstQuick = newWaiting.find(w => w.type === 'quick');
+        const hasNormalSlot = !newActive.some(a => a.type === 'normal');
+        const hasQuickSlot = !newActive.some(a => a.type === 'quick');
+
+        const isMyTurn = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) ||
+                         (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot);
+
+        const oldFirstNormal = oldWaiting.find(w => w.type === 'normal');
+        const oldFirstQuick = oldWaiting.find(w => w.type === 'quick');
+        const wasMyTurnBefore = (oldFirstNormal && oldFirstNormal.name.trim().toLowerCase() === myUserLower) ||
+                                (oldFirstQuick && oldFirstQuick.name.trim().toLowerCase() === myUserLower);
+
+        const myIndexNew = newWaiting.findIndex(w => w.name.trim().toLowerCase() === myUserLower);
+        const myIndexOld = oldWaiting.findIndex(w => w.name.trim().toLowerCase() === myUserLower);
+        
+        const isSecondInLine = (myIndexNew === 1); 
+        const wasSecondInLineBefore = (myIndexOld === 1);
+
+        if (isMyTurn && !wasMyTurnBefore) {
+            sendDesktopNotification(
+                "🚨 حان دورك في البريك!", 
+                `يا ${myName}: انتهى من يسبقك وحان وقت بريكك الآن. اضغط للتأكيد!`
+            );
+        }
+        
+        if (isSecondInLine && !wasSecondInLineBefore) {
+            sendDesktopNotification(
+                "⏳ استعد، دورك قادم!", 
+                `يا ${myName}: متبقي شخص واحد فقط أمامك، استعد لدورك القادم.`
+            );
+        }
+    }
 
     function updateNotificationButtonUI() {
         const btn = document.getElementById('notifBtn');
@@ -384,7 +501,6 @@
         } catch(e) {}
     }
 
-    // إرسال إشعار خارج المتصفح (يعمل حتى وأنت بصفحة أخرى)
     function sendDesktopNotification(title, bodyText) {
         playBeep('turn');
         if ("Notification" in window && Notification.permission === "granted") {
@@ -392,10 +508,10 @@
                 const notif = new Notification(title, {
                     body: bodyText,
                     icon: "https://cdn-icons-png.flaticon.com/512/3176/3176366.png",
-                    requireInteraction: true // يظل ظاهرًا حتى تتفاعل معه
+                    requireInteraction: true
                 });
                 notif.onclick = function() {
-                    window.focus(); // يعيدك لصفحة النظام فور النقر على الإشعار
+                    window.focus();
                     notif.close();
                 };
             } catch(e) {}
@@ -412,77 +528,6 @@
 
             const newActive = val.active || [];
             const newWaiting = val.waiting || [];
-
-            // نظام الترحيل التلقائي بعد 60 ثانية لعدم تعطيل الدور
-            if (newWaiting.length > 0) {
-                const firstNormal = newWaiting.find(w => w.type === 'normal');
-                const firstQuick = newWaiting.find(w => w.type === 'quick');
-                const hasNormalSlot = !newActive.some(a => a.type === 'normal');
-                const hasQuickSlot = !newActive.some(a => a.type === 'quick');
-
-                let targetToShift = null;
-                if (firstNormal && hasNormalSlot) targetToShift = firstNormal;
-                else if (firstQuick && hasQuickSlot) targetToShift = firstQuick;
-
-                if (targetToShift) {
-                    if (!targetToShift.turnStartTime) {
-                        targetToShift.turnStartTime = Date.now();
-                        db.set({ active: newActive, waiting: newWaiting, reports: filteredReports });
-                    } else {
-                        if (Date.now() - targetToShift.turnStartTime > 60000) {
-                            const idx = newWaiting.findIndex(w => w.id === targetToShift.id);
-                            if (idx > -1) {
-                                const shiftedItem = newWaiting.splice(idx, 1)[0];
-                                delete shiftedItem.turnStartTime;
-                                newWaiting.push(shiftedItem);
-                                db.set({ active: newActive, waiting: newWaiting, reports: filteredReports });
-                                return;
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (myName && lastKnownStateStr && currentStateStr !== lastKnownStateStr) {
-                const oldData = JSON.parse(lastKnownStateStr);
-                const oldWaiting = oldData.waiting || [];
-                const myUserLower = myName.trim().toLowerCase();
-                
-                const firstNormal = newWaiting.find(w => w.type === 'normal');
-                const firstQuick = newWaiting.find(w => w.type === 'quick');
-                const hasNormalSlot = !newActive.some(a => a.type === 'normal');
-                const hasQuickSlot = !newActive.some(a => a.type === 'quick');
-
-                const isMyTurn = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) ||
-                                 (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot);
-
-                const oldFirstNormal = oldWaiting.find(w => w.type === 'normal');
-                const oldFirstQuick = oldWaiting.find(w => w.type === 'quick');
-                const wasMyTurnBefore = (oldFirstNormal && oldFirstNormal.name.trim().toLowerCase() === myUserLower) ||
-                                        (oldFirstQuick && oldFirstQuick.name.trim().toLowerCase() === myUserLower);
-
-                const myIndexNew = newWaiting.findIndex(w => w.name.trim().toLowerCase() === myUserLower);
-                const myIndexOld = oldWaiting.findIndex(w => w.name.trim().toLowerCase() === myUserLower);
-                
-                const isSecondInLine = (myIndexNew === 1); 
-                const wasSecondInLineBefore = (myIndexOld === 1);
-
-                // 1. إشعار حان دورك (يظهر خارج المتصفح بالكامل)
-                if (isMyTurn && !wasMyTurnBefore) {
-                    sendDesktopNotification(
-                        "🚨 حان دورك في البريك!", 
-                        `يا ${myName}: انتهى من يسبقك وحان وقت بريكك الآن. اضغط للتأكيد!`
-                    );
-                }
-                
-                // 2. إشعار أن دورك بعد شخص واحد (يظهر خارج المتصفح بالكامل)
-                if (isSecondInLine && !wasSecondInLineBefore) {
-                    sendDesktopNotification(
-                        "⏳ استعد، دورك قادم!", 
-                        `يا ${myName}: متبقي شخص واحد فقط أمامك، استعد لدورك القادم.`
-                    );
-                }
-            }
 
             state = {
                 active: newActive,
@@ -784,7 +829,7 @@
 
                 let noticeText = '';
                 if (isReadyToConfirm) {
-                    noticeText = `<br><small style="color: var(--accent-green); font-weight: bold;">⚡ حان دورك بانتظار التأكيد (سيتم الترحيل تلقائياً خلال دقيقة إن لم تؤكد)!</small>`;
+                    noticeText = `<br><small style="color: var(--accent-green); font-weight: bold;">⚡ حان دورك بانتظار التأكيد (سيتم الترحيل تلقائياً خلال 5 دقائق إن لم تؤكد)!</small>`;
                 } else if (i === 1) {
                     noticeText = `<br><small style="color: var(--accent-amber);">⏳ دورك سيكون بعد شخص واحد (استعد)</small>`;
                 } else {
