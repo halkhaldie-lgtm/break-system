@@ -242,7 +242,6 @@
     db.on('value', (snapshot) => {
         const val = snapshot.val();
         if (val) {
-            // تنظيف السجل التلقائي لأخذ آخر 24 ساعة فقط (86400000 ميللي ثانية)
             const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
             let filteredReports = (val.reports || []).filter(rep => rep.endTimestamp > twentyFourHoursAgo);
 
@@ -260,10 +259,11 @@
     function toggleAdmin() {
         if (!isAdmin) {
             const pass = prompt('الرجاء إدخال كلمة مرور الأدمن:');
-            if (pass === '1234') { // كلمة المرور الافتراضية، يمكنك تغييرها هنا
+            if (pass === '1234') { 
                 isAdmin = true;
                 localStorage.setItem('is_admin_mode', 'true');
                 alert('تم تفعيل وضع الأدمن بنجاح!');
+                renderUI();
             } else if (pass !== null) {
                 alert('كلمة المرور غير صحيحة!');
             }
@@ -271,8 +271,8 @@
             isAdmin = false;
             localStorage.setItem('is_admin_mode', 'false');
             alert('تم الخروج من وضع الأدمن.');
+            renderUI();
         }
-        renderUI();
     }
 
     document.getElementById('breakForm').addEventListener('submit', function(e) {
@@ -334,7 +334,7 @@
 
     function clearReports() {
         if (!isAdmin) {
-            alert('هذا الزر مخصص للأدمن فقط!');
+            alert('هذا الإجراء مخصص للأدمن فقط!');
             return;
         }
         if (confirm('هل أنت متأكد من مسح سجل آخر 24 ساعة؟')) {
@@ -349,7 +349,6 @@
             return;
         }
 
-        // إنشاء ملف CSV يدعم اللغة العربية عبر Excel
         let csvContent = "\uFEFFاسم الموظف,وقت الخروج,وقت العودة,مدة البريك\n";
         state.reports.forEach(rep => {
             csvContent += `"${rep.name}","${rep.startTime}","${rep.endTime}","${rep.duration}"\n`;
@@ -368,24 +367,24 @@
     function renderUI() {
         const currentTime = Date.now();
 
-        // تحديث زر ومظهر الأدمن
+        // تحديث مظهر زر الأدمن وإخفاء زر المسح للموظفين العاديين تماماً
         const adminBtn = document.getElementById('adminBtn');
         const clearBtn = document.getElementById('clearBtn');
+        
         if (isAdmin) {
             adminBtn.style.background = 'rgba(16, 185, 129, 0.2)';
             adminBtn.style.color = 'var(--accent-green)';
             adminBtn.style.borderColor = 'var(--accent-green)';
             adminBtn.innerText = '🔓 أدمن (مفعل)';
-            clearBtn.style.display = 'inline-block';
+            clearBtn.style.display = 'inline-block'; // يظهر فقط إذا كان الأدمن مفعلًا في هذا الجهاز
         } else {
             adminBtn.style.background = 'rgba(59, 130, 246, 0.15)';
             adminBtn.style.color = 'var(--accent-blue)';
             adminBtn.style.borderColor = 'var(--accent-blue)';
             adminBtn.innerText = '🔒 وضع الأدمن';
-            clearBtn.style.display = 'none';
+            clearBtn.style.display = 'none'; // مخفي تماماً عن أي موظف عادي
         }
 
-        // عرض النشطين
         const aBox = document.getElementById('activeBox');
         if (!state.active || state.active.length === 0) {
             aBox.innerHTML = '<div class="empty-msg">لا يوجد أحد بالبريك حالياً</div>';
@@ -406,7 +405,6 @@
             }).join('');
         }
 
-        // عرض قائمة الانتظار
         const wBox = document.getElementById('waitingBox');
         if (!state.waiting || state.waiting.length === 0) {
             wBox.innerHTML = '<div class="empty-msg">قائمة الانتظار فارغة</div>';
@@ -425,7 +423,6 @@
             }).join('');
         }
 
-        // عرض تقارير آخر 24 ساعة
         const rBox = document.getElementById('reportsBox');
         if (!state.reports || state.reports.length === 0) {
             rBox.innerHTML = '<div class="empty-msg">لا توجد تقارير مسجلة في آخر 24 ساعة</div>';
