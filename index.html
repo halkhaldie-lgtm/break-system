@@ -318,125 +318,10 @@
     let state = { active: [], waiting: [], reports: [] };
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
     let myName = localStorage.getItem('my_employee_name') || '';
-    let backgroundWorker = null;
 
     document.addEventListener('DOMContentLoaded', () => {
         updateNotificationButtonUI();
-        initBackgroundWorker();
     });
-
-    function initBackgroundWorker() {
-        if (window.Worker) {
-            const workerCode = `
-                importScripts('https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js');
-                importScripts('https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js');
-
-                let initialized = false;
-                self.onmessage = function(e) {
-                    if (!initialized && e.data && e.data.config) {
-                        firebase.initializeApp(e.data.config);
-                        const workerDb = firebase.database().ref('shared_company_breaks_v15');
-                        let cachedStateStr = '';
-
-                        workerDb.on('value', (snapshot) => {
-                            const val = snapshot.val();
-                            if (!val) return;
-                            const currentStr = JSON.stringify(val);
-                            
-                            if (cachedStateStr && currentStr !== cachedStateStr) {
-                                postMessage({ type: 'DATA_CHANGED', newVal: val, oldVal: JSON.parse(cachedStateStr) });
-                            }
-                            
-                            const newActive = val.active || [];
-                            const newWaiting = val.waiting || [];
-                            if (newWaiting.length > 0) {
-                                const firstNormal = newWaiting.find(w => w.type === 'normal');
-                                const firstQuick = newWaiting.find(w => w.type === 'quick');
-                                const hasNormalSlot = !newActive.some(a => a.type === 'normal');
-                                const hasQuickSlot = !newActive.some(a => a.type === 'quick');
-
-                                let targetToShift = null;
-                                if (firstNormal && hasNormalSlot) targetToShift = firstNormal;
-                                else if (firstQuick && hasQuickSlot) targetToShift = firstQuick;
-
-                                if (targetToShift) {
-                                    const now = Date.now();
-                                    if (!targetToShift.turnStartTime) {
-                                        targetToShift.turnStartTime = now;
-                                        workerDb.set({ active: newActive, waiting: newWaiting, reports: val.reports || [] });
-                                    } else {
-                                        if (now - targetToShift.turnStartTime > 300000) {
-                                            const idx = newWaiting.findIndex(w => w.id === targetToShift.id);
-                                            if (idx > -1) {
-                                                const shiftedItem = newWaiting.splice(idx, 1)[0];
-                                                delete shiftedItem.turnStartTime;
-                                                newWaiting.push(shiftedItem);
-                                                let filteredReports = (val.reports || []).filter(rep => rep.endTimestamp > (now - (24 * 60 * 60 * 1000)));
-                                                workerDb.set({ active: newActive, waiting: newWaiting, reports: filteredReports });
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            cachedStateStr = currentStr;
-                        });
-                        initialized = true;
-                    }
-                };
-            `;
-
-            const blob = new Blob([workerCode], { type: 'application/javascript' });
-            backgroundWorker = new Worker(URL.createObjectURL(blob));
-            backgroundWorker.postMessage({ config: firebaseConfig });
-
-            backgroundWorker.onmessage = function(e) {
-                if (e.data && e.data.type === 'DATA_CHANGED') {
-                    handleBackgroundStateChange(e.data.newVal, e.data.oldVal);
-                }
-            };
-        }
-    }
-
-    function handleBackgroundStateChange(val, oldData) {
-        if (!myName) return;
-        const myUserLower = myName.trim().toLowerCase();
-        const newActive = val.active || [];
-        const newWaiting = val.waiting || [];
-        const oldWaiting = oldData.waiting || [];
-
-        const firstNormal = newWaiting.find(w => w.type === 'normal');
-        const firstQuick = newWaiting.find(w => w.type === 'quick');
-        const hasNormalSlot = !newActive.some(a => a.type === 'normal');
-        const hasQuickSlot = !newActive.some(a => a.type === 'quick');
-
-        const isMyTurn = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) ||
-                         (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot);
-
-        const oldFirstNormal = oldWaiting.find(w => w.type === 'normal');
-        const oldFirstQuick = oldWaiting.find(w => w.type === 'quick');
-        const wasMyTurnBefore = (oldFirstNormal && oldFirstNormal.name.trim().toLowerCase() === myUserLower) ||
-                                (oldFirstQuick && oldFirstQuick.name.trim().toLowerCase() === myUserLower);
-
-        const myIndexNew = newWaiting.findIndex(w => w.name.trim().toLowerCase() === myUserLower);
-        const myIndexOld = oldWaiting.findIndex(w => w.name.trim().toLowerCase() === myUserLower);
-        
-        const isSecondInLine = (myIndexNew === 1); 
-        const wasSecondInLineBefore = (myIndexOld === 1);
-
-        if (isMyTurn && !wasMyTurnBefore) {
-            sendDesktopNotification(
-                "🚨 حان دورك في البريك!", 
-                `يا ${myName}: انتهى من يسبقك وحان وقت بريكك الآن. اضغط للتأكيد!`
-            );
-        }
-        
-        if (isSecondInLine && !wasSecondInLineBefore) {
-            sendDesktopNotification(
-                "⏳ استعد، دورك قادم!", 
-                `يا ${myName}: متبقي شخص واحد فقط أمامك، استعد لدورك القادم.`
-            );
-        }
-    }
 
     function updateNotificationButtonUI() {
         const btn = document.getElementById('notifBtn');
@@ -466,29 +351,24 @@
             updateNotificationButtonUI();
             if (permission === "granted") {
                 new Notification("☕ تم تفعيل الإشعارات بنجاح!", {
-                    body: "ستتلقى تنبيهات خارجية هنا حتى لو كنت تتصفح صفحة أخرى.",
+                    body: "ستتلقى تنبيهات دورك هنا بشكل فوري.",
                     icon: "https://cdn-icons-png.flaticon.com/512/3176/3176366.png"
                 });
             } else {
-                alert('تم رفض إذن الإشعارات. يرجى تفعيلها يدوياً من إعدادات المتصفح.');
+                alert('تم رفض إذن الإشعارات. يرجى تفعيلها من شريط العنوان في المتصفح.');
             }
         });
     }
 
-    function playBeep(type = 'normal') {
+    function playBeep() {
         try {
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
             
             osc.type = 'sine';
-            if (type === 'turn') {
-                osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
-                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-            } else {
-                osc.frequency.setValueAtTime(440, audioCtx.currentTime);
-                gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-            }
+            osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
 
             osc.connect(gain);
             gain.connect(audioCtx.destination);
@@ -499,13 +379,14 @@
     }
 
     function sendDesktopNotification(title, bodyText) {
-        playBeep('turn');
+        playBeep();
         if ("Notification" in window && Notification.permission === "granted") {
             try {
+                // استخدام دالة إشعار قياسية مباشرة مدعومة بالكامل من كروم وإيدج
                 const notif = new Notification(title, {
                     body: bodyText,
                     icon: "https://cdn-icons-png.flaticon.com/512/3176/3176366.png",
-                    requireInteraction: true
+                    tag: "break-turn-notification"
                 });
                 notif.onclick = function() {
                     window.focus();
@@ -514,6 +395,8 @@
             } catch(e) {}
         }
     }
+
+    let previousWasMyTurn = false;
 
     db.on('value', (snapshot) => {
         const val = snapshot.val();
@@ -529,8 +412,59 @@
         } else {
             state = { active: [], waiting: [], reports: [] };
         }
+
+        // فحص الدور وإطلاق الإشعار بشكل مباشر وفوري
+        checkMyTurnAndNotify();
         renderUI();
     });
+
+    function checkMyTurnAndNotify() {
+        if (!myName) return;
+        const myUserLower = myName.trim().toLowerCase();
+        const newActive = state.active || [];
+        const newWaiting = state.waiting || [];
+
+        const firstNormal = newWaiting.find(w => w.type === 'normal');
+        const firstQuick = newWaiting.find(w => w.type === 'quick');
+        const hasNormalSlot = !newActive.some(a => a.type === 'normal');
+        const hasQuickSlot = !newActive.some(a => a.type === 'quick');
+
+        const isMyTurn = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) ||
+                         (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot);
+
+        if (isMyTurn && !previousWasMyTurn) {
+            sendDesktopNotification(
+                "🚨 حان دورك في البريك!", 
+                `يا ${myName}: حان وقت بريكك الآن. اضغط هنا للدخول والتأكيد!`
+            );
+        }
+        previousWasMyTurn = isMyTurn;
+
+        // ترحيل الانتظار التلقائي (في حال بقاء الشخص أكثر من 5 دقائق بدون تأكيد)
+        if (newWaiting.length > 0) {
+            let targetToShift = null;
+            if (firstNormal && hasNormalSlot) targetToShift = firstNormal;
+            else if (firstQuick && hasQuickSlot) targetToShift = firstQuick;
+
+            if (targetToShift) {
+                const now = Date.now();
+                if (!targetToShift.turnStartTime) {
+                    targetToShift.turnStartTime = now;
+                    db.set(state);
+                } else {
+                    if (now - targetToShift.turnStartTime > 300000) {
+                        const idx = newWaiting.findIndex(w => w.id === targetToShift.id);
+                        if (idx > -1) {
+                            const shiftedItem = newWaiting.splice(idx, 1)[0];
+                            delete shiftedItem.turnStartTime;
+                            newWaiting.push(shiftedItem);
+                            db.set(state);
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     function toggleAdmin() {
         if (!isAdmin) {
@@ -570,6 +504,7 @@
 
         myName = name;
         localStorage.setItem('my_employee_name', myName);
+        previousWasMyTurn = false; // إعادة تعيين حالة التنبيه للإسم الجديد
 
         const now = Date.now();
         const newItem = {
@@ -737,14 +672,14 @@
             adminBtn.style.borderColor = 'var(--accent-green)';
             adminBtn.innerText = '🔓 أدمن (مفعل)';
             clearBtn.style.display = 'inline-block';
-            excelBtn.style.display = 'inline-block'; // إظهار زر الإكسل للأدمن فقط
+            excelBtn.style.display = 'inline-block';
         } else {
             adminBtn.style.background = 'rgba(59, 130, 246, 0.15)';
             adminBtn.style.color = 'var(--accent-blue)';
             adminBtn.style.borderColor = 'var(--accent-blue)';
             adminBtn.innerText = '🔒 وضع الأدمن';
             clearBtn.style.display = 'none';
-            excelBtn.style.display = 'none'; // إخفاء زر الإكسل عن الموظفين العاديين
+            excelBtn.style.display = 'none';
         }
 
         const promptBox = document.getElementById('myTurnPromptBox');
@@ -826,7 +761,7 @@
 
                 let noticeText = '';
                 if (isReadyToConfirm) {
-                    noticeText = `<br><small style="color: var(--accent-green); font-weight: bold;">⚡ حان دورك بانتظار التأكيد (سيتم الترحيل تلقائياً خلال 5 دقائق إن لم تؤكد)!</small>`;
+                    noticeText = `<br><small style="color: var(--accent-green); font-weight: bold;">⚡ حان دورك بانتظار التأكيد!</small>`;
                 } else if (i === 1) {
                     noticeText = `<br><small style="color: var(--accent-amber);">⏳ دورك سيكون بعد شخص واحد (استعد)</small>`;
                 } else {
