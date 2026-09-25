@@ -384,7 +384,7 @@
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
-    const db = firebase.database().ref('shared_company_breaks_v12');
+    const db = firebase.database().ref('shared_company_breaks_v13');
 
     let state = { active: [], waiting: [], reports: [] };
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
@@ -423,7 +423,7 @@
             updateNotificationButtonUI();
             if (permission === "granted") {
                 new Notification("تم تفعيل الإشعارات بنجاح!", {
-                    body: "ستتلقى تنبيهاً هنا حالما يحين دورك في الاستراحة.",
+                    body: "ستتلقى تنبيهاً هنا حالما يحين دورك أو يقترب دورك.",
                     icon: "https://cdn-icons-png.flaticon.com/512/3176/3176366.png"
                 });
                 showToast("تم تفعيل إشعارات المتصفح بنجاح!", "success");
@@ -469,7 +469,7 @@
 
         if (external && "Notification" in window && Notification.permission === "granted") {
             try {
-                const notif = new Notification("☕ دورك قد حان في الاستراحة!", {
+                const notif = new Notification("☕ تنبيه سستم الاستراحة", {
                     body: message,
                     icon: "https://cdn-icons-png.flaticon.com/512/3176/3176366.png",
                     requireInteraction: true
@@ -498,6 +498,8 @@
                 const oldWaiting = oldData.waiting || [];
                 
                 const myUserLower = myName.trim().toLowerCase();
+                
+                // فحص دور المستخدم الحالي (هل أصبح الأول وبانتظار التأكيد؟)
                 const firstNormal = newWaiting.find(w => w.type === 'normal');
                 const firstQuick = newWaiting.find(w => w.type === 'quick');
 
@@ -512,9 +514,22 @@
                 const wasMyTurnBefore = (oldFirstNormal && oldFirstNormal.name.trim().toLowerCase() === myUserLower) ||
                                         (oldFirstQuick && oldFirstQuick.name.trim().toLowerCase() === myUserLower);
 
+                // فحص ما إذا أصبح دور المستخدم في المرتبة الثانية (بينه وبين دوره شخص واحد فقط)
+                const myIndexNew = newWaiting.findIndex(w => w.name.trim().toLowerCase() === myUserLower);
+                const myIndexOld = oldWaiting.findIndex(w => w.name.trim().toLowerCase() === myUserLower);
+                const isSecondInLine = (myIndexNew === 1); // الترتيب الثاني (index 1) يعني أمامه شخص واحد (index 0)
+                const wasSecondInLineBefore = (myIndexOld === 1);
+
+                // 1. إشعار حان دورك
                 if (isMyTurn && !wasMyTurnBefore) {
                     showToast(`يا ${myName}: انتهى من يسبقك وحان دورك! يرجى الضغط على زر التأكيد ودخول البريك.`, 'success', true);
                     playBeep('turn');
+                }
+                
+                // 2. إشعار دورك سيكون بعد شخص واحد
+                if (isSecondInLine && !wasSecondInLineBefore) {
+                    showToast(`يا ${myName}: استعد، دورك سيكون بعد شخص واحد فقط!`, 'alert', true);
+                    playBeep('normal');
                 }
             }
 
@@ -579,9 +594,7 @@
             timeStr: new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' })
         };
 
-        // **التعديل الجذري هنا:** 
-        // بغض النظر عما إذا كان مكان البريك فارغاً أم لا، طالما أن هناك أي شخص مسبقاً في قائمة الانتظار، 
-        // سيتم إرسال الشخص الجديد مباشرة إلى قائمة الانتظار لضمان عدم تخطي أي شخص ينتظر دوره.
+        // الترتيب الصارم: طالما أن هناك أي شخص في قائمة الانتظار، يتم إضافتك بعده مباشرة دون تخطي
         if (state.waiting.length > 0) {
             state.waiting.push(newItem);
         } else {
@@ -833,6 +846,8 @@
                 let noticeText = '';
                 if (isReadyToConfirm) {
                     noticeText = `<br><small style="color: var(--accent-green); font-weight: bold;">⚡ حان دورك بانتظار التأكيد!</small>`;
+                } else if (i === 1) {
+                    noticeText = `<br><small style="color: var(--accent-amber);">⏳ دورك سيكون بعد شخص واحد (استعد)</small>`;
                 } else {
                     noticeText = `<br><small style="color: var(--accent-amber);">⏳ في الانتظار (بانتظار دور من يسبقك)</small>`;
                 }
