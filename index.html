@@ -3,298 +3,605 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>نظام الانتظار والاستراحات</title>
+    <title>سستم استراحة الموظفين المشترك</title>
+    <!-- استدعاء قواعد بيانات Firebase السحابية الحية -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
+        :root {
+            --bg: #0b0f19;
+            --card-bg: #151d2a;
+            --accent-green: #10b981;
+            --accent-amber: #f59e0b;
+            --accent-blue: #3b82f6;
+            --accent-red: #ef4444;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: #232d3f;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+
         body {
-            background-color: #0b0f19;
-            color: #ffffff;
-            font-family: Tahoma, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
             padding: 20px;
-            margin: 0;
-        }
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-        }
-        .section-title {
-            color: #3b82f6;
-            font-size: 1.2rem;
-            margin-bottom: 15px;
-            border-bottom: 1px solid #1e293b;
-            padding-bottom: 8px;
-        }
-        /* التصميم الأصلي تماماً لعناصر القائمة */
-        .card-item {
-            background-color: #111827;
-            border: 1px solid #1f2937;
-            border-radius: 12px;
-            padding: 12px 20px;
-            margin-bottom: 12px;
             display: flex;
+            flex-direction: column;
             align-items: center;
-            justify-content: space-between;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            min-height: 100vh;
         }
-        .name-text {
-            font-size: 1.1rem;
+
+        .container { width: 100%; max-width: 650px; }
+
+        header {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        h2 { font-size: 1.5rem; margin-bottom: 8px; }
+
+        .status-tag {
+            font-size: 0.85rem;
+            color: var(--accent-green);
             font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
         }
-        /* الأرقام الدائرية بنفس تصميم صورتك الأولى */
-        .badge {
-            width: 40px;
-            height: 40px;
+
+        .dot {
+            width: 8px; height: 8px;
+            background: var(--accent-green);
             border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            display: inline-block;
+            box-shadow: 0 0 8px var(--accent-green);
+        }
+
+        .admin-badge {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            background: rgba(59, 130, 246, 0.15);
+            color: var(--accent-blue);
+            border: 1px solid var(--accent-blue);
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            cursor: pointer;
             font-weight: bold;
-            font-size: 1.1rem;
-            color: #000;
         }
-        .badge-waiting {
-            background-color: #f59e0b; /* البرتقالي الأصلي */
+
+        .action-box {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 15px;
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
-        .badge-break {
-            background-color: #10b981; /* الأخضر للبريك */
-            color: #fff;
+
+        .action-inputs {
+            display: flex;
+            gap: 10px;
         }
-        .badge-overtime {
-            background-color: #ef4444; /* أحمر عند تجاوز البريك السريع */
-            color: #fff;
-            animation: blink 1s infinite;
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
         }
-        @keyframes blink {
-            50% { opacity: 0.4; }
+
+        .action-buttons button {
+            flex: 1;
         }
-        
-        /* لوحة التحكم والتقارير */
-        .control-panel, .report-panel {
-            background-color: #111827;
-            border: 1px solid #1f2937;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 25px;
+
+        input[type="text"] {
+            flex: 1;
+            background: #0b0f19;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: white;
+            font-size: 1rem;
+            outline: none;
         }
-        button {
-            padding: 10px 18px;
-            border-radius: 6px;
+
+        input[type="text"]:focus { border-color: var(--accent-blue); }
+
+        .btn {
+            background: var(--accent-blue);
+            color: white;
             border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
             font-weight: bold;
             cursor: pointer;
-            margin-left: 8px;
-            font-size: 0.95rem;
+            font-size: 1rem;
+            transition: opacity 0.2s;
         }
-        .btn-regular { background-color: #10b981; color: white; }
-        .btn-quick { background-color: #f59e0b; color: #000; }
-        .btn-end { background-color: #374151; color: white; }
-        
-        .alert-box {
-            background-color: #ef4444;
+
+        .btn:hover { opacity: 0.9; }
+        .btn-green { background: var(--accent-green); }
+        .btn-amber { background: var(--accent-amber); color: #0b0f19; }
+        .btn-red { background: var(--accent-red); padding: 6px 12px; font-size: 0.85rem; }
+        .btn-gray { background: #334155; font-size: 0.8rem; padding: 6px 12px; }
+        .btn-excel { background: #059669; font-size: 0.8rem; padding: 6px 12px; color: white; }
+
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin: 15px 0 10px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-active {
+            background: rgba(16, 185, 129, 0.1);
+            border: 2px solid var(--accent-green);
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-active.overtime {
+            background: rgba(239, 68, 68, 0.15);
+            border: 2px solid var(--accent-red);
+        }
+
+        .card-waiting {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .swap-box {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+
+        .swap-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+
+        select {
+            flex: 1;
+            background: #0b0f19;
+            border: 1px solid var(--border);
             color: white;
             padding: 10px;
+            border-radius: 8px;
+            min-width: 120px;
+        }
+
+        .report-box {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 15px;
+            margin-top: 25px;
+        }
+
+        .report-item {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border);
+            padding: 8px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .badge-time {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--accent-amber);
+            padding: 2px 8px;
             border-radius: 6px;
-            margin-bottom: 12px;
-            display: none;
+            font-size: 0.8rem;
             font-weight: bold;
         }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
+
+        .badge-duration {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent-green);
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: bold;
         }
-        th, td {
-            border: 1px solid #1f2937;
-            padding: 10px;
-            text-align: center;
-            font-size: 0.9rem;
+
+        .badge-quick {
+            background: rgba(59, 130, 246, 0.15);
+            color: var(--accent-blue);
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: bold;
         }
-        th {
-            color: #3b82f6;
-            background-color: #0b0f19;
-        }
+
+        .empty-msg { color: var(--text-muted); font-size: 0.9rem; padding: 10px 0; }
     </style>
 </head>
 <body>
 
 <div class="container">
+    <header>
+        <button class="admin-badge" id="adminBtn" onclick="toggleAdmin()">🔒 وضع الأدمن</button>
+        <h2>☕ سستم استراحة الموظفين المشترك</h2>
+        <span class="status-tag"><span class="dot"></span> متصل لايف ومزامن للجميع</span>
+    </header>
 
-    <!-- لوحة تحكم الموظف لاختيار البريك -->
-    <div class="control-panel">
-        <div class="section-title">لوحة تحكم الموظف</div>
-        <div id="alertBox" class="alert-box">⚠️ تنبيه شخصي: لقد تجاوزت وقت البريك السريع المسموح به (5 دقائق)!</div>
-        <p style="margin-top: 0;">اختر حالة الاستراحة الخاصة بك:</p>
-        <button class="btn-regular" onclick="startBreak('regular')">بدء بريك عادي</button>
-        <button class="btn-quick" onclick="startBreak('quick')">بدء بريك سريع (5 دقائق)</button>
-        <button class="btn-end" onclick="endBreak()">إنهاء البريك والعودة</button>
-        <div id="timerStatus" style="margin-top: 10px; font-weight: bold; color: #3b82f6;"></div>
+    <div class="action-box">
+        <input type="text" id="empName" placeholder="أدخل اسمك أولاً..." autocomplete="off" />
+        <div class="action-buttons">
+            <button type="button" class="btn btn-green" onclick="submitBreak('normal')">طلب بريك عادي 🏃</button>
+            <button type="button" class="btn btn-amber" onclick="submitBreak('quick')">⚡ بريك سريع (5 دقائق)</button>
+        </div>
     </div>
 
-    <!-- قائمة الانتظار -->
-    <div class="section-title">قائمة الانتظار</div>
-    <div id="waitingListContainer">
-        <!-- يتم تعبئتها ديناميكياً بنفس التصميم الدائري البرتقالي -->
+    <div class="section-title" style="color: var(--accent-green);">
+        <span>🏃 في البريك الآن (أقصى حد 2)</span>
+    </div>
+    <div id="activeBox"></div>
+
+    <div class="section-title" style="color: var(--accent-amber);">
+        <span>📋 قائمة الانتظار</span>
+    </div>
+    <div id="waitingBox"></div>
+
+    <!-- صندوق تبديل الأدوار -->
+    <div class="swap-box" id="swapSection" style="display: none;">
+        <div style="font-weight: bold; color: var(--accent-amber);">🔄 تبديل الأدوار في قائمة الانتظار:</div>
+        <div class="swap-controls">
+            <select id="swap1"></select>
+            <span>مع</span>
+            <select id="swap2"></select>
+            <button type="button" class="btn btn-amber" onclick="executeSwap()">تبديل</button>
+        </div>
     </div>
 
-    <!-- الموظفون في البريك (باللون الأخضر) -->
-    <div class="section-title" style="margin-top: 30px;">الموظفون في البريك (باللون الأخضر)</div>
-    <div id="breakListContainer">
-        <!-- يتم تعبئتها ديناميكياً باللون الأخضر -->
+    <!-- قسم تقارير وسجل البريكات لآخر 24 ساعة -->
+    <div class="report-box">
+        <div class="section-title" style="margin: 0 0 10px 0; color: var(--text-main);">
+            <span>📊 سجل آخر 24 ساعة</span>
+            <div style="display: flex; gap: 6px;">
+                <button type="button" class="btn btn-excel" onclick="exportToExcel()">📥 تحميل Excel</button>
+                <button type="button" class="btn btn-gray" id="clearBtn" style="display: none;" onclick="clearReports()">مسح السجل</button>
+            </div>
+        </div>
+        <div id="reportsBox"></div>
     </div>
-
-    <!-- تقارير الإدارة -->
-    <div class="report-panel" style="margin-top: 30px;">
-        <div class="section-title">تقارير الإدارة (سجل البريكات)</div>
-        <table>
-            <thead>
-                <tr>
-                    <th>اسم الموظف</th>
-                    <th>نوع البريك</th>
-                    <th>الوقت المستغرق</th>
-                    <th>الحالة</th>
-                </tr>
-            </thead>
-            <tbody id="adminReportTable">
-                <tr><td colspan="4" style="color: #6b7280;">لا توجد سجلات حالية</td></tr>
-            </tbody>
-        </table>
-    </div>
-
 </div>
 
 <script>
-    // البيانات التجريبية لأرقام الانتظار بنفس التصميم الأصلي
-    let waitingQueue = [
-        { id: 1, name: "ضاري" },
-        { id: 2, name: "جنى" },
-        { id: 3, name: "زاهية" }
-    ];
-
-    let activeBreaks = []; // موظفون آخرون في البريك
-    let reportLogs = [];   // سجلات تقارير الإدارة
-    
-    let currentEmployee = {
-        name: "محمد (أنت)",
-        active: false,
-        type: null,
-        startTime: null,
-        timerInterval: null
+    const firebaseConfig = {
+        databaseURL: "https://break-system-4a453-default-rtdb.firebaseio.com/"
     };
-
-    function render() {
-        // 1. رسم قائمة الانتظار (دائرة برتقالية + الاسم)
-        let waitingHTML = "";
-        waitingQueue.forEach(item => {
-            waitingHTML += `
-                <div class="card-item">
-                    <span class="name-text">${item.name}</span>
-                    <span class="badge badge-waiting">#${item.id}</span>
-                </div>
-            `;
-        });
-        document.getElementById('waitingListContainer').innerHTML = waitingHTML;
-
-        // 2. رسم قائمة البريك (دائرة خضراء، وتتحول لأحمر إذا تخطى 5 دقائق للبريك السريع)
-        let breakHTML = "";
-        
-        if (currentEmployee.active) {
-            let isOver = currentEmployee.type === 'quick' && ((new Date() - currentEmployee.startTime) / 1000 > 300);
-            let badgeClass = isOver ? "badge-overtime" : "badge-break";
-            let typeLabel = currentEmployee.type === 'quick' ? 'بريك سريع (5د)' : 'بريك عادي';
-            
-            breakHTML += `
-                <div class="card-item">
-                    <span class="name-text">${currentEmployee.name} (${typeLabel})</span>
-                    <span class="badge ${badgeClass}">#1</span>
-                </div>
-            `;
-        }
-
-        activeBreaks.forEach((b, index) => {
-            breakHTML += `
-                <div class="card-item">
-                    <span class="name-text">${b.name} (${b.type === 'quick' ? 'بريك سريع' : 'بريك عادي'})</span>
-                    <span class="badge badge-break">#${index + 2}</span>
-                </div>
-            `;
-        });
-
-        document.getElementById('breakListContainer').innerHTML = breakHTML || '<div style="color: #6b7280; padding: 10px;">لا يوجد موظفون في البريك حالياً</div>';
-
-        // 3. تحديث جدول تقارير الإدارة
-        let reportHTML = "";
-        reportLogs.forEach(log => {
-            reportHTML += `
-                <tr>
-                    <td>${log.name}</td>
-                    <td>${log.type === 'quick' ? 'بريك سريع (5 دقائق)' : 'بريك عادي'}</td>
-                    <td>${log.duration} ثانية</td>
-                    <td>${log.exceeded ? '<span style="color: #ef4444; font-weight: bold;">متجاوز للوقت ⚠️</span>' : '<span style="color: #10b981;">منتظم</span>'}</td>
-                </tr>
-            `;
-        });
-        if(reportLogs.length > 0) {
-            document.getElementById('adminReportTable').innerHTML = reportHTML;
-        }
+    
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
     }
+    const db = firebase.database().ref('shared_company_breaks_v4');
 
-    function startBreak(type) {
-        if (currentEmployee.active) return;
-        currentEmployee.active = true;
-        currentEmployee.type = type;
-        currentEmployee.startTime = new Date();
-        document.getElementById('alertBox').style.display = 'none';
+    let state = { active: [], waiting: [], reports: [] };
+    let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
+    let myName = localStorage.getItem('my_employee_name') || '';
 
-        // تفعيل العداد المؤقت والتنبيهات
-        if (type === 'quick') {
-            currentEmployee.timerInterval = setInterval(() => {
-                let elapsedSec = Math.floor((new Date() - currentEmployee.startTime) / 1000);
-                let remaining = 300 - elapsedSec; // 300 ثانية = 5 دقائق
+    db.on('value', (snapshot) => {
+        const val = snapshot.val();
+        if (val) {
+            const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
+            let filteredReports = (val.reports || []).filter(rep => rep.endTimestamp > twentyFourHoursAgo);
 
-                if (remaining > 0) {
-                    let m = Math.floor(remaining / 60);
-                    let s = remaining % 60;
-                    document.getElementById('timerStatus').innerText = `المتبقي للبريك السريع: ${m}:${s < 10 ? '0' : ''}${s}`;
-                } else {
-                    document.getElementById('timerStatus').innerText = "⚠️ لقد تجاوزت وقت البريك السريع المسموح!";
-                    document.getElementById('alertBox').style.display = 'block';
-                }
-                render();
-            }, 1000);
+            state = {
+                active: val.active || [],
+                waiting: val.waiting || [],
+                reports: filteredReports
+            };
         } else {
-            document.getElementById('timerStatus').innerText = "أنت في بريك عادي مفتوح.";
+            state = { active: [], waiting: [], reports: [] };
         }
-        render();
+        renderUI();
+    });
+
+    function toggleAdmin() {
+        if (!isAdmin) {
+            const pass = prompt('الرجاء إدخال كلمة مرور الأدمن:');
+            if (pass === '1234') { 
+                isAdmin = true;
+                localStorage.setItem('is_admin_mode', 'true');
+                alert('تم تفعيل وضع الأدمن بنجاح!');
+                renderUI();
+            } else if (pass !== null) {
+                alert('كلمة المرور غير صحيحة!');
+            }
+        } else {
+            isAdmin = false;
+            localStorage.setItem('is_admin_mode', 'false');
+            alert('تم الخروج من وضع الأدمن.');
+            renderUI();
+        }
     }
 
-    function endBreak() {
-        if (!currentEmployee.active) return;
-        clearInterval(currentEmployee.timerInterval);
+    function submitBreak(type) {
+        const input = document.getElementById('empName');
+        const name = input.value.trim();
+        if (!name) {
+            alert('يرجى إدخال اسمك أولاً!');
+            return;
+        }
 
-        let endTime = new Date();
-        let totalSeconds = Math.floor((endTime - currentEmployee.startTime) / 1000);
-        let exceeded = currentEmployee.type === 'quick' && totalSeconds > 300;
+        const nameLower = name.toLowerCase();
+        const isInActive = state.active.some(item => item.name.trim().toLowerCase() === nameLower);
+        const isInWaiting = state.waiting.some(item => item.name.trim().toLowerCase() === nameLower);
 
-        // تسجيل البيانات للإدارة
-        reportLogs.push({
-            name: currentEmployee.name,
-            type: currentEmployee.type,
-            duration: totalSeconds,
-            exceeded: exceeded
+        if (isInActive || isInWaiting) {
+            alert('عذراً، هذا الاسم موجود بالفعل (إما في البريك أو في قائمة الانتظار)! لا يمكنك تسجيل دور جديد حتى تنتهي من دورك الحالي.');
+            return;
+        }
+
+        myName = name;
+        localStorage.setItem('my_employee_name', myName);
+
+        const now = Date.now();
+        const newItem = {
+            id: String(now),
+            name: name,
+            type: type, // 'normal' أو 'quick'
+            timestamp: now,
+            timeStr: new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' })
+        };
+
+        if (state.active.length < 2) {
+            state.active.push(newItem);
+        } else {
+            state.waiting.push(newItem);
+        }
+
+        input.value = '';
+        db.set(state);
+    }
+
+    function endBreak(index) {
+        const finishedItem = state.active.splice(index, 1)[0];
+        
+        if (finishedItem) {
+            const endTime = Date.now();
+            const durationMs = endTime - finishedItem.timestamp;
+            const durationMins = Math.floor(durationMs / 60000);
+            const durationText = durationMins === 0 ? 'أقل من دقيقة' : `${durationMins} دقيقة`;
+            const endTimeStr = new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' });
+            const typeText = finishedItem.type === 'quick' ? 'بريك سريع (5 دقائق)' : 'بريك عادي';
+
+            state.reports.unshift({
+                name: finishedItem.name,
+                type: typeText,
+                startTime: finishedItem.timeStr,
+                endTime: endTimeStr,
+                duration: durationText,
+                endTimestamp: endTime
+            });
+        }
+
+        if (state.waiting.length > 0) {
+            const next = state.waiting.shift();
+            next.timestamp = Date.now();
+            next.timeStr = new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' });
+            state.active.push(next);
+        }
+
+        db.set(state);
+    }
+
+    function cancelWaiting(index) {
+        const item = state.waiting[index];
+        const isOwner = myName && item.name.trim().toLowerCase() === myName.trim().toLowerCase();
+
+        if (!isOwner && !isAdmin) {
+            alert('يمكنك إلغاء دورك الخاص فقط!');
+            return;
+        }
+
+        if (confirm(`هل أنت متأكد من إلغاء دورك (${item.name}) من قائمة الانتظار؟`)) {
+            state.waiting.splice(index, 1);
+            db.set(state);
+        }
+    }
+
+    function executeSwap() {
+        const id1 = document.getElementById('swap1').value;
+        const id2 = document.getElementById('swap2').value;
+
+        if (!id1 || !id2 || id1 === id2) {
+            alert('يرجى اختيار اسمين مختلفين للتبديل!');
+            return;
+        }
+
+        const idx1 = state.waiting.findIndex(x => x.id === id1);
+        const idx2 = state.waiting.findIndex(x => x.id === id2);
+
+        if (idx1 > -1 && idx2 > -1) {
+            const temp = state.waiting[idx1];
+            state.waiting[idx1] = state.waiting[idx2];
+            state.waiting[idx2] = temp;
+            db.set(state);
+        }
+    }
+
+    function clearReports() {
+        if (!isAdmin) {
+            alert('هذا الإجراء مخصص للأدمن فقط!');
+            return;
+        }
+        if (confirm('هل أنت متأكد من مسح سجل آخر 24 ساعة؟')) {
+            state.reports = [];
+            db.set(state);
+        }
+    }
+
+    function exportToExcel() {
+        if (!state.reports || state.reports.length === 0) {
+            alert('لا توجد تقارير لتصديرها حالياً!');
+            return;
+        }
+
+        let csvContent = "\uFEFFاسم الموظف,نوع البريك,وقت الخروج,وقت العودة,مدة البريك\n";
+        state.reports.forEach(rep => {
+            csvContent += `"${rep.name}","${rep.type}","${rep.startTime}","${rep.endTime}","${rep.duration}"\n`;
         });
 
-        // إعادة ضبط الحالة
-        currentEmployee.active = false;
-        currentEmployee.type = null;
-        currentEmployee.startTime = null;
-        document.getElementById('timerStatus').innerText = "";
-        document.getElementById('alertBox').style.display = 'none';
-
-        render();
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `break_reports_${new Date().toISOString().slice(0,10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     }
 
-    // التشغيل الأول
-    render();
-</script>
+    function renderUI() {
+        const currentTime = Date.now();
 
+        const adminBtn = document.getElementById('adminBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        
+        if (isAdmin) {
+            adminBtn.style.background = 'rgba(16, 185, 129, 0.2)';
+            adminBtn.style.color = 'var(--accent-green)';
+            adminBtn.style.borderColor = 'var(--accent-green)';
+            adminBtn.innerText = '🔓 أدمن (مفعل)';
+            clearBtn.style.display = 'inline-block';
+        } else {
+            adminBtn.style.background = 'rgba(59, 130, 246, 0.15)';
+            adminBtn.style.color = 'var(--accent-blue)';
+            adminBtn.style.borderColor = 'var(--accent-blue)';
+            adminBtn.innerText = '🔒 وضع الأدمن';
+            clearBtn.style.display = 'none';
+        }
+
+        const aBox = document.getElementById('activeBox');
+        if (!state.active || state.active.length === 0) {
+            aBox.innerHTML = '<div class="empty-msg">لا يوجد أحد بالبريك حالياً</div>';
+        } else {
+            aBox.innerHTML = state.active.map((item, i) => {
+                const minsInBreak = Math.floor((currentTime - item.timestamp) / 60000);
+                const activeDurationStr = minsInBreak === 0 ? 'منذ أقل من دقيقة' : `منذ ${minsInBreak} دقيقة`;
+                
+                const isOwner = myName && item.name.trim().toLowerCase() === myName.trim().toLowerCase();
+                const showEndBtn = (isOwner || isAdmin);
+
+                const isQuick = item.type === 'quick';
+                const isOvertime = isQuick && minsInBreak > 5;
+
+                let warningHtml = '';
+                if (isQuick) {
+                    if (isOvertime) {
+                        warningHtml = `<br><span style="color: var(--accent-red); font-weight: bold; font-size: 0.85rem;">⚠️ تجاوزت الوقت المسموح (5 دقائق)!</span>`;
+                    } else {
+                        warningHtml = `<br><span style="color: var(--accent-blue); font-size: 0.8rem;">⚡ بريك سريع (متبقي ${Math.max(0, 5 - minsInBreak)} دقائق)</span>`;
+                    }
+                }
+
+                return `
+                    <div class="card-active ${isOvertime ? 'overtime' : ''}">
+                        <div>
+                            <strong>${item.name}</strong> 
+                            <span class="badge-duration" style="margin-right: 8px;">⏱️ ${activeDurationStr}</span>
+                            ${isQuick ? '<span class="badge-quick" style="margin-right: 4px;">سريع</span>' : ''}
+                            <br><small style="color:var(--text-muted)">وقت الخروج: ${item.timeStr}</small>
+                            ${warningHtml}
+                        </div>
+                        ${showEndBtn ? `<button type="button" class="btn btn-red" onclick="endBreak(${i})">إنهاء البريك</button>` : `<span style="font-size:0.8rem; color:var(--text-muted);">بريك زميلك</span>`}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        const wBox = document.getElementById('waitingBox');
+        if (!state.waiting || state.waiting.length === 0) {
+            wBox.innerHTML = '<div class="empty-msg">قائمة الانتظار فارغة</div>';
+        } else {
+            wBox.innerHTML = state.waiting.map((item, i) => {
+                const minsWaiting = Math.floor((currentTime - item.timestamp) / 60000);
+                const waitingDurationStr = minsWaiting === 0 ? 'منذ أقل من دقيقة' : `انتظار: ${minsWaiting} دقيقة`;
+                
+                const isOwner = myName && item.name.trim().toLowerCase() === myName.trim().toLowerCase();
+                const showCancelBtn = (isOwner || isAdmin);
+                const isQuick = item.type === 'quick';
+
+                return `
+                    <div class="card-waiting">
+                        <div>
+                            <span>#${i + 1} - <strong>${item.name}</strong></span>
+                            <span class="badge-time" style="margin-right: 8px;">${waitingDurationStr}</span>
+                            ${isQuick ? '<span class="badge-quick" style="margin-right: 4px;">سريع</span>' : ''}
+                        </div>
+                        ${showCancelBtn ? `<button type="button" class="btn btn-red" style="padding: 4px 10px; font-size: 0.75rem;" onclick="cancelWaiting(${i})">إلغاء الدور</button>` : ``}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        const s1 = document.getElementById('swap1');
+        const s2 = document.getElementById('swap2');
+        s1.innerHTML = s2.innerHTML = '';
+
+        if (state.waiting && state.waiting.length >= 2) {
+            document.getElementById('swapSection').style.display = 'block';
+            state.waiting.forEach((item, i) => {
+                s1.add(new Option(`#${i + 1} - ${item.name}`, item.id));
+                s2.add(new Option(`#${i + 1} - ${item.name}`, item.id));
+            });
+            if (s2.options.length > 1) s2.selectedIndex = 1;
+        } else {
+            document.getElementById('swapSection').style.display = 'none';
+        }
+
+        const rBox = document.getElementById('reportsBox');
+        if (!state.reports || state.reports.length === 0) {
+            rBox.innerHTML = '<div class="empty-msg">لا توجد تقارير مسجلة في آخر 24 ساعة</div>';
+        } else {
+            rBox.innerHTML = state.reports.map(rep => `
+                <div class="report-item">
+                    <div>
+                        <strong>${rep.name}</strong> 
+                        <span style="color:var(--text-muted); margin-right:6px;">(${rep.type})</span>
+                        <span style="color:var(--text-muted); margin-right:6px;">(من ${rep.startTime} إلى ${rep.endTime})</span>
+                    </div>
+                    <span style="color: var(--accent-green); font-weight: bold;">المدة: ${rep.duration}</span>
+                </div>
+            `).join('');
+        }
+    }
+
+    setInterval(() => {
+        if (state.active.length > 0 || state.waiting.length > 0) {
+            renderUI();
+        }
+    }, 10000);
+</script>
 </body>
 </html>
