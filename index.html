@@ -276,6 +276,9 @@
     let state = { active: [], waiting: [], reports: [] };
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
 
+    // حفظ اسم الموظف محلياً في جهازه ليعرف النظام من هو صاحبه
+    let myName = localStorage.getItem('my_employee_name') || '';
+
     db.on('value', (snapshot) => {
         const val = snapshot.val();
         if (val) {
@@ -321,6 +324,9 @@
         const input = document.getElementById('empName');
         const name = input.value.trim();
         if (!name) return;
+
+        myName = name;
+        localStorage.setItem('my_employee_name', myName);
 
         const now = Date.now();
         const newItem = {
@@ -448,6 +454,11 @@
             aBox.innerHTML = state.active.map((item, i) => {
                 const minsInBreak = Math.floor((currentTime - item.timestamp) / 60000);
                 const activeDurationStr = minsInBreak === 0 ? 'منذ أقل من دقيقة' : `منذ ${minsInBreak} دقيقة`;
+                
+                // زر إنهاء البريك يظهر فقط إذا كان هذا الموظف هو صاحب الجهاز (أو إذا كان وضع الأدمن مفعلًا)
+                const isOwner = myName && item.name.trim().toLowerCase() === myName.trim().toLowerCase();
+                const showEndBtn = (isOwner || isAdmin);
+
                 return `
                     <div class="card-active">
                         <div>
@@ -455,7 +466,7 @@
                             <span class="badge-duration" style="margin-right: 8px;">⏱️ ${activeDurationStr}</span>
                             <br><small style="color:var(--text-muted)">وقت الخروج: ${item.timeStr}</small>
                         </div>
-                        <button type="button" class="btn btn-red" onclick="endBreak(${i})">إنهاء البريك</button>
+                        ${showEndBtn ? `<button type="button" class="btn btn-red" onclick="endBreak(${i})">إنهاء البريك</button>` : `<span style="font-size:0.8rem; color:var(--text-muted);">بريك زميلك</span>`}
                     </div>
                 `;
             }).join('');
@@ -479,7 +490,6 @@
             }).join('');
         }
 
-        // إظهار أو إخفاء خيار تبديل الأدوار تلقائياً إذا كان هناك شخصان أو أكثر في الانتظار
         const s1 = document.getElementById('swap1');
         const s2 = document.getElementById('swap2');
         s1.innerHTML = s2.innerHTML = '';
