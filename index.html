@@ -141,7 +141,7 @@
         .btn-amber { background: var(--accent-amber); color: #0b0f19; }
         .btn-red { background: var(--accent-red); padding: 6px 12px; font-size: 0.85rem; }
         .btn-gray { background: #334155; font-size: 0.8rem; padding: 6px 12px; }
-        .btn-excel { background: #059669; font-size: 0.8rem; padding: 6px 12px; color: white; }
+        .btn-excel { background: #059669; font-size: 0.8rem; padding: 6px 12px; color: white; display: none; }
 
         .section-title {
             font-size: 1.1rem;
@@ -295,9 +295,9 @@
     <!-- قسم تقارير وسجل البريكات لآخر 24 ساعة -->
     <div class="report-box">
         <div class="section-title" style="margin: 0 0 10px 0; color: var(--text-main);">
-            <span>📊 سجل آخر 24 ساعة</span>
+            <span>📊 سجل آخر 24 ساعة (للجميع)</span>
             <div style="display: flex; gap: 6px;">
-                <button type="button" class="btn btn-excel" onclick="exportToExcel()">📥 تحميل Excel</button>
+                <button type="button" class="btn btn-excel" id="excelBtn" onclick="exportToExcel()">📥 تحميل Excel</button>
                 <button type="button" class="btn btn-gray" id="clearBtn" style="display: none;" onclick="clearReports()">مسح السجل</button>
             </div>
         </div>
@@ -318,7 +318,6 @@
     let state = { active: [], waiting: [], reports: [] };
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
     let myName = localStorage.getItem('my_employee_name') || '';
-    let lastKnownStateStr = '';
     let backgroundWorker = null;
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -326,7 +325,6 @@
         initBackgroundWorker();
     });
 
-    // تقنية الـ Web Worker لضمان استمرار عمل فحص البيانات والإشعارات في الخلفية دون توقف
     function initBackgroundWorker() {
         if (window.Worker) {
             const workerCode = `
@@ -349,7 +347,6 @@
                                 postMessage({ type: 'DATA_CHANGED', newVal: val, oldVal: JSON.parse(cachedStateStr) });
                             }
                             
-                            // نظام الترحيل التلقائي بعد 5 دقائق (300,000 ملي ثانية)
                             const newActive = val.active || [];
                             const newWaiting = val.waiting || [];
                             if (newWaiting.length > 0) {
@@ -520,25 +517,18 @@
 
     db.on('value', (snapshot) => {
         const val = snapshot.val();
-        const currentStateStr = JSON.stringify(val);
-
         if (val) {
             const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
             let filteredReports = (val.reports || []).filter(rep => rep.endTimestamp > twentyFourHoursAgo);
 
-            const newActive = val.active || [];
-            const newWaiting = val.waiting || [];
-
             state = {
-                active: newActive,
-                waiting: newWaiting,
+                active: val.active || [],
+                waiting: val.waiting || [],
                 reports: filteredReports
             };
         } else {
             state = { active: [], waiting: [], reports: [] };
         }
-
-        lastKnownStateStr = currentStateStr;
         renderUI();
     });
 
@@ -711,6 +701,10 @@
     }
 
     function exportToExcel() {
+        if (!isAdmin) {
+            alert('هذا الخيار مخصص للأدمن فقط!');
+            return;
+        }
         if (!state.reports || state.reports.length === 0) {
             alert('لا توجد تقارير لتصديرها حالياً!');
             return;
@@ -735,6 +729,7 @@
         const currentTime = Date.now();
         const adminBtn = document.getElementById('adminBtn');
         const clearBtn = document.getElementById('clearBtn');
+        const excelBtn = document.getElementById('excelBtn');
         
         if (isAdmin) {
             adminBtn.style.background = 'rgba(16, 185, 129, 0.2)';
@@ -742,12 +737,14 @@
             adminBtn.style.borderColor = 'var(--accent-green)';
             adminBtn.innerText = '🔓 أدمن (مفعل)';
             clearBtn.style.display = 'inline-block';
+            excelBtn.style.display = 'inline-block'; // إظهار زر الإكسل للأدمن فقط
         } else {
             adminBtn.style.background = 'rgba(59, 130, 246, 0.15)';
             adminBtn.style.color = 'var(--accent-blue)';
             adminBtn.style.borderColor = 'var(--accent-blue)';
             adminBtn.innerText = '🔒 وضع الأدمن';
             clearBtn.style.display = 'none';
+            excelBtn.style.display = 'none'; // إخفاء زر الإكسل عن الموظفين العاديين
         }
 
         const promptBox = document.getElementById('myTurnPromptBox');
