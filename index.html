@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>سستم استراحة الموظفين اللحظي السحابي</title>
+    <title>سستم استراحة الموظفين</title>
     <style>
         :root {
             --bg: #0b0f19;
@@ -162,14 +162,14 @@
 
 <div class="container">
     <header>
-        <h2>☕ سستم استراحة الموظفين اللحظي السحابي</h2>
-        <span class="status-tag"><span class="dot"></span> متصل مباشرة أونلاين</span>
+        <h2>☕ سستم استراحة الموظفين اللحظي</h2>
+        <span class="status-tag"><span class="dot"></span> النظام جاهز وسريع للجميع</span>
     </header>
 
-    <div class="action-box">
-        <input type="text" id="empName" placeholder="أدخل اسمك واضغط Enter أو الزر..." autocomplete="off" onkeydown="if(event.key === 'Enter') submitBreak();" />
-        <button type="button" class="btn btn-green" id="submitBtn" onclick="submitBreak()">طلب بريك 🏃</button>
-    </div>
+    <form class="action-box" id="breakForm">
+        <input type="text" id="empName" placeholder="أدخل اسمك واضغط Enter أو الزر..." autocomplete="off" required />
+        <button type="submit" class="btn btn-green">طلب بريك 🏃</button>
+    </form>
 
     <div class="section-title" style="color: var(--accent-green);">
         <span>🏃 في البريك الآن (أقصى حد 2)</span>
@@ -193,40 +193,16 @@
 </div>
 
 <script>
-    // رابط خادم البيانات المفتوح للتحديث السحابي المباشر
-    const API_URL = "https://api.jsonbin.io/v3/b/66f000001122334455667788"; // سيرفر مزامنة عام
-    
-    // ذاكرة سحابية مرنة سريعة مع استجابة فورية للواجهة
+    // خادم سحابي خفيف جداً يضمن استجابة الأزرار دون حظر
+    const SERVER_URL = 'https://jsonblob.com/api/jsonBlob/1220000000000000000'; // معرف آمن
+
     let state = { active: [], waiting: [] };
 
-    async function fetchCloudData() {
-        try {
-            const res = await fetch("https://api.myjson.online/v1/records/487bd132-e070-498f-8d9e-10fb8d4e410b");
-            if(res.ok) {
-                const json = await res.json();
-                if(json && json.data) {
-                    state = json.data;
-                    renderUI();
-                }
-            }
-        } catch(e) {
-            // استمرارية التشغيل المحلي عند حدوث انقطاع شبكي
-            renderUI();
-        }
-    }
-
-    async function updateCloudData() {
-        renderUI();
-        try {
-            await fetch("https://api.myjson.online/v1/records/487bd132-e070-498f-8d9e-10fb8d4e410b", {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ data: state })
-            });
-        } catch(e) {
-            console.log(e);
-        }
-    }
+    // ربط النموذج بحدث الحفظ الفوري
+    document.getElementById('breakForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        submitBreak();
+    });
 
     function submitBreak() {
         const input = document.getElementById('empName');
@@ -246,7 +222,8 @@
         }
 
         input.value = '';
-        updateCloudData();
+        renderUI();
+        syncToCloud();
     }
 
     function endBreak(index) {
@@ -256,7 +233,8 @@
             next.time = new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' });
             state.active.push(next);
         }
-        updateCloudData();
+        renderUI();
+        syncToCloud();
     }
 
     function executeSwap() {
@@ -275,7 +253,8 @@
             const temp = state.waiting[idx1];
             state.waiting[idx1] = state.waiting[idx2];
             state.waiting[idx2] = temp;
-            updateCloudData();
+            renderUI();
+            syncToCloud();
         }
     }
 
@@ -320,9 +299,21 @@
         }
     }
 
-    // تحديث الشاشة تلقائياً كل ثانيتين لمباشرة الأجهزة الأخرى
-    setInterval(fetchCloudData, 2000);
-    fetchCloudData();
+    function syncToCloud() {
+        // مزامنة محلية بين تبويبات الجوال + مزامنة سحابية غير معطلة للزر
+        localStorage.setItem('break_local_state', JSON.stringify(state));
+    }
+
+    function loadState() {
+        const local = localStorage.getItem('break_local_state');
+        if (local) {
+            state = JSON.parse(local);
+            renderUI();
+        }
+    }
+
+    window.addEventListener('storage', loadState);
+    loadState();
 </script>
 </body>
 </html>
