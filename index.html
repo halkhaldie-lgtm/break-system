@@ -9,8 +9,8 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
         :root {
-            --bg-gradient: linear-gradient(135deg, #090d16 0%, #171c28 50%, #1e1b4b 100%);
-            --glass-bg: rgba(21, 29, 42, 0.75);
+            --bg-gradient: linear-gradient(135deg, #070913 0%, #111827 50%, #1e1b4b 100%);
+            --glass-bg: rgba(17, 24, 39, 0.75);
             --glass-border: rgba(255, 255, 255, 0.08);
             --accent-green: #10b981;
             --accent-amber: #f59e0b;
@@ -44,7 +44,7 @@
             text-align: center;
             margin-bottom: 20px;
             position: relative;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
         }
 
         h2 { 
@@ -88,7 +88,6 @@
             font-size: 0.75rem;
             cursor: pointer;
             font-weight: bold;
-            transition: all 0.2s;
         }
 
         .notif-badge {
@@ -103,7 +102,6 @@
             font-size: 0.75rem;
             cursor: pointer;
             font-weight: bold;
-            transition: all 0.2s;
         }
 
         .action-box {
@@ -119,11 +117,7 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
         }
 
-        .action-buttons {
-            display: flex;
-            gap: 10px;
-        }
-
+        .action-buttons { display: flex; gap: 10px; }
         .action-buttons button { flex: 1; }
 
         input[type="text"] {
@@ -137,7 +131,6 @@
             outline: none;
             transition: border-color 0.2s;
         }
-
         input[type="text"]:focus { border-color: var(--accent-blue); }
 
         .btn {
@@ -151,7 +144,6 @@
             font-size: 1rem;
             transition: opacity 0.2s, transform 0.1s;
         }
-
         .btn:hover { opacity: 0.9; }
         .btn:active { transform: scale(0.98); }
         .btn-green { background: linear-gradient(135deg, #059669, #10b981); }
@@ -160,43 +152,59 @@
         .btn-gray { background: rgba(51, 65, 85, 0.6); border: 1px solid var(--glass-border); font-size: 0.8rem; padding: 6px 12px; border-radius: 8px; }
         .btn-excel { background: linear-gradient(135deg, #047857, #059669); font-size: 0.8rem; padding: 6px 12px; color: white; display: none; border-radius: 8px; }
 
-        .section-title {
+        /* حاوية قسم البريك الحالي المميزة بمستطيل وتدرج فريد */
+        .section-container-active {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(6, 78, 59, 0.15) 100%);
+            border: 2px solid rgba(16, 185, 129, 0.35);
+            border-radius: 20px;
+            padding: 16px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 25px rgba(16, 185, 129, 0.1);
+        }
+
+        /* حاوية قائمة الانتظار المميزة بمستطيل وتدرج فريد */
+        .section-container-waiting {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(120, 53, 15, 0.15) 100%);
+            border: 2px solid rgba(245, 158, 11, 0.35);
+            border-radius: 20px;
+            padding: 16px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 25px rgba(245, 158, 11, 0.1);
+        }
+
+        .section-header-title {
             font-size: 1.05rem;
             font-weight: bold;
-            margin: 20px 0 10px 0;
+            margin-bottom: 12px;
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            gap: 8px;
         }
 
         .card-active {
-            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(5, 150, 105, 0.05));
-            border: 1px solid rgba(16, 185, 129, 0.3);
+            background: rgba(6, 78, 59, 0.4);
+            border: 1px solid rgba(16, 185, 129, 0.4);
             border-radius: 14px;
-            padding: 16px;
+            padding: 14px;
             margin-bottom: 10px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
-
         .card-active.overtime {
-            background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(185, 28, 28, 0.05));
-            border: 1px solid rgba(239, 68, 68, 0.4);
+            background: rgba(127, 29, 29, 0.4);
+            border: 1px solid rgba(239, 68, 68, 0.5);
         }
 
         .card-waiting {
-            background: var(--glass-bg);
-            backdrop-filter: blur(12px);
-            border: 1px solid var(--glass-border);
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid rgba(245, 158, 11, 0.3);
             border-radius: 14px;
-            padding: 14px;
+            padding: 12px;
             margin-bottom: 8px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
 
         .my-turn-prompt {
@@ -210,12 +218,10 @@
             display: none;
             animation: pulseGlow 1.5s infinite alternate;
         }
-
         @keyframes pulseGlow {
             from { box-shadow: 0 0 10px rgba(16,185,129,0.2); }
             to { box-shadow: 0 0 25px rgba(16,185,129,0.5); }
         }
-
         .my-turn-prompt h3 { color: #fff; margin-bottom: 6px; font-size: 1.2rem; }
         .my-turn-prompt p { color: #d1fae5; margin-bottom: 12px; font-size: 0.95rem; }
 
@@ -225,10 +231,9 @@
             border: 1px solid var(--glass-border);
             border-radius: 16px;
             padding: 16px;
-            margin-top: 20px;
+            margin-bottom: 20px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
         }
-
         .swap-controls {
             display: flex;
             gap: 10px;
@@ -236,7 +241,6 @@
             margin-top: 12px;
             flex-wrap: wrap;
         }
-
         select {
             flex: 1;
             background: rgba(11, 15, 25, 0.8);
@@ -248,16 +252,20 @@
             outline: none;
         }
 
+        /* حاوية السجل المخفية بشكل افتراضي مع سهم إظهار */
         .report-box {
             background: var(--glass-bg);
             backdrop-filter: blur(16px);
             border: 1px solid var(--glass-border);
             border-radius: 16px;
             padding: 16px;
-            margin-top: 25px;
+            margin-top: 15px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
         }
-
+        .report-content-wrapper {
+            display: none; /* مخفي تماماً بشكل افتراضي */
+            margin-top: 12px;
+        }
         .report-item {
             font-size: 0.85rem;
             color: var(--text-muted);
@@ -268,10 +276,10 @@
             align-items: center;
         }
 
-        .empty-msg { color: var(--text-muted); font-size: 0.9rem; padding: 12px 0; text-align: center; }
+        .empty-msg { color: var(--text-muted); font-size: 0.85rem; padding: 8px 0; text-align: center; }
         
         .toggle-arrow-btn {
-            background: rgba(255, 255, 255, 0.05);
+            background: rgba(255, 255, 255, 0.08);
             border: 1px solid var(--glass-border);
             color: var(--text-main);
             width: 32px;
@@ -284,7 +292,7 @@
             font-size: 1rem;
             transition: all 0.2s;
         }
-        .toggle-arrow-btn:hover { background: rgba(255, 255, 255, 0.1); }
+        .toggle-arrow-btn:hover { background: rgba(255, 255, 255, 0.15); }
     </style>
 </head>
 <body>
@@ -304,6 +312,7 @@
         <button type="button" class="btn" style="background: #ffffff; color: #065f46; font-size: 1.05rem; width: 100%; border-radius: 10px;" onclick="confirmMyTurn()">✅ تأكيد ودخول البريك الآن</button>
     </div>
 
+    <!-- صندوق الإدخال الأساسي -->
     <div class="action-box">
         <input type="text" id="empName" placeholder="أدخل اسمك أولاً..." autocomplete="off" />
         <div class="action-buttons">
@@ -312,15 +321,21 @@
         </div>
     </div>
 
-    <div class="section-title" style="color: var(--accent-green);">
-        <span>🏃 في البريك الآن (عادي + سريع)</span>
+    <!-- قسم في البريك الآن (داخل مستطيل مخصص ومميز بلون وتدرج أخضر) -->
+    <div class="section-container-active">
+        <div class="section-header-title" style="color: #34d399;">
+            <span>🏃 في البريك الآن (عادي + سريع)</span>
+        </div>
+        <div id="activeBox"></div>
     </div>
-    <div id="activeBox"></div>
 
-    <div class="section-title" style="color: var(--accent-amber);">
-        <span>📋 قائمة الانتظار</span>
+    <!-- قسم قائمة الانتظار (داخل مستطيل مخصص ومميز بلون وتدرج برتقالي/ذهبي) -->
+    <div class="section-container-waiting">
+        <div class="section-header-title" style="color: #fbbf24;">
+            <span>📋 قائمة الانتظار</span>
+        </div>
+        <div id="waitingBox"></div>
     </div>
-    <div id="waitingBox"></div>
 
     <!-- صندوق تبديل الأدوار -->
     <div class="swap-box" id="swapSection" style="display: none;">
@@ -328,17 +343,21 @@
         <div class="swap-controls" id="swapControlsContainer"></div>
     </div>
 
-    <!-- قسم تقارير وسجل البريكات لآخر 24 ساعة -->
+    <!-- قسم السجل والتقارير (مخفي تماماً بشكل افتراضي مع سهم للإظهار) -->
     <div class="report-box">
-        <div class="section-title" style="margin: 0 0 10px 0; color: var(--text-main);">
-            <span>📊 سجل آخر 24 ساعة</span>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-size: 0.95rem; font-weight: bold; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
+                <span>📊 سجل آخر 24 ساعة</span>
+            </div>
             <div style="display: flex; gap: 6px; align-items: center;">
                 <button type="button" class="btn btn-excel" id="excelBtn" onclick="exportToExcel()">📥 Excel</button>
                 <button type="button" class="btn btn-gray" id="clearBtn" style="display: none;" onclick="clearReports()">مسح</button>
-                <button type="button" class="toggle-arrow-btn" id="toggleReportsBtn" onclick="toggleReportsExpand()" title="توسعة السجل">▼</button>
+                <button type="button" class="toggle-arrow-btn" id="toggleReportsBtn" onclick="toggleReportsExpand()" title="إظهار/إخفاء السجل">▼</button>
             </div>
         </div>
-        <div id="reportsBox"></div>
+        <div id="reportsContainerWrapper" class="report-content-wrapper">
+            <div id="reportsBox"></div>
+        </div>
     </div>
 </div>
 
@@ -364,9 +383,17 @@
 
     function toggleReportsExpand() {
         isReportsExpanded = !isReportsExpanded;
+        const wrapper = document.getElementById('reportsContainerWrapper');
         const btn = document.getElementById('toggleReportsBtn');
-        btn.innerText = isReportsExpanded ? '▲' : '▼';
-        renderUI();
+        if (isReportsExpanded) {
+            wrapper.style.display = 'block';
+            btn.innerText = '▲';
+            btn.title = 'إخفاء السجل';
+        } else {
+            wrapper.style.display = 'none';
+            btn.innerText = '▼';
+            btn.title = 'إظهار السجل';
+        }
     }
 
     function updateNotificationButtonUI() {
@@ -886,8 +913,7 @@
         if (!state.reports || state.reports.length === 0) {
             rBox.innerHTML = '<div class="empty-msg">لا توجد تقارير مسجلة في آخر 24 ساعة</div>';
         } else {
-            const reportsToDisplay = isReportsExpanded ? state.reports : state.reports.slice(0, 4);
-            rBox.innerHTML = reportsToDisplay.map(rep => `
+            rBox.innerHTML = state.reports.map(rep => `
                 <div class="report-item">
                     <div><strong>${rep.name}</strong> <span style="color:var(--text-muted)">(${rep.type})</span></div>
                     <span style="color: var(--accent-green); font-weight: bold;">${rep.duration}</span>
