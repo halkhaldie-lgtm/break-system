@@ -9,7 +9,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
         :root {
-            --bg-gradient: linear-gradient(135deg, #1e3a8a 0%, #0f172a 50%, #172554 100%);
+            --bg-gradient: linear-gradient(135deg, #172554 0%, #0f172a 50%, #090d16 100%);
             --card-bg: #1e293b;
             --card-border: #334155;
             --accent-green: #14b8a6;
@@ -78,7 +78,24 @@
             font-weight: bold;
         }
 
-        /* توسيع الشعار ليأخذ المساحة يمين ويسار بشكل كامل ومتناسق */
+        /* لوحة إعدادات الأدمن وتغيير الباسورد المصغرة في الأعلى تحت زر الأدمن */
+        .admin-panel-settings {
+            background: #0f172a;
+            border: 1px solid #3b82f6;
+            border-radius: 12px;
+            padding: 10px;
+            margin-bottom: 15px;
+            display: none;
+            text-align: left;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .admin-panel-settings input {
+            padding: 8px 10px;
+            font-size: 0.85rem;
+            margin-bottom: 6px;
+        }
+
+        /* توسيع الشعار ليأخذ المساحة يمين ويسار بالكامل */
         .hospital-logo-box {
             display: flex;
             flex-direction: column;
@@ -173,11 +190,11 @@
             background: var(--accent-blue);
             color: white;
             border: none;
-            padding: 12px 16px;
-            border-radius: 12px;
+            padding: 10px 14px;
+            border-radius: 10px;
             font-weight: bold;
             cursor: pointer;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             transition: opacity 0.2s, transform 0.1s;
         }
         .btn:hover { opacity: 0.9; }
@@ -303,16 +320,6 @@
             transition: all 0.2s;
         }
         .toggle-arrow-btn:hover { background: #334155; }
-
-        /* لوحة إعدادات الأدمن وتغيير الباسورد */
-        .admin-panel-settings {
-            background: #0f172a;
-            border: 1px solid var(--card-border);
-            border-radius: 14px;
-            padding: 15px;
-            margin-bottom: 15px;
-            display: none;
-        }
     </style>
 </head>
 <body>
@@ -322,6 +329,16 @@
         <div class="top-header-row">
             <button class="admin-badge" id="adminBtn" onclick="toggleAdmin()">🔒 Admin</button>
             <button class="notif-badge" id="notifBtn" onclick="requestNotificationPermission()">🔔 Alert</button>
+        </div>
+
+        <!-- لوحة تغيير كلمة المرور المصغرة في الأعلى (تظهر عند تفعيل الأدمن) -->
+        <div class="admin-panel-settings" id="adminSettingsPanel">
+            <div style="font-weight: bold; margin-bottom: 8px; color: var(--accent-blue); font-size: 0.85rem;">⚙️ Change Password</div>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+                <input type="password" id="oldPassInput" placeholder="Old password..." />
+                <input type="password" id="newAdminPass" placeholder="New password..." />
+                <button class="btn btn-green" style="width: 100%; padding: 8px;" onclick="changeAdminPassword()">Update</button>
+            </div>
         </div>
 
         <div class="hospital-logo-box">
@@ -339,16 +356,6 @@
 
         <div class="center-title">Contact Center Break System</div>
     </header>
-
-    <!-- لوحة إعدادات الأدمن وتغيير الرقم السري -->
-    <div class="admin-panel-settings" id="adminSettingsPanel">
-        <div style="font-weight: bold; margin-bottom: 10px; color: var(--accent-blue);">⚙️ Admin Panel: Change Password</div>
-        <div style="display: flex; flex-direction: column; gap: 8px;">
-            <input type="password" id="oldPassInput" placeholder="Enter old password..." />
-            <input type="password" id="newAdminPass" placeholder="Enter new password..." />
-            <button class="btn btn-green" onclick="changeAdminPassword()">Update Password</button>
-        </div>
-    </div>
 
     <div id="myTurnPromptBox" class="my-turn-prompt">
         <h3>🎉 It's your turn for break!</h3>
