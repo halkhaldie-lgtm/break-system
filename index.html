@@ -1,11 +1,8 @@
 function showCustomAlert(message) {
-    // إزالة أي تنبيه سابق إن وجد
     var existingAlert = document.getElementById('custom-alert-box');
     if (existingAlert) {
         existingAlert.remove();
     }
-
-    // إنشاء الحاوية الرئيسية للتنبيه
     var alertBox = document.createElement('div');
     alertBox.id = 'custom-alert-box';
     alertBox.style.position = 'fixed';
@@ -23,7 +20,6 @@ function showCustomAlert(message) {
     alertBox.style.width = '90%';
     alertBox.style.fontFamily = 'Arial, sans-serif';
 
-    // بناء محتوى التنبيه بالداخل بأمان تام
     var titleDiv = document.createElement('div');
     titleDiv.style.color = '#ff4d4d';
     titleDiv.style.fontSize = '20px';
@@ -50,15 +46,12 @@ function showCustomAlert(message) {
     btn.style.cursor = 'pointer';
     btn.textContent = 'حسناً';
 
-    // تجميع العناصر داخل صندوق التنبيه
     alertBox.appendChild(titleDiv);
     alertBox.appendChild(msgDiv);
     alertBox.appendChild(btn);
 
-    // إضافة الصندوق إلى الصفحة
     document.body.appendChild(alertBox);
 
-    // حدث زر الإغلاق
     btn.onclick = function() {
         alertBox.remove();
     };
