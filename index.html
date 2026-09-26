@@ -78,26 +78,7 @@
             font-weight: bold;
         }
 
-        /* لوحة إعدادات الأدمن وتغيير الباسورد المصغرة بحجم المستطيل المطلوب */
-        .admin-panel-settings {
-            background: #0f172a;
-            border: 1px solid #3b82f6;
-            border-radius: 10px;
-            padding: 8px 12px;
-            margin-bottom: 12px;
-            display: none;
-            text-align: left;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-            width: 100%;
-        }
-        .admin-panel-settings input {
-            padding: 6px 10px;
-            font-size: 0.8rem;
-            margin-bottom: 5px;
-            height: 32px;
-        }
-
-        /* توسيع الشعار ليأخذ المساحة كاملة وشكل الهلال المطابق للصورة */
+        /* شعار المستشفى المحدث بشكل هلال دقيق تماماً كالتي في الصورة */
         .hospital-logo-box {
             display: flex;
             flex-direction: column;
@@ -115,33 +96,39 @@
             align-items: center;
             gap: 12px;
         }
-        /* شعار الهلال الدقيق المطابق للصورة تماماً بلونين الأزرق والأخضر */
+
+        /* رسم الهلال الدقيق بالأخضر والأزرق المطابق للصورة تماماً */
         .logo-crescent {
-            width: 32px;
-            height: 32px;
+            width: 36px;
+            height: 36px;
             position: relative;
             display: inline-block;
         }
-        .logo-crescent::before, .logo-crescent::after {
+        /* الهلال الأخضر الخارجي */
+        .logo-crescent::before {
             content: '';
             position: absolute;
+            width: 36px;
+            height: 36px;
             border-radius: 50%;
+            background: transparent;
+            box-shadow: -4px 2px 0 0 #0d9488;
+            top: -2px;
+            left: 2px;
+            transform: rotate(-30deg);
         }
-        .logo-crescent::before {
-            width: 32px;
-            height: 32px;
-            background: #0d9488; /* أخضر */
-            top: 0;
-            left: 0;
-        }
+        /* الهلال الأزرق الداخلي المتداخل */
         .logo-crescent::after {
-            width: 27px;
-            height: 27px;
-            background: #ffffff;
-            top: 2.5px;
-            left: 7px;
-            box-shadow: inset -3px 0 0 0 #1e3a8a; /* هلال أزرق متداخل */
+            content: '';
+            position: absolute;
+            width: 30px;
+            height: 30px;
             border-radius: 50%;
+            background: transparent;
+            box-shadow: -4px 2px 0 0 #1e3a8a;
+            top: 2px;
+            left: 6px;
+            transform: rotate(-15deg);
         }
 
         .logo-arabic-title {
@@ -343,6 +330,58 @@
             transition: all 0.2s;
         }
         .toggle-arrow-btn:hover { background: #334155; }
+
+        /* نافذة إدخال باسورد الأدمن المطلوبة المماثلة للصورة */
+        .custom-modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        .custom-modal-box {
+            background: #ffffff;
+            color: #0f172a;
+            width: 100%;
+            max-width: 420px;
+            border-radius: 14px;
+            padding: 24px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+            text-align: left;
+            direction: ltr;
+        }
+        .custom-modal-title {
+            font-size: 1.05rem;
+            font-weight: bold;
+            color: #1e293b;
+            margin-bottom: 12px;
+        }
+        .custom-modal-subtitle {
+            font-size: 0.9rem;
+            color: #475569;
+            margin-bottom: 10px;
+        }
+        .custom-modal-box input {
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            color: #0f172a;
+            margin-bottom: 10px;
+            font-size: 0.95rem;
+            padding: 10px 12px;
+        }
+        .custom-modal-box input:focus {
+            border-color: #3b82f6;
+            background: #ffffff;
+        }
+        .custom-modal-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
     </style>
 </head>
 <body>
@@ -350,18 +389,8 @@
 <div class="container">
     <header>
         <div class="top-header-row">
-            <button class="admin-badge" id="adminBtn" onclick="toggleAdmin()">🔒 Admin</button>
+            <button class="admin-badge" id="adminBtn" onclick="openAdminModal()">🔒 Admin</button>
             <button class="notif-badge" id="notifBtn" onclick="requestNotificationPermission()">🔔 Alert</button>
-        </div>
-
-        <!-- لوحة تغيير كلمة المرور المصغرة بحجم المستطيل المحدد -->
-        <div class="admin-panel-settings" id="adminSettingsPanel">
-            <div style="font-weight: bold; margin-bottom: 4px; color: var(--accent-blue); font-size: 0.8rem;">⚙️ Change Password</div>
-            <div style="display: flex; gap: 6px;">
-                <input type="password" id="oldPassInput" placeholder="Old password..." style="flex:1;" />
-                <input type="password" id="newAdminPass" placeholder="New password..." style="flex:1;" />
-                <button class="btn btn-green" style="padding: 6px 12px; font-size: 0.8rem;" onclick="changeAdminPassword()">Update</button>
-            </div>
         </div>
 
         <div class="hospital-logo-box">
@@ -438,6 +467,31 @@
     </div>
 </div>
 
+<!-- نافذة إدخال كلمة مرور الأدمن المطلوبة (مماثلة للصورة مع زر تحديث الباسورد بجانب موافق وإلغاء) -->
+<div class="custom-modal-overlay" id="adminModalOverlay">
+    <div class="custom-modal-box">
+        <div class="custom-modal-title" id="adminModalDomainTitle">halkhaldie-lgtm.github.io says</div>
+        <div class="custom-modal-subtitle">Please enter admin password:</div>
+        <input type="password" id="adminPassInput" placeholder="Password..." />
+        
+        <!-- حقول الباسورد القديم والجديد تظهر عند الضغط على زر Update Password -->
+        <div id="passwordUpdateFields" style="display: none; margin-top: 10px; border-top: 1px solid #e2e8f0; padding-top: 10px;">
+            <div style="font-size: 0.8rem; font-weight: bold; color: #3b82f6; margin-bottom: 6px;">⚙️ Change Password Details</div>
+            <input type="password" id="oldPassInput" placeholder="Old password..." />
+            <input type="password" id="newAdminPass" placeholder="New password..." />
+            <button type="button" class="btn btn-green" style="width: 100%; margin-top: 4px;" onclick="changeAdminPassword()">Save New Password</button>
+        </div>
+
+        <div class="custom-modal-buttons">
+            <button type="button" class="btn btn-gray" id="togglePassFieldsBtn" style="background: #e2e8f0; color: #1e293b;" onclick="togglePassUpdateForm()">Update Password</button>
+            <div style="margin-left: auto; display: flex; gap: 6px;">
+                <button type="button" class="btn" style="background: #3b82f6;" onclick="submitAdminPassword()">OK</button>
+                <button type="button" class="btn btn-gray" style="background: #f1f5f9; color: #475569;" onclick="closeAdminModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     const firebaseConfig = {
         databaseURL: "https://break-system-4a453-default-rtdb.firebaseio.com/"
@@ -457,6 +511,39 @@
         return localStorage.getItem('admin_secret_pass') || '1234';
     }
 
+    function openAdminModal() {
+        if (isAdmin) {
+            isAdmin = false;
+            localStorage.setItem('is_admin_mode', 'false');
+            renderUI();
+        } else {
+            document.getElementById('adminPassInput').value = '';
+            document.getElementById('oldPassInput').value = '';
+            document.getElementById('newAdminPass').value = '';
+            document.getElementById('passwordUpdateFields').style.display = 'none';
+            document.getElementById('togglePassFieldsBtn').innerText = 'Update Password';
+            document.getElementById('adminModalDomainTitle').innerText = window.location.hostname + " says";
+            document.getElementById('adminModalOverlay').style.display = 'flex';
+            document.getElementById('adminPassInput').focus();
+        }
+    }
+
+    function closeAdminModal() {
+        document.getElementById('adminModalOverlay').style.display = 'none';
+    }
+
+    function togglePassUpdateForm() {
+        const fields = document.getElementById('passwordUpdateFields');
+        const btn = document.getElementById('togglePassFieldsBtn');
+        if (fields.style.display === 'none') {
+            fields.style.display = 'block';
+            btn.innerText = 'Hide Form';
+        } else {
+            fields.style.display = 'none';
+            btn.innerText = 'Update Password';
+        }
+    }
+
     function changeAdminPassword() {
         const oldPass = document.getElementById('oldPassInput').value.trim();
         const newPass = document.getElementById('newAdminPass').value.trim();
@@ -474,11 +561,29 @@
         document.getElementById('oldPassInput').value = '';
         document.getElementById('newAdminPass').value = '';
         alert('Admin password changed successfully!');
+        togglePassUpdateForm();
+    }
+
+    function submitAdminPassword() {
+        const pass = document.getElementById('adminPassInput').value;
+        if (pass === getAdminPassword()) {
+            isAdmin = true;
+            localStorage.setItem('is_admin_mode', 'true');
+            closeAdminModal();
+            renderUI();
+        } else {
+            alert('Incorrect password!');
+        }
     }
 
     document.addEventListener('DOMContentLoaded', () => {
         updateNotificationButtonUI();
         if(myName) document.getElementById('empName').value = myName;
+        
+        // دعم زر Enter داخل نافذة الأدمن
+        document.getElementById('adminPassInput').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') submitAdminPassword();
+        });
     });
 
     function toggleReportsExpand() {
@@ -615,23 +720,6 @@
                     }
                 }
             }
-        }
-    }
-
-    function toggleAdmin() {
-        if (!isAdmin) {
-            const pass = prompt('Please enter admin password:');
-            if (pass === getAdminPassword()) { 
-                isAdmin = true;
-                localStorage.setItem('is_admin_mode', 'true');
-                renderUI();
-            } else if (pass !== null) {
-                alert('Incorrect password!');
-            }
-        } else {
-            isAdmin = false;
-            localStorage.setItem('is_admin_mode', 'false');
-            renderUI();
         }
     }
 
@@ -912,7 +1000,6 @@
         const adminBtn = document.getElementById('adminBtn');
         const clearBtn = document.getElementById('clearBtn');
         const excelBtn = document.getElementById('excelBtn');
-        const adminSettingsPanel = document.getElementById('adminSettingsPanel');
         
         if (isAdmin) {
             adminBtn.style.background = '#065f46';
@@ -921,7 +1008,6 @@
             adminBtn.innerText = '🔓 Admin Active';
             clearBtn.style.display = 'inline-block';
             excelBtn.style.display = 'inline-block';
-            adminSettingsPanel.style.display = 'block';
         } else {
             adminBtn.style.background = '#0f172a';
             adminBtn.style.color = 'var(--accent-blue)';
@@ -929,7 +1015,6 @@
             adminBtn.innerText = '🔒 Admin';
             clearBtn.style.display = 'none';
             excelBtn.style.display = 'none';
-            adminSettingsPanel.style.display = 'none';
         }
 
         const requestsSection = document.getElementById('requestsSectionContainer');
