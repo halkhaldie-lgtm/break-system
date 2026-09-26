@@ -245,7 +245,7 @@
             border-color: #991b1b;
         }
 
-        /* تنسيق جميل وواضح لأرقام الانتظار */
+        /* تنسيق أرقام الانتظار بشارة دائرية أنيقة وواضحة */
         .waiting-badge-num {
             display: inline-flex;
             align-items: center;
@@ -253,11 +253,11 @@
             background: #3b82f6;
             color: white;
             font-weight: bold;
-            width: 26px;
-            height: 26px;
+            width: 28px;
+            height: 28px;
             border-radius: 50%;
-            font-size: 0.85rem;
-            margin-right: 8px;
+            font-size: 0.9rem;
+            margin-right: 10px;
             box-shadow: 0 2px 5px rgba(59, 130, 246, 0.4);
         }
 
@@ -300,7 +300,7 @@
             outline: none;
         }
 
-        /* تنسيق جدول التقارير مطابق تماماً للصورة بالألوان والعناوين */
+        /* تنسيق جدول التقارير المطابق تماماً للتصميم المطلوب */
         .report-box {
             background: var(--card-bg);
             border: 1px solid var(--card-border);
@@ -347,9 +347,9 @@
             border: 1px solid #334155;
             color: var(--text-main);
         }
-        .report-table tr.exceed-row td.exceed-cell {
-            background-color: #ef4444;
-            color: #ffffff;
+        .report-table td.exceed-cell {
+            background-color: #ef4444 !important;
+            color: #ffffff !important;
             font-weight: bold;
             text-align: center;
         }
@@ -491,7 +491,7 @@
         <div class="swap-controls" id="swapControlsContainer"></div>
     </div>
 
-    <!-- قسم التقارير المطابق للتصميم المطلوب -->
+    <!-- قسم التقارير المطابق تماماً للتصميم المطلوب -->
     <div class="report-box">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <div style="font-size: 0.95rem; font-weight: bold; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
@@ -541,7 +541,7 @@
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
-    const db = firebase.database().ref('alsalam_hospital_breaks_v26');
+    const db = firebase.database().ref('alsalam_hospital_breaks_v28');
 
     let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
@@ -893,6 +893,7 @@
         db.set(state);
     }
 
+    // الدالة المسؤولة عن إنهاء البريك وتقديم الشخص التالي بالترتيب تلقائياً
     function endBreak(index) {
         const finishedItem = state.active.splice(index, 1)[0];
         
@@ -923,6 +924,25 @@
                 isOvertime: isOvertime,
                 endTimestamp: endTime
             });
+
+            // التأكد من إدخال الشخص التالي في قائمة الانتظار تلقائياً إذا وُجد مكان متاح
+            if (state.waiting.length > 0) {
+                const nextItem = state.waiting[0];
+                const hasNormal = state.active.some(a => a.type === 'normal' || a.type === 'request');
+                const hasQuick = state.active.some(a => a.type === 'quick');
+
+                let canAutoEnter = false;
+                if (nextItem.type === 'quick' && !hasQuick) canAutoEnter = true;
+                else if ((nextItem.type === 'normal' || nextItem.type === 'request') && !hasNormal) canAutoEnter = true;
+
+                if (canAutoEnter) {
+                    const shifted = state.waiting.shift();
+                    shifted.timestamp = Date.now();
+                    shifted.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                    delete shifted.turnStartTime;
+                    state.active.push(shifted);
+                }
+            }
         }
 
         db.set(state);
@@ -1032,7 +1052,7 @@
         if (!isAdmin) return;
         let csvContent = "\uFEFF--- Break Reports ---\nEmployee Name,Break Type,Start Time,End Time,Duration,Overtime Status\n";
         (state.reports || []).forEach(rep => {
-            csvContent += `"${rep.name}","${rep.type}","${rep.startTime}","${rep.endTime}","${rep.duration}","${rep.isOvertime ? 'Exceed' : 'Normal'}"\n`;
+            csvContent += `"${rep.name}","${rep.type}","${rep.startTime}","${rep.endTime}","${rep.duration}","Normal"\n`;
         });
 
         csvContent += "\n\uFEFF--- Swap Logs ---\nRecipient,Initiator,Old Pos,New Pos,Time\n";
@@ -1232,7 +1252,7 @@
             swapSection.style.display = 'none';
         }
 
-        // عرض جدول التقارير المطابق للصورة تماماً
+        // عرض جدول التقارير تماماً مثل التصميم المطلوب
         const rBox = document.getElementById('reportsBox');
         if (!state.reports || state.reports.length === 0) {
             rBox.innerHTML = '<div class="empty-msg">No reports logged in the last 24 hours</div>';
@@ -1254,13 +1274,13 @@
             `;
             state.reports.forEach(rep => {
                 tableHtml += `
-                    <tr class="${rep.isOvertime ? 'exceed-row' : ''}">
+                    <tr>
                         <td><strong>${rep.name}</strong></td>
                         <td>${rep.type}</td>
                         <td>${rep.startTime}</td>
                         <td>${rep.endTime}</td>
                         <td class="${rep.isOvertime ? 'exceed-cell' : ''}">${rep.duration}</td>
-                        <td>${rep.isOvertime ? 'Normal' : 'Normal'}</td>
+                        <td>Normal</td>
                     </tr>
                 `;
             });
