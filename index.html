@@ -7,8 +7,6 @@
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    <!-- SheetJS with Full Styles Support Library -->
-    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.full.min.js"></script>
     <style>
         :root {
             --bg-gradient: linear-gradient(135deg, #172554 0%, #0f172a 50%, #090d16 100%);
@@ -80,83 +78,95 @@
             font-weight: bold;
         }
 
-        /* شعار المستشفى المحدث بشكل هلال */
+        /* تنسيق الشعار المطابق تماماً للصورة المطلوبة */
         .hospital-logo-box {
-            display: flex;
+            display: inline-flex;
             flex-direction: column;
             align-items: center;
             background: #ffffff;
             border: 1px solid #cbd5e1;
-            padding: 12px 20px;
-            border-radius: 12px;
+            padding: 10px 25px;
+            border-radius: 10px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            margin-bottom: 10px;
-            width: 100%;
+            margin-bottom: 12px;
+            position: relative;
         }
-        .logo-top-row {
+        
+        .logo-main-row {
             display: flex;
             align-items: center;
             gap: 12px;
+            direction: rtl;
         }
-        .logo-crescent {
-            width: 36px;
+
+        /* الهلال المتداخل بدقة تماماً مثل الصورة */
+        .logo-crescent-group {
+            width: 32px;
             height: 36px;
             position: relative;
-            display: inline-block;
+            flex-shrink: 0;
         }
-        .logo-crescent::before {
-            content: '';
+        .crescent-outer {
             position: absolute;
-            width: 36px;
-            height: 36px;
+            width: 32px;
+            height: 32px;
             border-radius: 50%;
-            background: transparent;
-            box-shadow: -4px 2px 0 0 #0d9488;
-            top: -2px;
-            left: 2px;
-            transform: rotate(-30deg);
-        }
-        .logo-crescent::after {
-            content: '';
-            position: absolute;
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            background: transparent;
-            box-shadow: -4px 2px 0 0 #1e3a8a;
+            border: 5px solid transparent;
+            border-top-color: #0d9488;
+            border-left-color: #0d9488;
+            transform: rotate(-45deg);
             top: 2px;
-            left: 6px;
-            transform: rotate(-15deg);
+            left: 0;
+        }
+        .crescent-inner {
+            position: absolute;
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            border: 5px solid transparent;
+            border-top-color: #1e3a8a;
+            border-left-color: #1e3a8a;
+            transform: rotate(-45deg);
+            top: 5px;
+            left: 4px;
+        }
+
+        .logo-text-group {
+            display: flex;
+            flex-direction: column;
+            text-align: right;
         }
 
         .logo-arabic-title {
-            font-size: 1.4rem;
+            font-size: 1.35rem;
             font-weight: 800;
             color: #0d9488;
+            line-height: 1.1;
             letter-spacing: -0.5px;
+            font-family: 'Amiri', 'Tahoma', sans-serif;
         }
+
         .logo-english-title {
-            font-size: 0.9rem;
+            font-size: 0.95rem;
             font-weight: 700;
             color: #1e3a8a;
-            margin-top: 2px;
-            letter-spacing: 0.5px;
+            line-height: 1.2;
+            letter-spacing: 0.3px;
         }
-        .logo-divider {
-            width: 100%;
-            height: 2px;
-            background: #0d9488;
-            margin: 6px 0;
-        }
+
         .logo-footer-row {
             display: flex;
             justify-content: space-between;
+            align-items: center;
             width: 100%;
-            font-size: 0.75rem;
+            margin-top: 4px;
+            padding-top: 3px;
+            border-top: 1px solid #cbd5e1;
+            font-size: 0.72rem;
             font-weight: bold;
         }
-        .logo-trust-text { color: #0d9488; }
-        .logo-trust-word { color: #1e3a8a; letter-spacing: 2px; }
+        .logo-trust-arabic { color: #0d9488; }
+        .logo-trust-english { color: #1e3a8a; letter-spacing: 1.5px; font-weight: 800; }
 
         .center-title {
             font-size: 1.1rem;
@@ -436,16 +446,21 @@
             <button class="notif-badge" id="notifBtn" onclick="requestNotificationPermission()">🔔 Alert</button>
         </div>
 
+        <!-- الشعار المحدث والمطابق تماماً للصورة -->
         <div class="hospital-logo-box">
-            <div class="logo-top-row">
-                <span class="logo-crescent"></span>
-                <span class="logo-arabic-title">مستشفيات السلام</span>
+            <div class="logo-main-row">
+                <div class="logo-crescent-group">
+                    <div class="crescent-outer"></div>
+                    <div class="crescent-inner"></div>
+                </div>
+                <div class="logo-text-group">
+                    <div class="logo-arabic-title">مستشفى السلام</div>
+                    <div class="logo-english-title">Al Salam Hospital</div>
+                </div>
             </div>
-            <div class="logo-english-title">Al Salam Hospital</div>
-            <div class="logo-divider"></div>
             <div class="logo-footer-row">
-                <span class="logo-trust-text">ثقتكم أمانة</span>
-                <span class="logo-trust-word">T R U S T</span>
+                <span class="logo-trust-arabic">ثقتكم أمانة</span>
+                <span class="logo-trust-english">T R U S T</span>
             </div>
         </div>
 
@@ -543,7 +558,7 @@
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
-    const db = firebase.database().ref('alsalam_hospital_breaks_v30');
+    const db = firebase.database().ref('alsalam_hospital_breaks_v31');
 
     let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
@@ -1048,113 +1063,95 @@
         }
     }
 
-    // دالة تصدير ملف إكسل منسق بالكامل (ألوان، خط عريض، تلوين المتأخر بالأحمر والسليم بالأخضر)
+    // دالة تصدير ملف إكسل دقيقة مدعومة بالتنسيق والألوان والخلايا العريضة
     function exportToExcel() {
         if (!isAdmin) return;
 
-        let aoa = [
-            ["--- Break Reports ---"],
-            ["Employee Name", "Break Type", "Start Time", "End Time", "Duration", "Overtime Status"]
-        ];
+        let htmlContent = `
+            <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+            <head>
+                <meta charset="UTF-8">
+                <style>
+                    table { border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; }
+                    th { background-color: #E0F2FE; color: #0369A1; font-weight: bold; border: 2px solid #000000; text-align: center; padding: 8px; }
+                    td { border: 2px solid #000000; text-align: center; padding: 6px; font-size: 11pt; }
+                    .section-title { background-color: #BAE6FD; color: #0284C7; font-weight: bold; font-size: 13pt; border: 2px solid #000000; text-align: left; padding: 10px; }
+                    .exceed { background-color: #EF4444; color: #FFFFFF; font-weight: bold; }
+                    .normal { background-color: #A7F3D0; color: #065F46; font-weight: bold; }
+                </style>
+            </head>
+            <body>
+                <table>
+                    <tr>
+                        <td colspan="6" class="section-title">--- Contact Center Break Report ---</td>
+                    </tr>
+                    <tr>
+                        <th>Employee Name</th>
+                        <th>Break Type</th>
+                        <th>Start Time</th>
+                        <th>End Time</th>
+                        <th>Duration</th>
+                        <th>Overtime Status</th>
+                    </tr>
+        `;
 
         (state.reports || []).forEach(rep => {
-            aoa.push([rep.name, rep.type, rep.startTime, rep.endTime, rep.duration, rep.isOvertime ? "Exceed" : "Normal"]);
+            const statusClass = rep.isOvertime ? 'exceed' : 'normal';
+            const statusText = rep.isOvertime ? 'Exceed' : 'Normal';
+            htmlContent += `
+                <tr>
+                    <td><b>${rep.name}</b></td>
+                    <td>${rep.type}</td>
+                    <td>${rep.startTime}</td>
+                    <td>${rep.endTime}</td>
+                    <td>${rep.duration}</td>
+                    <td class="${statusClass}">${statusText}</td>
+                </tr>
+            `;
         });
 
-        aoa.push([]);
-        aoa.push(["--- Swap Logs ---"]);
-        aoa.push(["Recipient", "Initiator", "Old Pos", "New Pos", "Time"]);
+        htmlContent += `
+                    <tr><td colspan="6"></td></tr>
+                    <tr>
+                        <td colspan="5" class="section-title">--- Swap Logs ---</td>
+                    </tr>
+                    <tr>
+                        <th>Recipient</th>
+                        <th>Initiator</th>
+                        <th>Old Pos</th>
+                        <th>New Pos</th>
+                        <th>Time</th>
+                        <th></th>
+                    </tr>
+        `;
 
         (state.swapLogs || []).forEach(sw => {
-            aoa.push([sw.receiverName, sw.initiatorName, sw.oldPos, sw.newPos, sw.timeStr]);
+            htmlContent += `
+                <tr>
+                    <td><b>${sw.receiverName}</b></td>
+                    <td>${sw.initiatorName}</td>
+                    <td>${sw.oldPos}</td>
+                    <td>${sw.newPos}</td>
+                    <td>${sw.timeStr}</td>
+                    <td></td>
+                </tr>
+            `;
         });
 
-        const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.aoa_to_sheet(aoa);
+        htmlContent += `
+                </table>
+            </body>
+            </html>
+        `;
 
-        // إعدادات التنسيق والحدود العريضة (Borders) والألوان
-        const thinBorder = {
-            top: { style: "medium", color: { rgb: "000000" } },
-            bottom: { style: "medium", color: { rgb: "000000" } },
-            left: { style: "medium", color: { rgb: "000000" } },
-            right: { style: "medium", color: { rgb: "000000" } }
-        };
-
-        const headerStyle = {
-            font: { bold: true, color: { rgb: "000000" } },
-            fill: { fgColor: { rgb: "E0F2FE" } }, // أزرق فاتح للعناوين
-            border: thinBorder,
-            alignment: { horizontal: "center" }
-        };
-
-        const sectionTitleStyle = {
-            font: { bold: true, color: { rgb: "0284C7" }, sz: 12 },
-            fill: { fgColor: { rgb: "BAE6FD" } }
-        };
-
-        const redCellStyle = {
-            font: { bold: true, color: { rgb: "FFFFFF" } },
-            fill: { fgColor: { rgb: "EF4444" } }, // أحمر للمتأخر
-            border: thinBorder,
-            alignment: { horizontal: "center" }
-        };
-
-        const greenCellStyle = {
-            font: { bold: true, color: { rgb: "065F46" } },
-            fill: { fgColor: { rgb: "A7F3D0" } }, // أخضر للسليم
-            border: thinBorder,
-            alignment: { horizontal: "center" }
-        };
-
-        const standardCellStyle = {
-            border: thinBorder,
-            alignment: { horizontal: "center" }
-        };
-
-        // تطبيق الأنماط على الخلايا برمجياً
-        const range = XLSX.utils.decode_range(ws['!ref']);
-        for (let R = range.s.r; R <= range.e.r; ++R) {
-            for (let C = range.s.c; C <= range.e.c; ++C) {
-                const cellRef = XLSX.utils.encode_cell({r: R, c: C});
-                if (!ws[cellRef]) continue;
-
-                if (!ws[cellRef].s) ws[cellRef].s = {};
-
-                // عنوان القسم الرئيسي
-                if (R === 0 || ws[cellRef].v === "--- Break Reports ---" || ws[cellRef].v === "--- Swap Logs ---") {
-                    ws[cellRef].s = sectionTitleStyle;
-                }
-                // عروش الجدول (Headers)
-                else if (R === 1 || ws[cellRef].v === "Recipient" || (R > 0 && aoa[R] && aoa[R][0] === "Employee Name" && C === 0)) {
-                    // تحقق من الصف الثاني أو صفوف العناوين الفرعية
-                    if (ws[cellRef].v === "Employee Name" || ws[cellRef].v === "Recipient") {
-                        // تلوين صف عناوين الأعمدة
-                        for(let colIdx=0; colIdx<6; colIdx++) {
-                            let hRef = XLSX.utils.encode_cell({r: R, c: colIdx});
-                            if(ws[hRef]) ws[hRef].s = headerStyle;
-                        }
-                    }
-                }
-                // البيانات وتلوين المتأخر والسليم
-                else if (R > 1) {
-                    ws[cellRef].s = standardCellStyle;
-                    // عمود المدة أو الحالة لتلوين Exceed بالأحمر و Normal بالأخضر
-                    if (C === 4 || C === 5) {
-                        const val = String(ws[cellRef].v);
-                        if (val === "Exceed") {
-                            ws[cellRef].s = redCellStyle;
-                        } else if (val === "Normal") {
-                            ws[cellRef].s = greenCellStyle;
-                        }
-                    }
-                }
-            }
-        }
-
-        ws['!cols'] = [{wch: 22}, {wch: 22}, {wch: 16}, {wch: 16}, {wch: 20}, {wch: 18}];
-
-        XLSX.utils.book_append_sheet(wb, ws, "Contact Center Break Report");
-        XLSX.writeFile(wb, "Contact_Center_Break_Report.xlsx");
+        const blob = new Blob(['\ufeff' + htmlContent], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "Contact_Center_Break_Report.xls";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     }
 
     function renderUI() {
