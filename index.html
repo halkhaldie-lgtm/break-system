@@ -78,7 +78,7 @@
             font-weight: bold;
         }
 
-        /* شعار المستشفى المحدث بشكل هلال دقيق */
+        /* شعار المستشفى المحدث بشكل هلال */
         .hospital-logo-box {
             display: flex;
             flex-direction: column;
@@ -245,6 +245,22 @@
             border-color: #991b1b;
         }
 
+        /* تنسيق جميل وواضح لأرقام الانتظار */
+        .waiting-badge-num {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #3b82f6;
+            color: white;
+            font-weight: bold;
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            font-size: 0.85rem;
+            margin-right: 8px;
+            box-shadow: 0 2px 5px rgba(59, 130, 246, 0.4);
+        }
+
         .my-turn-prompt {
             background: linear-gradient(135deg, #0d9488, #0f766e);
             color: white;
@@ -284,7 +300,7 @@
             outline: none;
         }
 
-        /* تنسيق التقارير الجديد المنظم والمقسم كجدول ملون واحترافي */
+        /* تنسيق جدول التقارير مطابق تماماً للصورة بالألوان والعناوين */
         .report-box {
             background: var(--card-bg);
             border: 1px solid var(--card-border);
@@ -298,29 +314,44 @@
             margin-top: 14px;
             border-top: 1px solid #475569;
             padding-top: 14px;
+            overflow-x: auto;
+        }
+        .report-table-title {
+            background-color: #bae6fd;
+            color: #0369a1;
+            padding: 8px 12px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            display: inline-block;
         }
         .report-table {
             width: 100%;
             border-collapse: collapse;
             font-size: 0.85rem;
             text-align: left;
+            background: #0f172a;
+            border-radius: 8px;
+            overflow: hidden;
         }
         .report-table th {
-            background: #0f172a;
-            color: var(--text-muted);
-            padding: 10px 8px;
-            border-bottom: 2px solid #3b82f6;
+            background: #1e293b;
+            color: var(--text-main);
+            padding: 10px 10px;
+            border: 1px solid #334155;
             font-weight: bold;
         }
         .report-table td {
-            padding: 10px 8px;
-            border-bottom: 1px solid #334155;
-            background: #0f172a;
+            padding: 10px 10px;
+            border: 1px solid #334155;
+            color: var(--text-main);
         }
-        .report-table tr.overtime-row td {
-            background: #450a0a;
-            color: #fca5a5;
-            border-bottom: 1px solid #7f1d1d;
+        .report-table tr.exceed-row td.exceed-cell {
+            background-color: #ef4444;
+            color: #ffffff;
+            font-weight: bold;
+            text-align: center;
         }
 
         .empty-msg { color: var(--text-muted); font-size: 0.85rem; padding: 8px 0; text-align: center; }
@@ -460,7 +491,7 @@
         <div class="swap-controls" id="swapControlsContainer"></div>
     </div>
 
-    <!-- قسم التقارير المنسق الجديد على شكل جدول احترافي ومقسم -->
+    <!-- قسم التقارير المطابق للتصميم المطلوب -->
     <div class="report-box">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <div style="font-size: 0.95rem; font-weight: bold; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
@@ -510,7 +541,7 @@
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
-    const db = firebase.database().ref('alsalam_hospital_breaks_v25');
+    const db = firebase.database().ref('alsalam_hospital_breaks_v26');
 
     let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
@@ -766,7 +797,6 @@
         if (type === 'request') {
             state.requests.push(newItem);
         } else {
-            // السماح بخروج شخصين بوقت واحد (بريك عادي + بريك سريع)
             const hasNormal = state.active.some(item => item.type === 'normal' || item.type === 'request');
             const hasQuick = state.active.some(item => item.type === 'quick');
 
@@ -877,7 +907,6 @@
             if (finishedItem.type === 'quick') typeText = 'Quick Break (5m)';
             else if (finishedItem.type === 'request') typeText = 'Requested Break';
 
-            // البريك العادي 20 دقيقة، والسريع 5 دقائق
             let isOvertime = false;
             if (finishedItem.type === 'quick' && durationMins > 5) {
                 isOvertime = true;
@@ -890,7 +919,7 @@
                 type: typeText,
                 startTime: finishedItem.timeStr,
                 endTime: endTimeStr,
-                duration: durationText,
+                duration: isOvertime ? 'Exceed' : durationText,
                 isOvertime: isOvertime,
                 endTimestamp: endTime
             });
@@ -1003,7 +1032,7 @@
         if (!isAdmin) return;
         let csvContent = "\uFEFF--- Break Reports ---\nEmployee Name,Break Type,Start Time,End Time,Duration,Overtime Status\n";
         (state.reports || []).forEach(rep => {
-            csvContent += `"${rep.name}","${rep.type}","${rep.startTime}","${rep.endTime}","${rep.duration}","${rep.isOvertime ? 'Overtime Exceeded' : 'Normal'}"\n`;
+            csvContent += `"${rep.name}","${rep.type}","${rep.startTime}","${rep.endTime}","${rep.duration}","${rep.isOvertime ? 'Exceed' : 'Normal'}"\n`;
         });
 
         csvContent += "\n\uFEFF--- Swap Logs ---\nRecipient,Initiator,Old Pos,New Pos,Time\n";
@@ -1142,7 +1171,8 @@
                 return `
                     <div class="card-item">
                         <div>
-                            <span>#${i + 1} - <strong>${item.name}</strong></span>
+                            <span class="waiting-badge-num">#${i + 1}</span>
+                            <strong>${item.name}</strong>
                             <span style="margin-left: 8px; color:var(--text-muted); font-size: 0.85rem;">Waiting: ${minsWaiting}m</span>
                             ${typeLabel}
                             ${swapMessageHtml}
@@ -1202,34 +1232,35 @@
             swapSection.style.display = 'none';
         }
 
-        // تنسيق التقارير الجديد المنظم كجدول تفصيلي مقسم
+        // عرض جدول التقارير المطابق للصورة تماماً
         const rBox = document.getElementById('reportsBox');
         if (!state.reports || state.reports.length === 0) {
             rBox.innerHTML = '<div class="empty-msg">No reports logged in the last 24 hours</div>';
         } else {
             let tableHtml = `
+                <div class="report-table-title">--- Break Reports ---</div>
                 <table class="report-table">
                     <thead>
                         <tr>
                             <th>Employee Name</th>
                             <th>Break Type</th>
-                            <th>Start</th>
-                            <th>End</th>
+                            <th>Start Time</th>
+                            <th>End Time</th>
                             <th>Duration</th>
-                            <th>Status</th>
+                            <th>Overtime Status</th>
                         </tr>
                     </thead>
                     <tbody>
             `;
             state.reports.forEach(rep => {
                 tableHtml += `
-                    <tr class="${rep.isOvertime ? 'overtime-row' : ''}">
+                    <tr class="${rep.isOvertime ? 'exceed-row' : ''}">
                         <td><strong>${rep.name}</strong></td>
                         <td>${rep.type}</td>
                         <td>${rep.startTime}</td>
                         <td>${rep.endTime}</td>
-                        <td><strong>${rep.duration}</strong></td>
-                        <td>${rep.isOvertime ? '⚠️ Overtime Exceeded' : '✅ Normal'}</td>
+                        <td class="${rep.isOvertime ? 'exceed-cell' : ''}">${rep.duration}</td>
+                        <td>${rep.isOvertime ? 'Normal' : 'Normal'}</td>
                     </tr>
                 `;
             });
