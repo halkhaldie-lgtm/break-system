@@ -78,7 +78,7 @@
             font-weight: bold;
         }
 
-        /* شعار المستشفى المحدث بشكل هلال */
+        /* شعار المستشفى المحدث بشكل هلال دقيق */
         .hospital-logo-box {
             display: flex;
             flex-direction: column;
@@ -96,7 +96,6 @@
             align-items: center;
             gap: 12px;
         }
-
         .logo-crescent {
             width: 36px;
             height: 36px;
@@ -285,7 +284,7 @@
             outline: none;
         }
 
-        /* تنسيق قسم التقارير المحدث مع تقسيمات وتسطير وألوان */
+        /* تنسيق التقارير الجديد المنظم والمقسم كجدول ملون واحترافي */
         .report-box {
             background: var(--card-bg);
             border: 1px solid var(--card-border);
@@ -296,26 +295,32 @@
         }
         .report-content-wrapper {
             display: none;
-            margin-top: 12px;
-            border-top: 2px solid #334155;
-            padding-top: 12px;
+            margin-top: 14px;
+            border-top: 1px solid #475569;
+            padding-top: 14px;
         }
-        .report-item {
-            font-size: 0.9rem;
-            border-bottom: 1px solid #334155;
-            padding: 14px 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        .report-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            text-align: left;
+        }
+        .report-table th {
             background: #0f172a;
-            border-radius: 10px;
-            margin-bottom: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            color: var(--text-muted);
+            padding: 10px 8px;
+            border-bottom: 2px solid #3b82f6;
+            font-weight: bold;
         }
-        .report-item.overtime-report {
+        .report-table td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #334155;
+            background: #0f172a;
+        }
+        .report-table tr.overtime-row td {
             background: #450a0a;
-            border: 1px solid #991b1b;
             color: #fca5a5;
+            border-bottom: 1px solid #7f1d1d;
         }
 
         .empty-msg { color: var(--text-muted); font-size: 0.85rem; padding: 8px 0; text-align: center; }
@@ -455,7 +460,7 @@
         <div class="swap-controls" id="swapControlsContainer"></div>
     </div>
 
-    <!-- قسم التقارير المنسق الجديد -->
+    <!-- قسم التقارير المنسق الجديد على شكل جدول احترافي ومقسم -->
     <div class="report-box">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <div style="font-size: 0.95rem; font-weight: bold; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
@@ -468,7 +473,6 @@
             </div>
         </div>
         <div id="reportsContainerWrapper" class="report-content-wrapper">
-            <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px; font-weight: bold; border-bottom: 1px dashed #475569; padding-bottom: 4px;">Detailed Break History (Divided by Entries):</div>
             <div id="reportsBox"></div>
         </div>
     </div>
@@ -506,7 +510,7 @@
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
-    const db = firebase.database().ref('alsalam_hospital_breaks_v24');
+    const db = firebase.database().ref('alsalam_hospital_breaks_v25');
 
     let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
@@ -684,7 +688,7 @@
 
         const firstNormal = newWaiting.find(w => w.type === 'normal');
         const firstQuick = newWaiting.find(w => w.type === 'quick');
-        const hasNormalSlot = !newActive.some(a => a.type === 'normal');
+        const hasNormalSlot = !newActive.some(a => a.type === 'normal' || a.type === 'request');
         const hasQuickSlot = !newActive.some(a => a.type === 'quick');
 
         const isMyTurn = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) ||
@@ -762,18 +766,18 @@
         if (type === 'request') {
             state.requests.push(newItem);
         } else {
-            if (state.waiting.length > 0) {
-                state.waiting.push(newItem);
+            // السماح بخروج شخصين بوقت واحد (بريك عادي + بريك سريع)
+            const hasNormal = state.active.some(item => item.type === 'normal' || item.type === 'request');
+            const hasQuick = state.active.some(item => item.type === 'quick');
+
+            let canEnter = false;
+            if (type === 'normal' && !hasNormal) canEnter = true;
+            else if (type === 'quick' && !hasQuick) canEnter = true;
+
+            if (canEnter && state.waiting.length === 0) {
+                state.active.push(newItem);
             } else {
-                const hasNormal = state.active.some(item => item.type === 'normal');
-                const hasQuick = state.active.some(item => item.type === 'quick');
-
-                let canEnter = false;
-                if (type === 'normal' && !hasNormal) canEnter = true;
-                else if (type === 'quick' && !hasQuick) canEnter = true;
-
-                if (canEnter) state.active.push(newItem);
-                else state.waiting.push(newItem);
+                state.waiting.push(newItem);
             }
         }
 
@@ -784,9 +788,14 @@
         if (!isAdmin) return;
         const reqItem = state.requests.splice(index, 1)[0];
         if (reqItem) {
-            reqItem.timestamp = Date.now();
-            reqItem.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-            state.active.push(reqItem);
+            const hasNormal = state.active.some(item => item.type === 'normal' || item.type === 'request');
+            if (!hasNormal && state.waiting.length === 0) {
+                reqItem.timestamp = Date.now();
+                reqItem.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                state.active.push(reqItem);
+            } else {
+                state.waiting.push(reqItem);
+            }
             db.set(state);
         }
     }
@@ -833,8 +842,14 @@
             return;
         }
 
-        const hasSameTypeActive = state.active.some(item => item.type === userItem.type);
-        if (hasSameTypeActive) {
+        const hasNormal = state.active.some(item => item.type === 'normal' || item.type === 'request');
+        const hasQuick = state.active.some(item => item.type === 'quick');
+
+        let canEnter = false;
+        if (userItem.type === 'quick' && !hasQuick) canEnter = true;
+        else if ((userItem.type === 'normal' || userItem.type === 'request') && !hasNormal) canEnter = true;
+
+        if (!canEnter) {
             alert(`The (${userItem.type}) break slot is still occupied.`);
             return;
         }
@@ -862,7 +877,7 @@
             if (finishedItem.type === 'quick') typeText = 'Quick Break (5m)';
             else if (finishedItem.type === 'request') typeText = 'Requested Break';
 
-            // التعديل الجديد: البريك العادي 20 دقيقة، وإذا زاد يظهر باللون الأحمر
+            // البريك العادي 20 دقيقة، والسريع 5 دقائق
             let isOvertime = false;
             if (finishedItem.type === 'quick' && durationMins > 5) {
                 isOvertime = true;
@@ -1059,7 +1074,7 @@
             const myUserLower = myName.trim().toLowerCase();
             const firstNormal = state.waiting.find(w => w.type === 'normal');
             const firstQuick = state.waiting.find(w => w.type === 'quick');
-            const hasNormalSlot = !state.active.some(a => a.type === 'normal');
+            const hasNormalSlot = !state.active.some(a => a.type === 'normal' || a.type === 'request');
             const hasQuickSlot = !state.active.some(a => a.type === 'quick');
 
             if (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) {
@@ -1081,7 +1096,6 @@
                 const showEndBtn = (isOwner || isAdmin);
                 
                 const isQuick = item.type === 'quick';
-                // التحقق من تجاوز الوقت (أكثر من 5 دقائق للويك السريع، وأكثر من 20 دقيقة للبريك العادي أو الطلب)
                 const isOvertime = (isQuick && minsInBreak > 5) || (!isQuick && minsInBreak > 20);
 
                 let typeLabel = '<span style="color:#fbbf24;">[Normal]</span>';
@@ -1188,24 +1202,39 @@
             swapSection.style.display = 'none';
         }
 
-        // عرض التقارير المنظمة مع تقسيمات وألوان وتسطير
+        // تنسيق التقارير الجديد المنظم كجدول تفصيلي مقسم
         const rBox = document.getElementById('reportsBox');
         if (!state.reports || state.reports.length === 0) {
             rBox.innerHTML = '<div class="empty-msg">No reports logged in the last 24 hours</div>';
         } else {
-            rBox.innerHTML = state.reports.map(rep => `
-                <div class="report-item ${rep.isOvertime ? 'overtime-report' : ''}">
-                    <div>
-                        <strong style="font-size: 1rem; color: ${rep.isOvertime ? '#f87171' : '#38bdf8'};">${rep.name}</strong> 
-                        <span style="color:var(--text-muted); font-size: 0.85rem; margin-left: 6px;">[${rep.type}]</span>
-                        ${rep.isOvertime ? '<br><small style="color: #f87171; font-weight: bold;">⚠️ Overtime Limit Exceeded</small>' : '<br><small style="color: #34d399;">✔ Within Normal Limit</small>'}
-                    </div>
-                    ${isAdmin ? `<div style="text-align: right; font-size: 0.85rem; font-weight: bold; border-left: 1px solid #334155; padding-left: 12px;">
-                        <div>Out: ${rep.startTime} \vert{} Back:${rep.endTime}</div>
-                        <div style="color: ${rep.isOvertime ? '#f87171' : '#fbbf24'}; margin-top: 2px;">Duration: ${rep.duration}</div>
-                    </div>` : ``}
-                </div>
-            `).join('');
+            let tableHtml = `
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th>Employee Name</th>
+                            <th>Break Type</th>
+                            <th>Start</th>
+                            <th>End</th>
+                            <th>Duration</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            state.reports.forEach(rep => {
+                tableHtml += `
+                    <tr class="${rep.isOvertime ? 'overtime-row' : ''}">
+                        <td><strong>${rep.name}</strong></td>
+                        <td>${rep.type}</td>
+                        <td>${rep.startTime}</td>
+                        <td>${rep.endTime}</td>
+                        <td><strong>${rep.duration}</strong></td>
+                        <td>${rep.isOvertime ? '⚠️ Overtime Exceeded' : '✅ Normal'}</td>
+                    </tr>
+                `;
+            });
+            tableHtml += `</tbody></table>`;
+            rBox.innerHTML = tableHtml;
         }
     }
 </script>
