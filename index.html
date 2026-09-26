@@ -78,7 +78,7 @@
             font-weight: bold;
         }
 
-        /* شعار المستشفى المحدث بشكل هلال دقيق تماماً كالتي في الصورة */
+        /* شعار المستشفى المحدث بشكل هلال */
         .hospital-logo-box {
             display: flex;
             flex-direction: column;
@@ -97,14 +97,12 @@
             gap: 12px;
         }
 
-        /* رسم الهلال الدقيق بالأخضر والأزرق المطابق للصورة تماماً */
         .logo-crescent {
             width: 36px;
             height: 36px;
             position: relative;
             display: inline-block;
         }
-        /* الهلال الأخضر الخارجي */
         .logo-crescent::before {
             content: '';
             position: absolute;
@@ -117,7 +115,6 @@
             left: 2px;
             transform: rotate(-30deg);
         }
-        /* الهلال الأزرق الداخلي المتداخل */
         .logo-crescent::after {
             content: '';
             position: absolute;
@@ -288,6 +285,7 @@
             outline: none;
         }
 
+        /* تنسيق قسم التقارير المحدث مع تقسيمات وتسطير وألوان */
         .report-box {
             background: var(--card-bg);
             border: 1px solid var(--card-border);
@@ -299,18 +297,25 @@
         .report-content-wrapper {
             display: none;
             margin-top: 12px;
+            border-top: 2px solid #334155;
+            padding-top: 12px;
         }
         .report-item {
             font-size: 0.9rem;
             border-bottom: 1px solid #334155;
-            padding: 12px 0;
+            padding: 14px 10px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            background: #0f172a;
+            border-radius: 10px;
+            margin-bottom: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
         .report-item.overtime-report {
-            color: var(--accent-red);
-            font-weight: bold;
+            background: #450a0a;
+            border: 1px solid #991b1b;
+            color: #fca5a5;
         }
 
         .empty-msg { color: var(--text-muted); font-size: 0.85rem; padding: 8px 0; text-align: center; }
@@ -331,7 +336,7 @@
         }
         .toggle-arrow-btn:hover { background: #334155; }
 
-        /* نافذة إدخال باسورد الأدمن المطلوبة المماثلة للصورة */
+        /* نافذة إدخال باسورد الأدمن المخصصة */
         .custom-modal-overlay {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -450,6 +455,7 @@
         <div class="swap-controls" id="swapControlsContainer"></div>
     </div>
 
+    <!-- قسم التقارير المنسق الجديد -->
     <div class="report-box">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <div style="font-size: 0.95rem; font-weight: bold; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
@@ -462,19 +468,19 @@
             </div>
         </div>
         <div id="reportsContainerWrapper" class="report-content-wrapper">
+            <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px; font-weight: bold; border-bottom: 1px dashed #475569; padding-bottom: 4px;">Detailed Break History (Divided by Entries):</div>
             <div id="reportsBox"></div>
         </div>
     </div>
 </div>
 
-<!-- نافذة إدخال كلمة مرور الأدمن المطلوبة (مماثلة للصورة مع زر تحديث الباسورد بجانب موافق وإلغاء) -->
+<!-- نافذة إدخال كلمة مرور الأدمن -->
 <div class="custom-modal-overlay" id="adminModalOverlay">
     <div class="custom-modal-box">
         <div class="custom-modal-title" id="adminModalDomainTitle">halkhaldie-lgtm.github.io says</div>
         <div class="custom-modal-subtitle">Please enter admin password:</div>
         <input type="password" id="adminPassInput" placeholder="Password..." />
         
-        <!-- حقول الباسورد القديم والجديد تظهر عند الضغط على زر Update Password -->
         <div id="passwordUpdateFields" style="display: none; margin-top: 10px; border-top: 1px solid #e2e8f0; padding-top: 10px;">
             <div style="font-size: 0.8rem; font-weight: bold; color: #3b82f6; margin-bottom: 6px;">⚙️ Change Password Details</div>
             <input type="password" id="oldPassInput" placeholder="Old password..." />
@@ -500,7 +506,7 @@
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
-    const db = firebase.database().ref('alsalam_hospital_breaks_v23');
+    const db = firebase.database().ref('alsalam_hospital_breaks_v24');
 
     let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
@@ -580,7 +586,6 @@
         updateNotificationButtonUI();
         if(myName) document.getElementById('empName').value = myName;
         
-        // دعم زر Enter داخل نافذة الأدمن
         document.getElementById('adminPassInput').addEventListener('keypress', function (e) {
             if (e.key === 'Enter') submitAdminPassword();
         });
@@ -857,7 +862,13 @@
             if (finishedItem.type === 'quick') typeText = 'Quick Break (5m)';
             else if (finishedItem.type === 'request') typeText = 'Requested Break';
 
-            const isOvertime = (finishedItem.type === 'quick' && durationMins > 5) || (finishedItem.type !== 'quick' && durationMins > 20);
+            // التعديل الجديد: البريك العادي 20 دقيقة، وإذا زاد يظهر باللون الأحمر
+            let isOvertime = false;
+            if (finishedItem.type === 'quick' && durationMins > 5) {
+                isOvertime = true;
+            } else if ((finishedItem.type === 'normal' || finishedItem.type === 'request') && durationMins > 20) {
+                isOvertime = true;
+            }
 
             state.reports.unshift({
                 name: finishedItem.name,
@@ -1068,8 +1079,10 @@
                 const activeDurationStr = minsInBreak === 0 ? 'Less than a minute ago' : `${minsInBreak} mins ago`;
                 const isOwner = myName && item.name.trim().toLowerCase() === myName.trim().toLowerCase();
                 const showEndBtn = (isOwner || isAdmin);
+                
                 const isQuick = item.type === 'quick';
-                const isOvertime = isQuick && minsInBreak > 5;
+                // التحقق من تجاوز الوقت (أكثر من 5 دقائق للويك السريع، وأكثر من 20 دقيقة للبريك العادي أو الطلب)
+                const isOvertime = (isQuick && minsInBreak > 5) || (!isQuick && minsInBreak > 20);
 
                 let typeLabel = '<span style="color:#fbbf24;">[Normal]</span>';
                 if (isQuick) typeLabel = '<span style="color:#3b82f6;">[Quick]</span>';
@@ -1082,7 +1095,7 @@
                             <span style="margin-left: 8px; font-size: 0.9rem;">⏱️ ${activeDurationStr}</span>
                             ${typeLabel}
                             <br><small style="color:var(--text-muted)">Out at: ${item.timeStr}</small>
-                            ${isOvertime ? '<br><span style="color: var(--accent-red); font-weight: bold; font-size: 0.85rem;">⚠️ Exceeded 5 minutes!</span>' : ''}
+                            ${isOvertime ? `<br><span style="color: var(--accent-red); font-weight: bold; font-size: 0.85rem;">⚠️ Exceeded limit time (${isQuick ? '5m' : '20m'})!</span>` : ''}
                         </div>
                         ${showEndBtn ? `<button type="button" class="btn btn-red" onclick="endBreak(${i})">End</button>` : ``}
                     </div>
@@ -1175,6 +1188,7 @@
             swapSection.style.display = 'none';
         }
 
+        // عرض التقارير المنظمة مع تقسيمات وألوان وتسطير
         const rBox = document.getElementById('reportsBox');
         if (!state.reports || state.reports.length === 0) {
             rBox.innerHTML = '<div class="empty-msg">No reports logged in the last 24 hours</div>';
@@ -1182,11 +1196,14 @@
             rBox.innerHTML = state.reports.map(rep => `
                 <div class="report-item ${rep.isOvertime ? 'overtime-report' : ''}">
                     <div>
-                        <strong>${rep.name}</strong> 
-                        <span style="color:var(--text-muted)">(${rep.type})</span>
-                        ${rep.isOvertime ? '<br><small style="color:var(--accent-red); font-weight:bold;">⚠️ Exceeded break limit time</small>' : ''}
+                        <strong style="font-size: 1rem; color: ${rep.isOvertime ? '#f87171' : '#38bdf8'};">${rep.name}</strong> 
+                        <span style="color:var(--text-muted); font-size: 0.85rem; margin-left: 6px;">[${rep.type}]</span>
+                        ${rep.isOvertime ? '<br><small style="color: #f87171; font-weight: bold;">⚠️ Overtime Limit Exceeded</small>' : '<br><small style="color: #34d399;">✔ Within Normal Limit</small>'}
                     </div>
-                    ${isAdmin ? `<span style="font-weight: bold;">Out: ${rep.startTime} | Back: ${rep.endTime} (${rep.duration})</span>` : ``}
+                    ${isAdmin ? `<div style="text-align: right; font-size: 0.85rem; font-weight: bold; border-left: 1px solid #334155; padding-left: 12px;">
+                        <div>Out: ${rep.startTime} \vert{} Back:${rep.endTime}</div>
+                        <div style="color: ${rep.isOvertime ? '#f87171' : '#fbbf24'}; margin-top: 2px;">Duration: ${rep.duration}</div>
+                    </div>` : ``}
                 </div>
             `).join('');
         }
