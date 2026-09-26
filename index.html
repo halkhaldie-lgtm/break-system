@@ -1,4 +1,4 @@
-Connection Issue<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" dir="ltr">
 <head>
     <meta charset="UTF-8">
@@ -78,9 +78,9 @@ Connection Issue<!DOCTYPE html>
             font-weight: bold;
         }
 
-        /* الشعار الأصلي الدقيق مع تقريب الهلال قليلاً لكلمة السلام */
+        /* توسيع صندوق الشعار على عرض الداشبورد بالكامل */
         .hospital-logo-box {
-            display: inline-flex;
+            display: flex;
             flex-direction: column;
             align-items: center;
             background: #ffffff;
@@ -89,17 +89,21 @@ Connection Issue<!DOCTYPE html>
             border-radius: 12px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
             margin-bottom: 10px;
+            width: 100%; /* توسيع كامل المستطيل */
         }
         .logo-top-row {
             display: flex;
             align-items: center;
-            gap: 8px; /* تقريب المسافة قليلاً */
+            justify-content: center;
+            gap: 10px;
             direction: rtl;
+            width: 100%;
         }
 
+        /* الهلال أصبح في اليسار بجانب كلمة السلام */
         .logo-crescent {
-            width: 36px;
-            height: 36px;
+            width: 34px;
+            height: 34px;
             position: relative;
             display: inline-block;
             flex-shrink: 0;
@@ -107,8 +111,8 @@ Connection Issue<!DOCTYPE html>
         .logo-crescent::before {
             content: '';
             position: absolute;
-            width: 36px;
-            height: 36px;
+            width: 34px;
+            height: 34px;
             border-radius: 50%;
             background: transparent;
             box-shadow: -4px 2px 0 0 #0d9488;
@@ -119,8 +123,8 @@ Connection Issue<!DOCTYPE html>
         .logo-crescent::after {
             content: '';
             position: absolute;
-            width: 30px;
-            height: 30px;
+            width: 28px;
+            height: 28px;
             border-radius: 50%;
             background: transparent;
             box-shadow: -4px 2px 0 0 #1e3a8a;
@@ -149,6 +153,7 @@ Connection Issue<!DOCTYPE html>
             margin-top: 2px;
             letter-spacing: 0.5px;
             line-height: 1;
+            text-align: center;
         }
         .logo-divider {
             width: 100%;
@@ -310,7 +315,7 @@ Connection Issue<!DOCTYPE html>
             outline: none;
         }
 
-        /* تنسيق التقارير (مُصغر، عملي، ومساحات ضيقة وغير عريضة) */
+        /* تنسيق التقارير (مصغر وعملي جداً) */
         .report-box {
             background: var(--card-bg);
             border: 1px solid var(--card-border);
@@ -329,17 +334,17 @@ Connection Issue<!DOCTYPE html>
         .report-table-title {
             background-color: #bae6fd;
             color: #0369a1;
-            padding: 5px 10px;
+            padding: 4px 8px;
             font-weight: bold;
-            font-size: 0.8rem;
+            font-size: 0.78rem;
             border-radius: 4px;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             display: inline-block;
         }
         .report-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.75rem; /* خط أصغر وغير عريض */
+            font-size: 0.72rem;
             text-align: left;
             background: #0f172a;
             border-radius: 6px;
@@ -348,12 +353,12 @@ Connection Issue<!DOCTYPE html>
         .report-table th {
             background: #1e293b;
             color: var(--text-main);
-            padding: 6px 8px; /* مساحات ومربعات أصغر */
+            padding: 4px 6px;
             border: 1px solid #334155;
             font-weight: 600;
         }
         .report-table td {
-            padding: 6px 8px; /* مساحات ضيقة وعملية */
+            padding: 4px 6px;
             border: 1px solid #334155;
             color: var(--text-main);
         }
@@ -444,14 +449,14 @@ Connection Issue<!DOCTYPE html>
             <button class="notif-badge" id="notifBtn" onclick="requestNotificationPermission()">🔔 Alert</button>
         </div>
 
-        <!-- الشعار الأصلي بدقة مع تقريب الهلال قليلاً لكلمة السلام -->
+        <!-- الشعار الموسع والمحدث بالهلال في اليسار وتسمية مستشفيات السلام -->
         <div class="hospital-logo-box">
             <div class="logo-top-row">
-                <span class="logo-crescent"></span>
                 <div class="logo-text-col">
-                    <span class="logo-arabic-title">مستشفى السلام</span>
+                    <span class="logo-arabic-title">مستشفيات السلام</span>
                     <span class="logo-english-title">Al Salam Hospital</span>
                 </div>
+                <span class="logo-crescent"></span>
             </div>
             <div class="logo-divider"></div>
             <div class="logo-footer-row">
@@ -554,7 +559,7 @@ Connection Issue<!DOCTYPE html>
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
-    const db = firebase.database().ref('alsalam_hospital_breaks_v32');
+    const db = firebase.database().ref('alsalam_hospital_breaks_v33');
 
     let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
@@ -1059,7 +1064,7 @@ Connection Issue<!DOCTYPE html>
         }
     }
 
-    // دالة تصدير ملف إكسل دقيقة مع التنسيق والألوان
+    // تصدير إكسل بمربعات صغيرة (ارتفاع 12 وعرض صغير) وتنسيق الألوان
     function exportToExcel() {
         if (!isAdmin) return;
 
@@ -1068,10 +1073,10 @@ Connection Issue<!DOCTYPE html>
             <head>
                 <meta charset="UTF-8">
                 <style>
-                    table { border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; font-size: 9pt; }
-                    th { background-color: #E0F2FE; color: #0369A1; font-weight: bold; border: 1px solid #000000; text-align: center; padding: 4px; }
-                    td { border: 1px solid #000000; text-align: center; padding: 4px; }
-                    .section-title { background-color: #BAE6FD; color: #0284C7; font-weight: bold; font-size: 10pt; border: 1px solid #000000; text-align: left; padding: 6px; }
+                    table { border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; font-size: 8.5pt; }
+                    th { background-color: #E0F2FE; color: #0369A1; font-weight: bold; border: 1px solid #000000; text-align: center; height: 12pt; padding: 2px 4px; }
+                    td { border: 1px solid #000000; text-align: center; height: 12pt; padding: 2px 4px; }
+                    .section-title { background-color: #BAE6FD; color: #0284C7; font-weight: bold; font-size: 9.5pt; border: 1px solid #000000; text-align: left; height: 14pt; padding: 3px 6px; }
                     .exceed { background-color: #EF4444; color: #FFFFFF; font-weight: bold; }
                     .normal { background-color: #A7F3D0; color: #065F46; font-weight: bold; }
                 </style>
@@ -1082,12 +1087,12 @@ Connection Issue<!DOCTYPE html>
                         <td colspan="6" class="section-title">--- Contact Center Break Report ---</td>
                     </tr>
                     <tr>
-                        <th>Employee Name</th>
-                        <th>Break Type</th>
-                        <th>Start Time</th>
-                        <th>End Time</th>
-                        <th>Duration</th>
-                        <th>Overtime Status</th>
+                        <th style="width: 110pt;">Employee Name</th>
+                        <th style="width: 100pt;">Break Type</th>
+                        <th style="width: 70pt;">Start Time</th>
+                        <th style="width: 70pt;">End Time</th>
+                        <th style="width: 80pt;">Duration</th>
+                        <th style="width: 80pt;">Overtime Status</th>
                     </tr>
         `;
 
@@ -1107,7 +1112,7 @@ Connection Issue<!DOCTYPE html>
         });
 
         htmlContent += `
-                    <tr><td colspan="6"></td></tr>
+                    <tr><td colspan="6" style="height: 8pt; border: none;"></td></tr>
                     <tr>
                         <td colspan="5" class="section-title">--- Swap Logs ---</td>
                     </tr>
@@ -1332,7 +1337,7 @@ Connection Issue<!DOCTYPE html>
             swapSection.style.display = 'none';
         }
 
-        // عرض جدول التقارير المصغر والعملي في الداشبورد
+        // عرض جدول التقارير في الداشبورد
         const rBox = document.getElementById('reportsBox');
         if (!state.reports || state.reports.length === 0) {
             rBox.innerHTML = '<div class="empty-msg">No reports logged in the last 24 hours</div>';
