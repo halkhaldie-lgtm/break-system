@@ -7,7 +7,7 @@
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    <!-- SheetJS Standard Library for Fast & Stable Excel Export -->
+    <!-- SheetJS Library -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         :root {
@@ -80,7 +80,6 @@
             font-weight: bold;
         }
 
-        /* الشعار مع الهلال المستقيم والمرفوع قليلاً والملاصق تماماً لكلمة السلام */
         .hospital-logo-box {
             display: flex;
             flex-direction: column;
@@ -548,7 +547,6 @@
 </div>
 
 <script>
-    // دالة التنبيه المخصص الصحيحة والمجربة
     function showCustomAlert(message) {
         var existingAlert = document.getElementById('custom-alert-box');
         if (existingAlert) {
@@ -615,7 +613,7 @@
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
-    const db = firebase.database().ref('alsalam_hospital_breaks_v38');
+    const db = firebase.database().ref('alsalam_hospital_breaks_v39');
 
     let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
@@ -849,9 +847,9 @@
         const isInWaiting = state.waiting.some(item => item.name.trim().toLowerCase() === nameLower);
         const isInRequests = state.requests.some(item => item.name.trim().toLowerCase() === nameLower);
 
-        // التحقق وإظهار التنبيه المخصص في حال حاول الموظف طلب بريك وهو نشط بالفعل
+        // إظهار تنبيه مخصص حصرياً في حال كان الموظف بنشاط بريك أو قائمة انتظار حالياً
         if (isInActive || isInWaiting || isInRequests) {
-            showCustomAlert('عذراً، أنت في فترة البريك حالياً أو لديك طلب مسجل بالفعل، لا يمكنك طلب بريك مرة أخرى حتى تنتهي!');
+            showCustomAlert('عذراً، أنت في فترة البريك حالياً أو لديك طلب مسجل مسبقاً، لا يمكنك طلب بريك جديد حتى تنتهي!');
             return;
         }
 
@@ -1120,7 +1118,7 @@
         }
     }
 
-    // تصدير إكسل احترافي باللون الأزرق الغامق وعناوين بيضاء، أحجام خط 9 للبيانات و11 للعناوين، وارتفاع الصفوف 20 و21
+    // تصدير إكسل منسق تماماً: عناوين أزرق غامق وخط أبيض، أحجام خط 9 و11، ارتفاع صفوف 20 و21
     function exportToExcel() {
         if (!isAdmin) return;
 
