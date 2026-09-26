@@ -7,6 +7,8 @@
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <!-- SheetJS (xlsx) Library for Real Excel Export with Styles -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         :root {
             --bg-gradient: linear-gradient(135deg, #172554 0%, #0f172a 50%, #090d16 100%);
@@ -245,7 +247,7 @@
             border-color: #991b1b;
         }
 
-        /* تنسيق أرقام الانتظار بشارة دائرية أنيقة وواضحة */
+        /* تنسيق أرقام الانتظار بشارة دائرية أنيقة */
         .waiting-badge-num {
             display: inline-flex;
             align-items: center;
@@ -300,7 +302,7 @@
             outline: none;
         }
 
-        /* تنسيق جدول التقارير المطابق تماماً للتصميم المطلوب */
+        /* تنسيق جدول التقارير في الداشبورد */
         .report-box {
             background: var(--card-bg);
             border: 1px solid var(--card-border);
@@ -372,7 +374,7 @@
         }
         .toggle-arrow-btn:hover { background: #334155; }
 
-        /* نافذة إدخال باسورد الأدمن المخصصة */
+        /* نافذة إدخال كلمة مرور الأدمن المخصصة */
         .custom-modal-overlay {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -491,11 +493,11 @@
         <div class="swap-controls" id="swapControlsContainer"></div>
     </div>
 
-    <!-- قسم التقارير المطابق تماماً للتصميم المطلوب -->
+    <!-- قسم التقارير المحدث -->
     <div class="report-box">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <div style="font-size: 0.95rem; font-weight: bold; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
-                <span>📊 Last 24 Hours Log & Reports</span>
+                <span>📊 Contact Center Break Report</span>
             </div>
             <div style="display: flex; gap: 6px; align-items: center;">
                 <button type="button" class="btn btn-excel" id="excelBtn" onclick="exportToExcel()">📥 Excel</button>
@@ -541,7 +543,7 @@
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
-    const db = firebase.database().ref('alsalam_hospital_breaks_v28');
+    const db = firebase.database().ref('alsalam_hospital_breaks_v29');
 
     let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
@@ -893,7 +895,6 @@
         db.set(state);
     }
 
-    // الدالة المسؤولة عن إنهاء البريك وتقديم الشخص التالي بالترتيب تلقائياً
     function endBreak(index) {
         const finishedItem = state.active.splice(index, 1)[0];
         
@@ -925,7 +926,6 @@
                 endTimestamp: endTime
             });
 
-            // التأكد من إدخال الشخص التالي في قائمة الانتظار تلقائياً إذا وُجد مكان متاح
             if (state.waiting.length > 0) {
                 const nextItem = state.waiting[0];
                 const hasNormal = state.active.some(a => a.type === 'normal' || a.type === 'request');
@@ -1048,26 +1048,39 @@
         }
     }
 
+    // دالة تصدير ملف إكسل الحقيقي (.xlsx) مع التنسيق والألوان
     function exportToExcel() {
         if (!isAdmin) return;
-        let csvContent = "\uFEFF--- Break Reports ---\nEmployee Name,Break Type,Start Time,End Time,Duration,Overtime Status\n";
+
+        let wsData = [
+            ["--- Break Reports ---"],
+            ["Employee Name", "Break Type", "Start Time", "End Time", "Duration", "Overtime Status"]
+        ];
+
         (state.reports || []).forEach(rep => {
-            csvContent += `"${rep.name}","${rep.type}","${rep.startTime}","${rep.endTime}","${rep.duration}","Normal"\n`;
+            wsData.push([rep.name, rep.type, rep.startTime, rep.endTime, rep.duration, "Normal"]);
         });
 
-        csvContent += "\n\uFEFF--- Swap Logs ---\nRecipient,Initiator,Old Pos,New Pos,Time\n";
+        wsData.push([]);
+        wsData.push(["--- Swap Logs ---"]);
+        wsData.push(["Recipient", "Initiator", "Old Pos", "New Pos", "Time"]);
+
         (state.swapLogs || []).forEach(sw => {
-            csvContent += `"${sw.receiverName}","${sw.initiatorName}","${sw.oldPos}","${sw.newPos}","${sw.timeStr}"\n`;
+            wsData.push([sw.receiverName, sw.initiatorName, sw.oldPos, sw.newPos, sw.timeStr]);
         });
 
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.setAttribute("href", url);
-        link.setAttribute("download", `AlSalam_Reports.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+        // تنسيق الألوان والخلايا لملف الإكسل
+        ws['!cols'] = [{wch: 20}, {wch: 22}, {wch: 15}, {wch: 15}, {wch: 20}, {wch: 18}];
+
+        // تلوين عروش الجداول بخلفيات مميزة
+        if(!ws['A1'].s) ws['A1'].s = {};
+        ws['A1'].s = { fill: { fgColor: { rgb: "BAE6FD" } }, font: { bold: true, color: { rgb: "0369A1" } } };
+
+        XLSX.utils.book_append_sheet(wb, ws, "Contact Center Break Report");
+        XLSX.writeFile(wb, "Contact_Center_Break_Report.xlsx");
     }
 
     function renderUI() {
@@ -1252,13 +1265,13 @@
             swapSection.style.display = 'none';
         }
 
-        // عرض جدول التقارير تماماً مثل التصميم المطلوب
+        // عرض جدول التقارير وتحديث الاسم ليصبح Contact Center Break Report
         const rBox = document.getElementById('reportsBox');
         if (!state.reports || state.reports.length === 0) {
             rBox.innerHTML = '<div class="empty-msg">No reports logged in the last 24 hours</div>';
         } else {
             let tableHtml = `
-                <div class="report-table-title">--- Break Reports ---</div>
+                <div class="report-table-title">Contact Center Break Report</div>
                 <table class="report-table">
                     <thead>
                         <tr>
