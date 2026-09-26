@@ -23,10 +23,9 @@ function showCustomAlert(message) {
         max-width: 400px;
         width: 90%;
         font-family: Arial, sans-serif;
-        animation: fadeInDown 0.3s ease-out;
     `;
 
-    // محتوى التنبيه (كلمة تنبيه باللون الأحمر + الرسالة واضحة)
+    // محتوى التنبيه
     alertBox.innerHTML = `
         <div style="color: #ff4d4d; font-size: 20px; font-weight: bold; margin-bottom: 10px;">
             ⚠️ تنبيه
@@ -43,7 +42,6 @@ function showCustomAlert(message) {
             font-weight: bold;
             border-radius: 4px;
             cursor: pointer;
-            transition: background-color 0.2s;
         ">حسناً</button>
     `;
 
