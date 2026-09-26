@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>سستم استراحة الموظفين المشترك</title>
-    <!-- استدعاء قواعد بيانات Firebase السحابية الحية -->
+    <title>Contact Center Break</title>
+    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
@@ -79,7 +79,7 @@
         .admin-badge {
             position: absolute;
             top: 15px;
-            left: 15px;
+            right: 15px;
             background: rgba(99, 102, 241, 0.15);
             color: #818cf8;
             border: 1px solid rgba(99, 102, 241, 0.3);
@@ -93,7 +93,7 @@
         .notif-badge {
             position: absolute;
             top: 15px;
-            right: 15px;
+            left: 15px;
             background: rgba(16, 185, 129, 0.15);
             color: var(--accent-green);
             border: 1px solid rgba(16, 185, 129, 0.3);
@@ -117,8 +117,8 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
         }
 
-        .action-buttons { display: flex; gap: 10px; }
-        .action-buttons button { flex: 1; }
+        .action-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+        .action-buttons button { flex: 1; min-width: 120px; }
 
         input[type="text"] {
             width: 100%;
@@ -137,17 +137,18 @@
             background: var(--accent-blue);
             color: white;
             border: none;
-            padding: 12px 20px;
+            padding: 12px 16px;
             border-radius: 12px;
             font-weight: bold;
             cursor: pointer;
-            font-size: 1rem;
+            font-size: 0.95rem;
             transition: opacity 0.2s, transform 0.1s;
         }
         .btn:hover { opacity: 0.9; }
         .btn:active { transform: scale(0.98); }
         .btn-green { background: linear-gradient(135deg, #059669, #10b981); }
         .btn-amber { background: linear-gradient(135deg, #d97706, #f59e0b); color: #0b0f19; }
+        .btn-purple { background: linear-gradient(135deg, #7c3aed, #8b5cf6); }
         .btn-red { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); padding: 6px 12px; font-size: 0.85rem; border-radius: 8px; }
         .btn-gray { background: rgba(51, 65, 85, 0.6); border: 1px solid var(--glass-border); font-size: 0.8rem; padding: 6px 12px; border-radius: 8px; }
         .btn-excel { background: linear-gradient(135deg, #047857, #059669); font-size: 0.8rem; padding: 6px 12px; color: white; display: none; border-radius: 8px; }
@@ -168,6 +169,15 @@
             padding: 16px;
             margin-bottom: 20px;
             box-shadow: 0 8px 25px rgba(245, 158, 11, 0.1);
+        }
+
+        .section-container-requests {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(76, 29, 149, 0.15) 100%);
+            border: 2px solid rgba(139, 92, 246, 0.35);
+            border-radius: 20px;
+            padding: 16px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 25px rgba(139, 92, 246, 0.1);
         }
 
         .section-header-title {
@@ -197,6 +207,17 @@
         .card-waiting {
             background: rgba(30, 41, 59, 0.6);
             border: 1px solid rgba(245, 158, 11, 0.3);
+            border-radius: 14px;
+            padding: 12px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-request {
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid rgba(139, 92, 246, 0.3);
             border-radius: 14px;
             padding: 12px;
             margin-bottom: 8px;
@@ -296,54 +317,63 @@
 
 <div class="container">
     <header>
-        <button class="admin-badge" id="adminBtn" onclick="toggleAdmin()">🔒 وضع الأدمن</button>
-        <button class="notif-badge" id="notifBtn" onclick="requestNotificationPermission()">🔔 الإشعارات</button>
-        <h2>☕ استراحة الموظفين المشتركة</h2>
-        <span class="status-tag"><span class="dot"></span> متصل لايف ومزامن للجميع</span>
+        <button class="admin-badge" id="adminBtn" onclick="toggleAdmin()">🔒 Admin Mode</button>
+        <button class="notif-badge" id="notifBtn" onclick="requestNotificationPermission()">🔔 Notifications</button>
+        <h2>Contact Center Break</h2>
+        <span class="status-tag"><span class="dot"></span> Live & Synchronized</span>
     </header>
 
     <div id="myTurnPromptBox" class="my-turn-prompt">
-        <h3 id="promptTitle">🎉 حان دورك بالبريك!</h3>
-        <p id="promptDesc">الرجاء التأكيد والدخول الآن.</p>
-        <button type="button" class="btn" style="background: #ffffff; color: #065f46; font-size: 1.05rem; width: 100%; border-radius: 10px;" onclick="confirmMyTurn()">✅ تأكيد ودخول البريك الآن</button>
+        <h3 id="promptTitle">🎉 It's your turn for break!</h3>
+        <p id="promptDesc">Please confirm and enter now.</p>
+        <button type="button" class="btn" style="background: #ffffff; color: #065f46; font-size: 1.05rem; width: 100%; border-radius: 10px;" onclick="confirmMyTurn()">✅ Confirm & Enter Break</button>
     </div>
 
     <div class="action-box">
-        <input type="text" id="empName" placeholder="أدخل اسمك أولاً..." autocomplete="off" />
+        <input type="text" id="empName" placeholder="Enter your name first..." autocomplete="off" />
         <div class="action-buttons">
-            <button type="button" class="btn btn-green" onclick="submitBreak('normal')">بريك عادي 🏃</button>
-            <button type="button" class="btn btn-amber" onclick="submitBreak('quick')">⚡ بريك سريع (5 دقائق)</button>
+            <button type="button" class="btn btn-green" onclick="submitBreak('normal')">Normal Break 🏃</button>
+            <button type="button" class="btn btn-amber" onclick="submitBreak('quick')">⚡ Quick Break (5m)</button>
+            <button type="button" class="btn btn-purple" onclick="submitBreak('request')">📝 Request Break</button>
         </div>
+    </div>
+
+    <!-- قسم طلبات البريك الخاصة (تظهر للأدمن فقط أو لصاحب الطلب) -->
+    <div class="section-container-requests" id="requestsSectionContainer" style="display: none;">
+        <div class="section-header-title" style="color: #a78bfa;">
+            <span>⏳ Pending Break Requests (Admin Approval)</span>
+        </div>
+        <div id="requestsBox"></div>
     </div>
 
     <div class="section-container-active">
         <div class="section-header-title" style="color: #34d399;">
-            <span>🏃 في البريك الآن (عادي + سريع)</span>
+            <span>🏃 Currently on Break</span>
         </div>
         <div id="activeBox"></div>
     </div>
 
     <div class="section-container-waiting">
         <div class="section-header-title" style="color: #fbbf24;">
-            <span>📋 قائمة الانتظار</span>
+            <span>📋 Waiting Queue</span>
         </div>
         <div id="waitingBox"></div>
     </div>
 
     <div class="swap-box" id="swapSection" style="display: none;">
-        <div style="font-weight: bold; color: var(--accent-amber);" id="swapSectionTitle">🔄 تبديل دورك في الانتظار:</div>
+        <div style="font-weight: bold; color: var(--accent-amber);" id="swapSectionTitle">🔄 Swap your position in queue:</div>
         <div class="swap-controls" id="swapControlsContainer"></div>
     </div>
 
     <div class="report-box">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <div style="font-size: 0.95rem; font-weight: bold; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
-                <span>📊 سجل آخر 24 ساعة</span>
+                <span>📊 Last 24 Hours Log</span>
             </div>
             <div style="display: flex; gap: 6px; align-items: center;">
                 <button type="button" class="btn btn-excel" id="excelBtn" onclick="exportToExcel()">📥 Excel</button>
-                <button type="button" class="btn btn-gray" id="clearBtn" style="display: none;" onclick="clearReports()">مسح</button>
-                <button type="button" class="toggle-arrow-btn" id="toggleReportsBtn" onclick="toggleReportsExpand()" title="إظهار/إخفاء السجل">▼</button>
+                <button type="button" class="btn btn-gray" id="clearBtn" style="display: none;" onclick="clearReports()">Clear</button>
+                <button type="button" class="toggle-arrow-btn" id="toggleReportsBtn" onclick="toggleReportsExpand()" title="Toggle Log">▼</button>
             </div>
         </div>
         <div id="reportsContainerWrapper" class="report-content-wrapper">
@@ -360,9 +390,9 @@
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
-    const db = firebase.database().ref('shared_company_breaks_v19');
+    const db = firebase.database().ref('shared_company_breaks_v20');
 
-    let state = { active: [], waiting: [], reports: [], swapLogs: [] };
+    let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
     let myName = localStorage.getItem('my_employee_name') || '';
     let isReportsExpanded = false;
@@ -379,11 +409,11 @@
         if (isReportsExpanded) {
             wrapper.style.display = 'block';
             btn.innerText = '▲';
-            btn.title = 'إخفاء السجل';
+            btn.title = 'Hide Log';
         } else {
             wrapper.style.display = 'none';
             btn.innerText = '▼';
-            btn.title = 'إظهار السجل';
+            btn.title = 'Show Log';
         }
     }
 
@@ -394,11 +424,11 @@
             return;
         }
         if (Notification.permission === "granted") {
-            btn.innerText = '🔔 مفعلة';
+            btn.innerText = '🔔 Enabled';
         } else if (Notification.permission === "denied") {
-            btn.innerText = '🔕 محظورة';
+            btn.innerText = '🔕 Blocked';
         } else {
-            btn.innerText = '🔔 الإشعارات';
+            btn.innerText = '🔔 Notifications';
         }
     }
 
@@ -445,11 +475,12 @@
             state = {
                 active: val.active || [],
                 waiting: val.waiting || [],
+                requests: val.requests || [],
                 reports: filteredReports,
                 swapLogs: filteredSwaps
             };
         } else {
-            state = { active: [], waiting: [], reports: [], swapLogs: [] };
+            state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
         }
 
         checkMyTurnAndNotify();
@@ -476,12 +507,12 @@
         if (isMyTurn) {
             if (lastNotifiedTurnState !== "my_turn") {
                 lastNotifiedTurnState = "my_turn";
-                sendDesktopNotification("🚨 حان دورك بالبريك", "حان دورك بالبريك الرجاء التأكيد والدخول الآن");
+                sendDesktopNotification("🚨 It's your turn for break", "It is your turn now, please confirm and enter.");
             }
         } else if (isAlmostMyTurn) {
             if (lastNotifiedTurnState !== "almost_turn") {
                 lastNotifiedTurnState = "almost_turn";
-                sendDesktopNotification("⏳ تنبيه قرب الدور", "هناك شخص واحد قبلك استعد");
+                sendDesktopNotification("⏳ Turn Alert", "There is only one person ahead of you, get ready.");
             }
         } else {
             if (myIndex > 0 || myIndex === -1) {
@@ -516,13 +547,13 @@
 
     function toggleAdmin() {
         if (!isAdmin) {
-            const pass = prompt('الرجاء إدخال كلمة مرور الأدمن:');
+            const pass = prompt('Please enter admin password:');
             if (pass === '1234') { 
                 isAdmin = true;
                 localStorage.setItem('is_admin_mode', 'true');
                 renderUI();
             } else if (pass !== null) {
-                alert('كلمة المرور غير صحيحة!');
+                alert('Incorrect password!');
             }
         } else {
             isAdmin = false;
@@ -535,16 +566,17 @@
         const input = document.getElementById('empName');
         const name = input.value.trim();
         if (!name) {
-            alert('يرجى إدخال اسمك أولاً!');
+            alert('Please enter your name first!');
             return;
         }
 
         const nameLower = name.toLowerCase();
         const isInActive = state.active.some(item => item.name.trim().toLowerCase() === nameLower);
         const isInWaiting = state.waiting.some(item => item.name.trim().toLowerCase() === nameLower);
+        const isInRequests = state.requests.some(item => item.name.trim().toLowerCase() === nameLower);
 
-        if (isInActive || isInWaiting) {
-            alert('عذراً، هذا الاسم موجود بالفعل (إما في البريك أو في الانتظار)!');
+        if (isInActive || isInWaiting || isInRequests) {
+            alert('Sorry, this name is already active, in waiting queue, or has a pending request!');
             return;
         }
 
@@ -558,24 +590,68 @@
             name: name,
             type: type,
             timestamp: now,
-            timeStr: new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' })
+            timeStr: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
         };
 
-        if (state.waiting.length > 0) {
-            state.waiting.push(newItem);
+        if (type === 'request') {
+            // يذهب مباشرة إلى قائمة طلبات الموافقة للأدمن
+            state.requests.push(newItem);
         } else {
-            const hasNormal = state.active.some(item => item.type === 'normal');
-            const hasQuick = state.active.some(item => item.type === 'quick');
+            if (state.waiting.length > 0) {
+                state.waiting.push(newItem);
+            } else {
+                const hasNormal = state.active.some(item => item.type === 'normal');
+                const hasQuick = state.active.some(item => item.type === 'quick');
 
-            let canEnter = false;
-            if (type === 'normal' && !hasNormal) canEnter = true;
-            else if (type === 'quick' && !hasQuick) canEnter = true;
+                let canEnter = false;
+                if (type === 'normal' && !hasNormal) canEnter = true;
+                else if (type === 'quick' && !hasQuick) canEnter = true;
 
-            if (canEnter) state.active.push(newItem);
-            else state.waiting.push(newItem);
+                if (canEnter) state.active.push(newItem);
+                else state.waiting.push(newItem);
+            }
         }
 
         db.set(state);
+    }
+
+    // الموافقة على طلب البريك من قِبل الأدمن
+    function approveRequest(index) {
+        if (!isAdmin) return;
+        const reqItem = state.requests.splice(index, 1)[0];
+        if (reqItem) {
+            reqItem.timestamp = Date.now();
+            reqItem.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            state.active.push(reqItem);
+            db.set(state);
+        }
+    }
+
+    // إلغاء طلب البريك
+    function cancelRequest(index) {
+        const item = state.requests[index];
+        const isOwner = myName && item.name.trim().toLowerCase() === myName.trim().toLowerCase();
+        if (!isOwner && !isAdmin) {
+            alert('You can only cancel your own request!');
+            return;
+        }
+        if (confirm(`Are you sure you want to cancel request for (${item.name})?`)) {
+            state.requests.splice(index, 1);
+            db.set(state);
+        }
+    }
+
+    // ميزة للأدمن: إخراج أي شخص مباشرة من قائمة الانتظار للبريك حتى لو كانت الأماكن ممتلئة
+    function forceAdminEnter(index) {
+        if (!isAdmin) return;
+        const item = state.waiting.splice(index, 1)[0];
+        if (item) {
+            item.timestamp = Date.now();
+            item.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            delete item.turnStartTime;
+            state.active.push(item);
+            db.set(state);
+        }
     }
 
     function confirmMyTurn() {
@@ -584,26 +660,26 @@
         
         const index = state.waiting.findIndex(item => item.name.trim().toLowerCase() === myUserLower);
         if (index === -1) {
-            alert('أنت لست في قائمة الانتظار حالياً!');
+            alert('You are not currently in the waiting queue!');
             return;
         }
 
         const userItem = state.waiting[index];
         const firstOfThisType = state.waiting.find(w => w.type === userItem.type);
         if (!firstOfThisType || firstOfThisType.id !== userItem.id) {
-            alert('عذراً، يوجد شخص قبلك في طابور الانتظار يجب أن يأخذ دوره أولاً!');
+            alert('Sorry, there is someone ahead of you in the queue who must take their turn first!');
             return;
         }
 
         const hasSameTypeActive = state.active.some(item => item.type === userItem.type);
         if (hasSameTypeActive) {
-            alert(`مكان بريك (${userItem.type === 'normal' ? 'العادي' : 'السريع'}) ما زال ممتلئاً.`);
+            alert(`The (${userItem.type}) break slot is still occupied.`);
             return;
         }
 
         state.waiting.splice(index, 1);
         userItem.timestamp = Date.now();
-        userItem.timeStr = new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' });
+        userItem.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
         delete userItem.turnStartTime;
         state.active.push(userItem);
 
@@ -617,9 +693,12 @@
             const endTime = Date.now();
             const durationMs = endTime - finishedItem.timestamp;
             const durationMins = Math.floor(durationMs / 60000);
-            const durationText = durationMins === 0 ? 'أقل من دقيقة' : `${durationMins} دقيقة`;
-            const endTimeStr = new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' });
-            const typeText = finishedItem.type === 'quick' ? 'بريك سريع (5 دقائق)' : 'بريك عادي';
+            const durationText = durationMins === 0 ? 'Less than a minute' : `${durationMins} mins`;
+            const endTimeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            
+            let typeText = 'Normal Break';
+            if (finishedItem.type === 'quick') typeText = 'Quick Break (5m)';
+            else if (finishedItem.type === 'request') typeText = 'Requested Break';
 
             state.reports.unshift({
                 name: finishedItem.name,
@@ -639,11 +718,11 @@
         const isOwner = myName && item.name.trim().toLowerCase() === myName.trim().toLowerCase();
 
         if (!isOwner && !isAdmin) {
-            alert('يمكنك إلغاء دورك الخاص فقط!');
+            alert('You can only cancel your own turn!');
             return;
         }
 
-        if (confirm(`هل أنت متأكد من إلغاء دور (${item.name})؟`)) {
+        if (confirm(`Are you sure you want to cancel (${item.name})?`)) {
             state.waiting.splice(index, 1);
             db.set(state);
         }
@@ -657,13 +736,13 @@
             id2 = document.getElementById('swap2').value;
         } else {
             if (!myName) {
-                alert('الرجاء إدخال اسمك أولاً!');
+                alert('Please enter your name first!');
                 return;
             }
             const myUserLower = myName.trim().toLowerCase();
             const myItem = state.waiting.find(w => w.name.trim().toLowerCase() === myUserLower);
             if (!myItem) {
-                alert('أنت لست موجوداً في قائمة الانتظار للتبديل!');
+                alert('You are not in the waiting queue to swap!');
                 return;
             }
             id1 = myItem.id;
@@ -671,7 +750,7 @@
         }
 
         if (!id1 || !id2 || id1 === id2) {
-            alert('يرجى اختيار شخص للتبديل معه!');
+            alert('Please select a person to swap with!');
             return;
         }
 
@@ -681,7 +760,7 @@
         if (idx1 > -1 && idx2 > -1) {
             if (!isAdmin) {
                 if (Math.abs(idx1 - idx2) !== 1) {
-                    alert('عذراً، يُسمح بالتبديل فقط مع الشخص الذي فوقك مباشرة أو تحتك مباشرة!');
+                    alert('Sorry, you can only swap with the person directly above or below you!');
                     return;
                 }
             }
@@ -689,7 +768,6 @@
             const oldPos1 = idx1 + 1;
             const oldPos2 = idx2 + 1;
 
-            // تنفيذ عملية التبديل بدقة صحيحة في المصفوفة
             const temp = state.waiting[idx1];
             state.waiting[idx1] = state.waiting[idx2];
             state.waiting[idx2] = temp;
@@ -704,31 +782,31 @@
             state.swapLogs.unshift({
                 id: String(Date.now() + 1),
                 receiverName: name1,
-                initiatorName: isAdmin ? 'الأدمن' : name2,
-                oldPos: oldPos2, // الرقم القديم الصحيح للشخص قبل التبديل
-                newPos: newPos1, // الرقم الجديد بعد التبديل
+                initiatorName: isAdmin ? 'Admin' : name2,
+                oldPos: oldPos2,
+                newPos: newPos1,
                 timestamp: Date.now(),
-                timeStr: new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' })
+                timeStr: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
             });
 
             state.swapLogs.unshift({
                 id: String(Date.now() + 2),
                 receiverName: name2,
-                initiatorName: isAdmin ? 'الأدمن' : name1,
-                oldPos: oldPos1, // الرقم القديم الصحيح للشخص قبل التبديل
-                newPos: newPos2, // الرقم الجديد بعد التبديل
+                initiatorName: isAdmin ? 'Admin' : name1,
+                oldPos: oldPos1,
+                newPos: newPos2,
                 timestamp: Date.now(),
-                timeStr: new Date().toLocaleTimeString('ar-KW', { hour: '2-digit', minute: '2-digit' })
+                timeStr: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
             });
 
             db.set(state);
-            alert('تم التبديل بنجاح!');
+            alert('Swapped successfully!');
         }
     }
 
     function clearReports() {
         if (!isAdmin) return;
-        if (confirm('هل أنت متأكد من مسح السجل والتقارير؟')) {
+        if (confirm('Are you sure you want to clear reports and logs?')) {
             state.reports = [];
             state.swapLogs = [];
             db.set(state);
@@ -737,12 +815,12 @@
 
     function exportToExcel() {
         if (!isAdmin) return;
-        let csvContent = "\uFEFF--- سجل البريكات ---\nاسم الموظف,نوع البريك,وقت الخروج,وقت العودة,مدة البريك\n";
+        let csvContent = "\uFEFF--- Break Reports ---\nEmployee Name,Break Type,Start Time,End Time,Duration\n";
         (state.reports || []).forEach(rep => {
             csvContent += `"${rep.name}","${rep.type}","${rep.startTime}","${rep.endTime}","${rep.duration}"\n`;
         });
 
-        csvContent += "\n\uFEFF--- سجل تبديل الأدوار ---\nالمستقبل للإشعار,المبدل,الرقم القديم,الرقم الجديد,الوقت\n";
+        csvContent += "\n\uFEFF--- Swap Logs ---\nRecipient,Initiator,Old Pos,New Pos,Time\n";
         (state.swapLogs || []).forEach(sw => {
             csvContent += `"${sw.receiverName}","${sw.initiatorName}","${sw.oldPos}","${sw.newPos}","${sw.timeStr}"\n`;
         });
@@ -766,15 +844,40 @@
         if (isAdmin) {
             adminBtn.style.background = 'rgba(16, 185, 129, 0.2)';
             adminBtn.style.color = 'var(--accent-green)';
-            adminBtn.innerText = '🔓 أدمن';
+            adminBtn.innerText = '🔓 Admin Unlocked';
             clearBtn.style.display = 'inline-block';
             excelBtn.style.display = 'inline-block';
         } else {
             adminBtn.style.background = 'rgba(99, 102, 241, 0.15)';
             adminBtn.style.color = '#818cf8';
-            adminBtn.innerText = '🔒 وضع الأدمن';
+            adminBtn.innerText = '🔒 Admin Mode';
             clearBtn.style.display = 'none';
             excelBtn.style.display = 'none';
+        }
+
+        // عرض قسم طلبات البريك إذا كانت موجودة، أو إذا كان المستخدم أدمن
+        const requestsSection = document.getElementById('requestsSectionContainer');
+        const reqBox = document.getElementById('requestsBox');
+        if (state.requests && state.requests.length > 0 && (isAdmin || (myName && state.requests.some(r => r.name.toLowerCase() === myName.toLowerCase())))) {
+            requestsSection.style.display = 'block';
+            reqBox.innerHTML = state.requests.map((item, i) => {
+                const isOwner = myName && item.name.trim().toLowerCase() === myName.trim().toLowerCase();
+                const showActions = (isAdmin || isOwner);
+                return `
+                    <div class="card-request">
+                        <div>
+                            <strong>${item.name}</strong> <span style="color:#a78bfa;">[Break Request]</span>
+                            <br><small style="color:var(--text-muted)">Requested at: ${item.timeStr}</small>
+                        </div>
+                        <div style="display: flex; gap: 6px;">
+                            ${isAdmin ? `<button type="button" class="btn btn-green" style="padding: 6px 12px; font-size: 0.85rem;" onclick="approveRequest(${i})">Approve</button>` : ``}
+                            ${showActions ? `<button type="button" class="btn btn-red" onclick="cancelRequest(${i})">Cancel</button>` : ``}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        } else {
+            requestsSection.style.display = 'none';
         }
 
         const promptBox = document.getElementById('myTurnPromptBox');
@@ -797,26 +900,30 @@
 
         const aBox = document.getElementById('activeBox');
         if (!state.active || state.active.length === 0) {
-            aBox.innerHTML = '<div class="empty-msg">لا يوجد أحد بالبريك حالياً</div>';
+            aBox.innerHTML = '<div class="empty-msg">No one on break right now</div>';
         } else {
             aBox.innerHTML = state.active.map((item, i) => {
                 const minsInBreak = Math.floor((currentTime - item.timestamp) / 60000);
-                const activeDurationStr = minsInBreak === 0 ? 'منذ أقل من دقيقة' : `منذ ${minsInBreak} دقيقة`;
+                const activeDurationStr = minsInBreak === 0 ? 'Less than a minute ago' : `${minsInBreak} mins ago`;
                 const isOwner = myName && item.name.trim().toLowerCase() === myName.trim().toLowerCase();
                 const showEndBtn = (isOwner || isAdmin);
                 const isQuick = item.type === 'quick';
                 const isOvertime = isQuick && minsInBreak > 5;
 
+                let typeLabel = '<span style="color:var(--accent-amber);">[Normal]</span>';
+                if (isQuick) typeLabel = '<span style="color:#38bdf8;">[Quick]</span>';
+                else if (item.type === 'request') typeLabel = '<span style="color:#a78bfa;">[Requested]</span>';
+
                 return `
                     <div class="card-active ${isOvertime ? 'overtime' : ''}">
                         <div>
                             <strong>${item.name}</strong> 
-                            <span style="margin-right: 8px; font-size: 0.9rem;">⏱️ ${activeDurationStr}</span>
-                            ${isQuick ? '<span style="color:#38bdf8;">[سريع]</span>' : '<span style="color:var(--accent-amber);">[عادي]</span>'}
-                            <br><small style="color:var(--text-muted)">وقت الخروج: ${item.timeStr}</small>
-                            ${isOvertime ? '<br><span style="color: #f87171; font-weight: bold; font-size: 0.85rem;">⚠️ تجاوزت 5 دقائق!</span>' : ''}
+                            <span style="margin-left: 8px; font-size: 0.9rem;">⏱️ ${activeDurationStr}</span>
+                            ${typeLabel}
+                            <br><small style="color:var(--text-muted)">Out at: ${item.timeStr}</small>
+                            ${isOvertime ? '<br><span style="color: #f87171; font-weight: bold; font-size: 0.85rem;">⚠️ Exceeded 5 minutes!</span>' : ''}
                         </div>
-                        ${showEndBtn ? `<button type="button" class="btn btn-red" onclick="endBreak(${i})">إنهاء</button>` : ``}
+                        ${showEndBtn ? `<button type="button" class="btn btn-red" onclick="endBreak(${i})">End</button>` : ``}
                     </div>
                 `;
             }).join('');
@@ -824,7 +931,7 @@
 
         const wBox = document.getElementById('waitingBox');
         if (!state.waiting || state.waiting.length === 0) {
-            wBox.innerHTML = '<div class="empty-msg">قائمة الانتظار فارغة</div>';
+            wBox.innerHTML = '<div class="empty-msg">Waiting queue is empty</div>';
         } else {
             wBox.innerHTML = state.waiting.map((item, i) => {
                 const minsWaiting = Math.floor((currentTime - item.timestamp) / 60000);
@@ -832,12 +939,15 @@
                 const showCancelBtn = (isOwner || isAdmin);
                 const isQuick = item.type === 'quick';
 
+                let typeLabel = '<span style="color:var(--accent-amber);">[Normal]</span>';
+                if (isQuick) typeLabel = '<span style="color:#38bdf8;">[Quick]</span>';
+
                 let swapMessageHtml = '';
                 if (state.swapLogs && state.swapLogs.length > 0) {
                     const itemNameLower = item.name.trim().toLowerCase();
                     const recentLog = state.swapLogs.find(log => log.receiverName.trim().toLowerCase() === itemNameLower && (currentTime - log.timestamp < 600000));
                     if (recentLog) {
-                        swapMessageHtml = `<br><span style="color: #38bdf8; font-size: 0.8rem; font-weight: bold;">💬 تم تغيير دورك مع ${recentLog.initiatorName}، كان دورك رقم ${recentLog.oldPos} وأصبح ${recentLog.newPos}</span>`;
+                        swapMessageHtml = `<br><span style="color: #38bdf8; font-size: 0.8rem; font-weight: bold;">💬 Swapped with ${recentLog.initiatorName}, old position #${recentLog.oldPos} -> new #${recentLog.newPos}</span>`;
                     }
                 }
 
@@ -845,11 +955,14 @@
                     <div class="card-waiting">
                         <div>
                             <span>#${i + 1} - <strong>${item.name}</strong></span>
-                            <span style="margin-right: 8px; color:var(--text-muted); font-size: 0.85rem;">انتظار: ${minsWaiting}د</span>
-                            ${isQuick ? '<span style="color:#38bdf8;">[سريع]</span>' : '<span style="color:var(--accent-amber);">[عادي]</span>'}
+                            <span style="margin-left: 8px; color:var(--text-muted); font-size: 0.85rem;">Waiting: ${minsWaiting}m</span>
+                            ${typeLabel}
                             ${swapMessageHtml}
                         </div>
-                        ${showCancelBtn ? `<button type="button" class="btn btn-red" onclick="cancelWaiting(${i})">إلغاء</button>` : ``}
+                        <div style="display: flex; gap: 6px; align-items: center;">
+                            ${isAdmin ? `<button type="button" class="btn btn-green" style="padding: 6px 10px; font-size: 0.75rem;" onclick="forceAdminEnter(${i})" title="Force to Break">Force Out</button>` : ``}
+                            ${showCancelBtn ? `<button type="button" class="btn btn-red" onclick="cancelWaiting(${i})">Cancel</button>` : ``}
+                        </div>
                     </div>
                 `;
             }).join('');
@@ -862,12 +975,12 @@
         if (state.waiting && state.waiting.length >= 2) {
             swapSection.style.display = 'block';
             if (isAdmin) {
-                swapTitle.innerText = '🔄 تبديل الأدوار (صلاحية الأدمن):';
+                swapTitle.innerText = '🔄 Swap Queue Positions (Admin Privilege):';
                 swapControls.innerHTML = `
                     <select id="swap1"></select>
-                    <span>مع</span>
+                    <span>with</span>
                     <select id="swap2"></select>
-                    <button type="button" class="btn btn-amber" onclick="executeSwap()">تبديل</button>
+                    <button type="button" class="btn btn-amber" onclick="executeSwap()">Swap</button>
                 `;
                 const s1 = document.getElementById('swap1');
                 const s2 = document.getElementById('swap2');
@@ -877,10 +990,10 @@
                 });
                 if (s2.options.length > 1) s2.selectedIndex = 1;
             } else {
-                swapTitle.innerText = '🔄 تبديل دوري (مع الملاصق لك فقط):';
+                swapTitle.innerText = '🔄 Swap your turn (Adjacent only):';
                 swapControls.innerHTML = `
                     <select id="swapTarget"></select>
-                    <button type="button" class="btn btn-amber" onclick="executeSwap()">تبديل دوري</button>
+                    <button type="button" class="btn btn-amber" onclick="executeSwap()">Swap Turn</button>
                 `;
                 const sTarget = document.getElementById('swapTarget');
                 const myUserLower = myName ? myName.trim().toLowerCase() : '';
@@ -889,11 +1002,11 @@
                 if (myIdx > -1) {
                     if (myIdx > 0) {
                         const aboveItem = state.waiting[myIdx - 1];
-                        sTarget.add(new Option(`#${myIdx} - ${aboveItem.name} [فوقك مباشرة]`, aboveItem.id));
+                        sTarget.add(new Option(`#${myIdx} - ${aboveItem.name} [Directly Above]`, aboveItem.id));
                     }
                     if (myIdx < state.waiting.length - 1) {
                         const belowItem = state.waiting[myIdx + 1];
-                        sTarget.add(new Option(`#${myIdx + 2} - ${belowItem.name} [تحتك مباشرة]`, belowItem.id));
+                        sTarget.add(new Option(`#${myIdx + 2} - ${belowItem.name} [Directly Below]`, belowItem.id));
                     }
                 }
             }
@@ -903,13 +1016,12 @@
 
         const rBox = document.getElementById('reportsBox');
         if (!state.reports || state.reports.length === 0) {
-            rBox.innerHTML = '<div class="empty-msg">لا توجد تقارير مسجلة في آخر 24 ساعة</div>';
+            rBox.innerHTML = '<div class="empty-msg">No reports logged in the last 24 hours</div>';
         } else {
-            // الموظف العادي يرى الاسم ونوع البريك فقط، بينما الأدمن يرى الأوقات والمدة الكاملة
             rBox.innerHTML = state.reports.map(rep => `
                 <div class="report-item">
                     <div><strong>${rep.name}</strong> <span style="color:var(--text-muted)">(${rep.type})</span></div>
-                    ${isAdmin ? `<span style="color: var(--accent-green); font-weight: bold;">خروج: ${rep.startTime} | عودة: ${rep.endTime} (${rep.duration})</span>` : ``}
+                    ${isAdmin ? `<span style="color: var(--accent-green); font-weight: bold;">Out: ${rep.startTime} | Back: ${rep.endTime} (${rep.duration})</span>` : ``}
                 </div>
             `).join('');
         }
