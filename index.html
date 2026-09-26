@@ -7,8 +7,8 @@
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    <!-- SheetJS (xlsx) Library for Real Excel Export with Styles -->
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- SheetJS with Full Styles Support Library -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.full.min.js"></script>
     <style>
         :root {
             --bg-gradient: linear-gradient(135deg, #172554 0%, #0f172a 50%, #090d16 100%);
@@ -543,7 +543,7 @@
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
-    const db = firebase.database().ref('alsalam_hospital_breaks_v29');
+    const db = firebase.database().ref('alsalam_hospital_breaks_v30');
 
     let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
@@ -921,7 +921,7 @@
                 type: typeText,
                 startTime: finishedItem.timeStr,
                 endTime: endTimeStr,
-                duration: isOvertime ? 'Exceed' : durationText,
+                duration: durationText,
                 isOvertime: isOvertime,
                 endTimestamp: endTime
             });
@@ -1048,36 +1048,110 @@
         }
     }
 
-    // دالة تصدير ملف إكسل الحقيقي (.xlsx) مع التنسيق والألوان
+    // دالة تصدير ملف إكسل منسق بالكامل (ألوان، خط عريض، تلوين المتأخر بالأحمر والسليم بالأخضر)
     function exportToExcel() {
         if (!isAdmin) return;
 
-        let wsData = [
+        let aoa = [
             ["--- Break Reports ---"],
             ["Employee Name", "Break Type", "Start Time", "End Time", "Duration", "Overtime Status"]
         ];
 
         (state.reports || []).forEach(rep => {
-            wsData.push([rep.name, rep.type, rep.startTime, rep.endTime, rep.duration, "Normal"]);
+            aoa.push([rep.name, rep.type, rep.startTime, rep.endTime, rep.duration, rep.isOvertime ? "Exceed" : "Normal"]);
         });
 
-        wsData.push([]);
-        wsData.push(["--- Swap Logs ---"]);
-        wsData.push(["Recipient", "Initiator", "Old Pos", "New Pos", "Time"]);
+        aoa.push([]);
+        aoa.push(["--- Swap Logs ---"]);
+        aoa.push(["Recipient", "Initiator", "Old Pos", "New Pos", "Time"]);
 
         (state.swapLogs || []).forEach(sw => {
-            wsData.push([sw.receiverName, sw.initiatorName, sw.oldPos, sw.newPos, sw.timeStr]);
+            aoa.push([sw.receiverName, sw.initiatorName, sw.oldPos, sw.newPos, sw.timeStr]);
         });
 
         const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        const ws = XLSX.utils.aoa_to_sheet(aoa);
 
-        // تنسيق الألوان والخلايا لملف الإكسل
-        ws['!cols'] = [{wch: 20}, {wch: 22}, {wch: 15}, {wch: 15}, {wch: 20}, {wch: 18}];
+        // إعدادات التنسيق والحدود العريضة (Borders) والألوان
+        const thinBorder = {
+            top: { style: "medium", color: { rgb: "000000" } },
+            bottom: { style: "medium", color: { rgb: "000000" } },
+            left: { style: "medium", color: { rgb: "000000" } },
+            right: { style: "medium", color: { rgb: "000000" } }
+        };
 
-        // تلوين عروش الجداول بخلفيات مميزة
-        if(!ws['A1'].s) ws['A1'].s = {};
-        ws['A1'].s = { fill: { fgColor: { rgb: "BAE6FD" } }, font: { bold: true, color: { rgb: "0369A1" } } };
+        const headerStyle = {
+            font: { bold: true, color: { rgb: "000000" } },
+            fill: { fgColor: { rgb: "E0F2FE" } }, // أزرق فاتح للعناوين
+            border: thinBorder,
+            alignment: { horizontal: "center" }
+        };
+
+        const sectionTitleStyle = {
+            font: { bold: true, color: { rgb: "0284C7" }, sz: 12 },
+            fill: { fgColor: { rgb: "BAE6FD" } }
+        };
+
+        const redCellStyle = {
+            font: { bold: true, color: { rgb: "FFFFFF" } },
+            fill: { fgColor: { rgb: "EF4444" } }, // أحمر للمتأخر
+            border: thinBorder,
+            alignment: { horizontal: "center" }
+        };
+
+        const greenCellStyle = {
+            font: { bold: true, color: { rgb: "065F46" } },
+            fill: { fgColor: { rgb: "A7F3D0" } }, // أخضر للسليم
+            border: thinBorder,
+            alignment: { horizontal: "center" }
+        };
+
+        const standardCellStyle = {
+            border: thinBorder,
+            alignment: { horizontal: "center" }
+        };
+
+        // تطبيق الأنماط على الخلايا برمجياً
+        const range = XLSX.utils.decode_range(ws['!ref']);
+        for (let R = range.s.r; R <= range.e.r; ++R) {
+            for (let C = range.s.c; C <= range.e.c; ++C) {
+                const cellRef = XLSX.utils.encode_cell({r: R, c: C});
+                if (!ws[cellRef]) continue;
+
+                if (!ws[cellRef].s) ws[cellRef].s = {};
+
+                // عنوان القسم الرئيسي
+                if (R === 0 || ws[cellRef].v === "--- Break Reports ---" || ws[cellRef].v === "--- Swap Logs ---") {
+                    ws[cellRef].s = sectionTitleStyle;
+                }
+                // عروش الجدول (Headers)
+                else if (R === 1 || ws[cellRef].v === "Recipient" || (R > 0 && aoa[R] && aoa[R][0] === "Employee Name" && C === 0)) {
+                    // تحقق من الصف الثاني أو صفوف العناوين الفرعية
+                    if (ws[cellRef].v === "Employee Name" || ws[cellRef].v === "Recipient") {
+                        // تلوين صف عناوين الأعمدة
+                        for(let colIdx=0; colIdx<6; colIdx++) {
+                            let hRef = XLSX.utils.encode_cell({r: R, c: colIdx});
+                            if(ws[hRef]) ws[hRef].s = headerStyle;
+                        }
+                    }
+                }
+                // البيانات وتلوين المتأخر والسليم
+                else if (R > 1) {
+                    ws[cellRef].s = standardCellStyle;
+                    // عمود المدة أو الحالة لتلوين Exceed بالأحمر و Normal بالأخضر
+                    if (C === 4 || C === 5) {
+                        const val = String(ws[cellRef].v);
+                        if (val === "Exceed") {
+                            ws[cellRef].s = redCellStyle;
+                        } else if (val === "Normal") {
+                            ws[cellRef].s = greenCellStyle;
+                        }
+                    }
+                }
+            }
+        }
+
+        ws['!cols'] = [{wch: 22}, {wch: 22}, {wch: 16}, {wch: 16}, {wch: 20}, {wch: 18}];
 
         XLSX.utils.book_append_sheet(wb, ws, "Contact Center Break Report");
         XLSX.writeFile(wb, "Contact_Center_Break_Report.xlsx");
@@ -1265,7 +1339,7 @@
             swapSection.style.display = 'none';
         }
 
-        // عرض جدول التقارير وتحديث الاسم ليصبح Contact Center Break Report
+        // عرض جدول التقارير في الداشبورد
         const rBox = document.getElementById('reportsBox');
         if (!state.reports || state.reports.length === 0) {
             rBox.innerHTML = '<div class="empty-msg">No reports logged in the last 24 hours</div>';
