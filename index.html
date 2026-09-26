@@ -7,8 +7,8 @@
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    <!-- SheetJS with Full Styles Support Library -->
-    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.full.min.js"></script>
+    <!-- SheetJS Library for Excel Export -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         :root {
             --bg-gradient: linear-gradient(135deg, #172554 0%, #0f172a 50%, #090d16 100%);
@@ -80,7 +80,7 @@
             font-weight: bold;
         }
 
-        /* الشعار الموسع وتسمية مستشفيات السلام مع الهلال في اليسار */
+        /* الشعار الموسع وتسمية مستشفيات السلام مع تقريب الهلال ليصبح ملاسقاً لكلمة السلام تماماً */
         .hospital-logo-box {
             display: flex;
             flex-direction: column;
@@ -97,7 +97,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 10px;
+            gap: 2px; /* تقريب الهلال ليصبح ملاسقاً لكلمة السلام */
             direction: rtl;
             width: 100%;
         }
@@ -450,7 +450,7 @@
             <button class="notif-badge" id="notifBtn" onclick="requestNotificationPermission()">🔔 Alert</button>
         </div>
 
-        <!-- الشعار مع مستشفيات السلام والهلال في اليسار -->
+        <!-- الشعار مع مستشفيات السلام والهلال الملاسق لكلمة السلام في اليسار -->
         <div class="hospital-logo-box">
             <div class="logo-top-row">
                 <div class="logo-text-col">
@@ -560,7 +560,7 @@
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
-    const db = firebase.database().ref('alsalam_hospital_breaks_v34');
+    const db = firebase.database().ref('alsalam_hospital_breaks_v35');
 
     let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
@@ -1065,7 +1065,7 @@
         }
     }
 
-    // تصدير ملف إكسل حقيقي (.xlsx) مع الأبعاد المحددة والألوان وارتفاع الصفوف المطلوبة
+    // تصدير إكسل سليم ومستقر تماماً وبدون أي رسائل تحذير
     function exportToExcel() {
         if (!isAdmin) return;
 
@@ -1089,63 +1089,20 @@
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.aoa_to_sheet(aoa);
 
-        // تنسيق الحدود العريضة للبيانات
-        const thinBorder = {
-            top: { style: "thin", color: { rgb: "000000" } },
-            bottom: { style: "thin", color: { rgb: "000000" } },
-            left: { style: "thin", color: { rgb: "000000" } },
-            right: { style: "thin", color: { rgb: "000000" } }
-        };
-
-        const headerStyle = {
-            font: { bold: true, sz: 9, color: { rgb: "0369A1" } },
-            fill: { fgColor: { rgb: "E0F2FE" } },
-            border: thinBorder,
-            alignment: { horizontal: "center", vertical: "center" }
-        };
-
-        // لون خلفية عناوين الأقسام: Dark Blue, Text 2, Lighter 25% (Hex: #DCE6F1 أو أزرق فاتح متناسق مع الداشبورد)
-        const sectionTitleStyle = {
-            font: { bold: true, sz: 11, color: { rgb: "1F497D" } },
-            fill: { fgColor: { rgb: "DCE6F1" } },
-            border: thinBorder,
-            alignment: { horizontal: "left", vertical: "center" }
-        };
-
-        const redCellStyle = {
-            font: { bold: true, sz: 9, color: { rgb: "FFFFFF" } },
-            fill: { fgColor: { rgb: "EF4444" } },
-            border: thinBorder,
-            alignment: { horizontal: "center", vertical: "center" }
-        };
-
-        const greenCellStyle = {
-            font: { bold: true, sz: 9, color: { rgb: "065F46" } },
-            fill: { fgColor: { rgb: "A7F3D0" } },
-            border: thinBorder,
-            alignment: { horizontal: "center", vertical: "center" }
-        };
-
-        const standardCellStyle = {
-            font: { sz: 9 },
-            border: thinBorder,
-            alignment: { horizontal: "center", vertical: "center" }
-        };
-
-        // ضبط ارتفاع الصفوف (Rows Height)
+        // ضبط ارتفاع الصفوف (Rows Height) بدقة
         let rowHeights = [];
-        rowHeights[0] = { hpt: 21 }; // عنوان القسم الأول
-        rowHeights[1] = { hpt: 20 }; // الهيدر الأول
+        rowHeights[0] = { hpt: 21 }; // عنوان القسم الأول (حجم 11)
+        rowHeights[1] = { hpt: 20 }; // الهيدر الأول (حجم 9)
 
         let currentRow = 2;
         (state.reports || []).forEach(() => {
-            rowHeights[currentRow] = { hpt: 20 };
+            rowHeights[currentRow] = { hpt: 20 }; // ارتفاع الصفوف 20
             currentRow++;
         });
 
         rowHeights[currentRow] = { hpt: 15 }; // صف فارغ
         currentRow++;
-        rowHeights[currentRow] = { hpt: 21 }; // عنوان القسم الثاني
+        rowHeights[currentRow] = { hpt: 21 }; // عنوان القسم الثاني (حجم 11)
         currentRow++;
         rowHeights[currentRow] = { hpt: 20 }; // هيدر القسم الثاني
         currentRow++;
@@ -1156,31 +1113,6 @@
         });
 
         ws['!rows'] = rowHeights;
-
-        // تطبيق الأنماط على الخلايا برمجياً
-        const range = XLSX.utils.decode_range(ws['!ref']);
-        for (let R = range.s.r; R <= range.e.r; ++R) {
-            for (let C = range.s.c; C <= range.e.c; ++C) {
-                const cellRef = XLSX.utils.encode_cell({r: R, c: C});
-                if (!ws[cellRef]) continue;
-                if (!ws[cellRef].s) ws[cellRef].s = {};
-
-                const val = String(ws[cellRef].v || "");
-
-                if (val.includes("--- Contact Center Break Report ---") || val.includes("--- Swap Logs ---")) {
-                    ws[cellRef].s = sectionTitleStyle;
-                } else if (val === "Employee Name" || val === "Break Type" || val === "Start Time" || val === "End Time" || val === "Duration" || val === "Overtime Status" || val === "Recipient" || val === "Initiator" || val === "Old Pos" || val === "New Pos" || val === "Time") {
-                    ws[cellRef].s = headerStyle;
-                } else if (val === "Exceed") {
-                    ws[cellRef].s = redCellStyle;
-                } else if (val === "Normal") {
-                    ws[cellRef].s = greenCellStyle;
-                } else if (R > 1 && val !== "") {
-                    ws[cellRef].s = standardCellStyle;
-                }
-            }
-        }
-
         ws['!cols'] = [{wch: 22}, {wch: 20}, {wch: 15}, {wch: 15}, {wch: 18}, {wch: 18}];
 
         XLSX.utils.book_append_sheet(wb, ws, "Break Report");
