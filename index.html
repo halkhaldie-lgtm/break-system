@@ -1,54 +1,65 @@
 function showCustomAlert(message) {
-    // التحقق مما إذا كان هناك تنبيه قديم وإزالته
-    const existingAlert = document.getElementById('custom-alert-box');
+    // إزالة أي تنبيه سابق إن وجد
+    var existingAlert = document.getElementById('custom-alert-box');
     if (existingAlert) {
         existingAlert.remove();
     }
 
-    // إنشاء عنصر الحاوية للتنبيه
-    const alertBox = document.createElement('div');
+    // إنشاء الحاوية الرئيسية للتنبيه
+    var alertBox = document.createElement('div');
     alertBox.id = 'custom-alert-box';
-    alertBox.style.cssText = `
-        position: fixed;
-        top: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        background-color: #fff;
-        border: 2px solid #ff4d4d;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-        padding: 20px 25px;
-        z-index: 10000;
-        border-radius: 8px;
-        text-align: center;
-        max-width: 400px;
-        width: 90%;
-        font-family: Arial, sans-serif;
-    `;
+    alertBox.style.position = 'fixed';
+    alertBox.style.top = '20px';
+    alertBox.style.left = '50%';
+    alertBox.style.transform = 'translateX(-50%)';
+    alertBox.style.backgroundColor = '#fff';
+    alertBox.style.border = '2px solid #ff4d4d';
+    alertBox.style.boxShadow = '0 4px 15px rgba(0, 0, 0, 0.2)';
+    alertBox.style.padding = '20px 25px';
+    alertBox.style.zIndex = '10000';
+    alertBox.style.borderRadius = '8px';
+    alertBox.style.textAlign = 'center';
+    alertBox.style.maxWidth = '400px';
+    alertBox.style.width = '90%';
+    alertBox.style.fontFamily = 'Arial, sans-serif';
 
-    // محتوى التنبيه
-    alertBox.innerHTML = `
-        <div style="color: #ff4d4d; font-size: 20px; font-weight: bold; margin-bottom: 10px;">
-            ⚠️ تنبيه
-        </div>
-        <div style="color: #333; font-size: 15px; line-height: 1.5; margin-bottom: 15px;">
-            ${message}
-        </div>
-        <button id="custom-alert-btn" style="
-            background-color: #ff4d4d;
-            color: white;
-            border: none;
-            padding: 8px 20px;
-            font-size: 14px;
-            font-weight: bold;
-            border-radius: 4px;
-            cursor: pointer;
-        ">حسناً</button>
-    `;
+    // بناء محتوى التنبيه بالداخل بأمان تام
+    var titleDiv = document.createElement('div');
+    titleDiv.style.color = '#ff4d4d';
+    titleDiv.style.fontSize = '20px';
+    titleDiv.style.fontWeight = 'bold';
+    titleDiv.style.marginBottom = '10px';
+    titleDiv.innerHTML = '⚠️ تنبيه';
 
+    var msgDiv = document.createElement('div');
+    msgDiv.style.color = '#333';
+    msgDiv.style.fontSize = '15px';
+    msgDiv.style.lineHeight = '1.5';
+    msgDiv.style.marginBottom = '15px';
+    msgDiv.textContent = message;
+
+    var btn = document.createElement('button');
+    btn.id = 'custom-alert-btn';
+    btn.style.backgroundColor = '#ff4d4d';
+    btn.style.color = 'white';
+    btn.style.border = 'none';
+    btn.style.padding = '8px 20px';
+    btn.style.fontSize = '14px';
+    btn.style.fontWeight = 'bold';
+    btn.style.borderRadius = '4px';
+    btn.style.cursor = 'pointer';
+    btn.textContent = 'حسناً';
+
+    // تجميع العناصر داخل صندوق التنبيه
+    alertBox.appendChild(titleDiv);
+    alertBox.appendChild(msgDiv);
+    alertBox.appendChild(btn);
+
+    // إضافة الصندوق إلى الصفحة
     document.body.appendChild(alertBox);
 
     // حدث زر الإغلاق
-    document.getElementById('custom-alert-btn').onclick = function() {
+    btn.onclick = function() {
         alertBox.remove();
     };
 }
