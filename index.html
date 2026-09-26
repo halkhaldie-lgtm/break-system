@@ -7,8 +7,8 @@
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    <!-- SheetJS Library for Excel Export -->
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- SheetJS with Full Styles Support Library -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.full.min.js"></script>
     <style>
         :root {
             --bg-gradient: linear-gradient(135deg, #172554 0%, #0f172a 50%, #090d16 100%);
@@ -80,7 +80,7 @@
             font-weight: bold;
         }
 
-        /* الشعار الموسع وتسمية مستشفيات السلام مع تقريب الهلال ليصبح ملاسقاً لكلمة السلام تماماً */
+        /* الشعار مع تعديل الهلال ليكون مستقيماً ومرفوعاً قليلاً وملاصقاً لكلمة السلام */
         .hospital-logo-box {
             display: flex;
             flex-direction: column;
@@ -97,7 +97,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 2px; /* تقريب الهلال ليصبح ملاسقاً لكلمة السلام */
+            gap: 2px;
             direction: rtl;
             width: 100%;
         }
@@ -108,6 +108,7 @@
             position: relative;
             display: inline-block;
             flex-shrink: 0;
+            top: -3px; /* رفع الهلال قليلاً */
         }
         .logo-crescent::before {
             content: '';
@@ -119,7 +120,7 @@
             box-shadow: -4px 2px 0 0 #0d9488;
             top: -2px;
             left: 2px;
-            transform: rotate(-30deg);
+            transform: rotate(0deg); /* جعل الهلال بخط مستقيم غير مائل */
         }
         .logo-crescent::after {
             content: '';
@@ -131,7 +132,7 @@
             box-shadow: -4px 2px 0 0 #1e3a8a;
             top: 2px;
             left: 6px;
-            transform: rotate(-15deg);
+            transform: rotate(0deg); /* جعل الهلال الداخلي بخط مستقيم غير مائل */
         }
 
         .logo-text-col {
@@ -261,7 +262,6 @@
             border-color: #991b1b;
         }
 
-        /* تنسيق أرقام الانتظار بشارة دائرية أنيقة */
         .waiting-badge-num {
             display: inline-flex;
             align-items: center;
@@ -316,7 +316,6 @@
             outline: none;
         }
 
-        /* تنسيق التقارير المصغر والعملي */
         .report-box {
             background: var(--card-bg);
             border: 1px solid var(--card-border);
@@ -388,7 +387,6 @@
         }
         .toggle-arrow-btn:hover { background: #334155; }
 
-        /* نافذة إدخال كلمة مرور الأدمن المخصصة */
         .custom-modal-overlay {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -450,7 +448,7 @@
             <button class="notif-badge" id="notifBtn" onclick="requestNotificationPermission()">🔔 Alert</button>
         </div>
 
-        <!-- الشعار مع مستشفيات السلام والهلال الملاسق لكلمة السلام في اليسار -->
+        <!-- الشعار مع الهلال المستقيم والمرفوع قليلاً والملاصق لكلمة السلام -->
         <div class="hospital-logo-box">
             <div class="logo-top-row">
                 <div class="logo-text-col">
@@ -560,7 +558,7 @@
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
-    const db = firebase.database().ref('alsalam_hospital_breaks_v35');
+    const db = firebase.database().ref('alsalam_hospital_breaks_v36');
 
     let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
@@ -1065,7 +1063,7 @@
         }
     }
 
-    // تصدير إكسل سليم ومستقر تماماً وبدون أي رسائل تحذير
+    // تصدير ملف إكسل بـ Styling احترافي كامل (ألوان، حدود، أحجام خطوط وارتفاع صفوف)
     function exportToExcel() {
         if (!isAdmin) return;
 
@@ -1089,22 +1087,62 @@
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.aoa_to_sheet(aoa);
 
-        // ضبط ارتفاع الصفوف (Rows Height) بدقة
+        const thinBorder = {
+            top: { style: "thin", color: { rgb: "000000" } },
+            bottom: { style: "thin", color: { rgb: "000000" } },
+            left: { style: "thin", color: { rgb: "000000" } },
+            right: { style: "thin", color: { rgb: "000000" } }
+        };
+
+        const headerStyle = {
+            font: { bold: true, sz: 9, color: { rgb: "0369A1" } },
+            fill: { fgColor: { rgb: "E0F2FE" } },
+            border: thinBorder,
+            alignment: { horizontal: "center", vertical: "center" }
+        };
+
+        const sectionTitleStyle = {
+            font: { bold: true, sz: 11, color: { rgb: "1F497D" } },
+            fill: { fgColor: { rgb: "DCE6F1" } },
+            border: thinBorder,
+            alignment: { horizontal: "left", vertical: "center" }
+        };
+
+        const redCellStyle = {
+            font: { bold: true, sz: 9, color: { rgb: "FFFFFF" } },
+            fill: { fgColor: { rgb: "EF4444" } },
+            border: thinBorder,
+            alignment: { horizontal: "center", vertical: "center" }
+        };
+
+        const greenCellStyle = {
+            font: { bold: true, sz: 9, color: { rgb: "065F46" } },
+            fill: { fgColor: { rgb: "A7F3D0" } },
+            border: thinBorder,
+            alignment: { horizontal: "center", vertical: "center" }
+        };
+
+        const standardCellStyle = {
+            font: { sz: 9 },
+            border: thinBorder,
+            alignment: { horizontal: "center", vertical: "center" }
+        };
+
         let rowHeights = [];
-        rowHeights[0] = { hpt: 21 }; // عنوان القسم الأول (حجم 11)
-        rowHeights[1] = { hpt: 20 }; // الهيدر الأول (حجم 9)
+        rowHeights[0] = { hpt: 21 };
+        rowHeights[1] = { hpt: 20 };
 
         let currentRow = 2;
         (state.reports || []).forEach(() => {
-            rowHeights[currentRow] = { hpt: 20 }; // ارتفاع الصفوف 20
+            rowHeights[currentRow] = { hpt: 20 };
             currentRow++;
         });
 
-        rowHeights[currentRow] = { hpt: 15 }; // صف فارغ
+        rowHeights[currentRow] = { hpt: 15 };
         currentRow++;
-        rowHeights[currentRow] = { hpt: 21 }; // عنوان القسم الثاني (حجم 11)
+        rowHeights[currentRow] = { hpt: 21 };
         currentRow++;
-        rowHeights[currentRow] = { hpt: 20 }; // هيدر القسم الثاني
+        rowHeights[currentRow] = { hpt: 20 };
         currentRow++;
 
         (state.swapLogs || []).forEach(() => {
@@ -1113,6 +1151,30 @@
         });
 
         ws['!rows'] = rowHeights;
+
+        const range = XLSX.utils.decode_range(ws['!ref']);
+        for (let R = range.s.r; R <= range.e.r; ++R) {
+            for (let C = range.s.c; C <= range.e.c; ++C) {
+                const cellRef = XLSX.utils.encode_cell({r: R, c: C});
+                if (!ws[cellRef]) continue;
+                if (!ws[cellRef].s) ws[cellRef].s = {};
+
+                const val = String(ws[cellRef].v || "");
+
+                if (val.includes("--- Contact Center Break Report ---") || val.includes("--- Swap Logs ---")) {
+                    ws[cellRef].s = sectionTitleStyle;
+                } else if (val === "Employee Name" || val === "Break Type" || val === "Start Time" || val === "End Time" || val === "Duration" || val === "Overtime Status" || val === "Recipient" || val === "Initiator" || val === "Old Pos" || val === "New Pos" || val === "Time") {
+                    ws[cellRef].s = headerStyle;
+                } else if (val === "Exceed") {
+                    ws[cellRef].s = redCellStyle;
+                } else if (val === "Normal") {
+                    ws[cellRef].s = greenCellStyle;
+                } else if (R > 1 && val !== "") {
+                    ws[cellRef].s = standardCellStyle;
+                }
+            }
+        }
+
         ws['!cols'] = [{wch: 22}, {wch: 20}, {wch: 15}, {wch: 15}, {wch: 18}, {wch: 18}];
 
         XLSX.utils.book_append_sheet(wb, ws, "Break Report");
