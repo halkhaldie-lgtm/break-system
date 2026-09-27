@@ -331,7 +331,7 @@
             padding: 14px;
             margin-top: 15px;
             box-shadow: 0 8px 20px rgba(0,0,0,0.2);
-            display: none; /* مخفي افتراضياً للعاديين */
+            display: none;
         }
         .report-content-wrapper {
             display: none;
@@ -427,16 +427,20 @@
             color: #475569;
             margin-bottom: 10px;
         }
-        .custom-modal-box input, .custom-modal-box select {
-            background: #f8fafc;
-            border: 1px solid #cbd5e1;
-            color: #0f172a;
+        /* تعديل خانات الإدخال في مودال الأدمن لتكون بخلفية بيضاء ونصوص واضحة تماماً */
+        .custom-modal-box input {
+            background: #ffffff !important;
+            border: 1px solid #cbd5e1 !important;
+            color: #0f172a !important;
             margin-bottom: 10px;
             font-size: 0.95rem;
             padding: 10px 12px;
             width: 100%;
             border-radius: 8px;
             outline: none;
+        }
+        .custom-modal-box input:focus {
+            border-color: #3b82f6 !important;
         }
         .custom-modal-buttons {
             display: flex;
@@ -477,12 +481,13 @@
         <div class="center-title">Contact Center Break System</div>
     </header>
 
-    <!-- صندوق تسجيل الدخول -->
-    <div id="loginSection" class="login-box" style="display: none;">
+    <!-- صندوق تسجيل الدخول وإنشاء حساب جديد -->
+    <div id="loginSection" class="login-box">
         <h3>🔑 Employee Login</h3>
         <input type="text" id="loginUsername" placeholder="Username..." autocomplete="off" />
         <input type="password" id="loginPassword" placeholder="Password..." />
-        <button type="button" class="btn btn-green" style="width: 100%; padding: 12px;" onclick="handleLogin()">Login to System</button>
+        <button type="button" class="btn btn-green" style="width: 100%; padding: 12px; margin-bottom: 8px;" onclick="handleLogin()">Login to System</button>
+        <button type="button" class="btn btn-purple" style="width: 100%; padding: 8px; font-size: 0.85rem;" onclick="openRegisterModal()">✨ Register New Account</button>
     </div>
 
     <!-- المحتوى الأساسي للنظام (يظهر بعد تسجيل الدخول) -->
@@ -547,24 +552,35 @@
     </div>
 </div>
 
-<!-- نافذة الأدمن (Admin / Users Management Modal) -->
+<!-- نافذة الأدمن أو التسجيل (Admin / Register Modal) -->
 <div class="custom-modal-overlay" id="adminModalOverlay">
     <div class="custom-modal-box">
-        <div class="custom-modal-title" id="adminModalDomainTitle">Admin Access & Users</div>
+        <div class="custom-modal-title" id="adminModalTitle">Admin Access & Users</div>
+        
+        <!-- صندوق كلمة مرور الأدمن -->
         <div id="adminPasswordPromptBox">
             <div class="custom-modal-subtitle">Please enter admin password:</div>
             <input type="password" id="adminPassInput" placeholder="Password..." />
             <button type="button" class="btn" style="background: #3b82f6; width: 100%; margin-top: 6px;" onclick="verifyAdminPassword()">Login as Admin</button>
         </div>
 
-        <!-- لوحة تحكم المستخدمين (تظهر بعد دخول الأدمن) -->
+        <!-- صندوق تسجيل موظف جديد ذاتياً -->
+        <div id="selfRegisterBox" style="display: none;">
+            <div class="custom-modal-subtitle">Create your own account username & password:</div>
+            <input type="text" id="regEmpName" placeholder="Your Full Name..." />
+            <input type="text" id="regEmpUser" placeholder="Choose Username..." />
+            <input type="password" id="regEmpPass" placeholder="Choose Password..." />
+            <button type="button" class="btn btn-green" style="width: 100%; margin-top: 6px;" onclick="selfRegisterAccount()">Register Account</button>
+        </div>
+
+        <!-- لوحة تحكم المستخدمين للأدمن -->
         <div id="adminDashboardBox" style="display: none;">
             <div style="font-size: 0.9rem; font-weight: bold; color: #1e293b; margin-bottom: 10px;">👥 Manage Employee Accounts</div>
             <div style="background: #f1f5f9; padding: 10px; border-radius: 8px; margin-bottom: 12px;">
                 <div style="font-size: 0.8rem; font-weight: bold; color: #334155; margin-bottom: 6px;">Add / Update User Credentials:</div>
                 <input type="text" id="admEmpName" placeholder="Employee Display Name..." />
                 <input type="text" id="admEmpUser" placeholder="Username..." />
-                <input type="text" id="admEmpPass" placeholder="New Password..." />
+                <input type="password" id="admEmpPass" placeholder="New Password..." />
                 <button type="button" class="btn btn-green" style="width: 100%; margin-top: 4px;" onclick="saveEmployeeAccount()">Save / Update Account</button>
             </div>
             <div style="max-height: 150px; overflow-y: auto;" id="empAccountsListContainer"></div>
@@ -650,7 +666,6 @@
         return localStorage.getItem('admin_secret_pass') || '1234';
     }
 
-    // إدارة الحسابات وتسجيل الدخول
     function handleLogin() {
         const u = document.getElementById('loginUsername').value.trim();
         const p = document.getElementById('loginPassword').value.trim();
@@ -660,7 +675,6 @@
             return;
         }
 
-        // حساب الأدمن الافتراضي
         if (u === 'admin' && p === getAdminPassword()) {
             isAdmin = true;
             localStorage.setItem('is_admin_mode', 'true');
@@ -672,7 +686,6 @@
             return;
         }
 
-        // التحقق من حسابات المستخدمين في قاعدة البيانات
         const users = state.users || {};
         if (users[u] && users[u].password === p) {
             isAdmin = false;
@@ -723,16 +736,53 @@
         renderUI();
     }
 
-    // إدارة نافذة الأدمن
+    // فتح نافذة التسجيل الذاتي للموظف
+    function openRegisterModal() {
+        document.getElementById('adminModalTitle').innerText = 'Employee Registration';
+        document.getElementById('adminPasswordPromptBox').style.display = 'none';
+        document.getElementById('selfRegisterBox').style.display = 'block';
+        document.getElementById('adminDashboardBox').style.display = 'none';
+        document.getElementById('regEmpName').value = '';
+        document.getElementById('regEmpUser').value = '';
+        document.getElementById('regEmpPass').value = '';
+        document.getElementById('adminModalOverlay').style.display = 'flex';
+    }
+
+    function selfRegisterAccount() {
+        const name = document.getElementById('regEmpName').value.trim();
+        const user = document.getElementById('regEmpUser').value.trim();
+        const pass = document.getElementById('regEmpPass').value.trim();
+
+        if (!name || !user || !pass) {
+            showCustomAlert('Please fill in all fields!');
+            return;
+        }
+
+        if (!state.users) state.users = {};
+        if (state.users[user]) {
+            showCustomAlert('Username already exists! Please choose another one.');
+            return;
+        }
+
+        state.users[user] = { name: name, password: pass };
+        db.set(state).then(() => {
+            closeAdminModal();
+            showCustomAlert('Account created successfully! You can now login.');
+        });
+    }
+
     function openAdminModal() {
+        document.getElementById('adminModalTitle').innerText = 'Admin Access & Users';
         if (isAdmin) {
             document.getElementById('adminPasswordPromptBox').style.display = 'none';
+            document.getElementById('selfRegisterBox').style.display = 'none';
             document.getElementById('adminDashboardBox').style.display = 'block';
             renderAdminUsersList();
             document.getElementById('adminModalOverlay').style.display = 'flex';
         } else {
             document.getElementById('adminPassInput').value = '';
             document.getElementById('adminPasswordPromptBox').style.display = 'block';
+            document.getElementById('selfRegisterBox').style.display = 'none';
             document.getElementById('adminDashboardBox').style.display = 'none';
             document.getElementById('adminModalOverlay').style.display = 'flex';
             document.getElementById('adminPassInput').focus();
@@ -801,7 +851,7 @@
         const keys = Object.keys(users);
 
         if (keys.length === 0) {
-            container.innerHTML = '<div class="empty-msg">No custom user accounts yet</div>';
+            container.innerHTML = '<div class="empty-msg" style="color:#0f172a;">No custom user accounts yet</div>';
             return;
         }
 
@@ -1512,7 +1562,6 @@
             swapSection.style.display = 'none';
         }
 
-        // عرض التقارير للأدمن فقط (لمدة 48 ساعة)، وللموظفين العاديين يظهر فقط الأسماء لآخر ساعتين
         const rBox = document.getElementById('reportsBox');
         if (isAdmin) {
             if (!state.reports || state.reports.length === 0) {
@@ -1547,14 +1596,6 @@
                 });
                 tableHtml += `</tbody></table>`;
                 rBox.innerHTML = tableHtml;
-            }
-        } else {
-            // الموظفون العاديون: عرض أسماء من انتهوا من البريك في آخر ساعتين فقط وبدون تفاصيل زمنية معقدة
-            const twoHoursAgo = currentTime - (2 * 60 * 60 * 1000);
-            const recentReports = (state.reports || []).filter(rep => rep.endTimestamp > twoHoursAgo);
-            
-            if (recentReports.length > 0) {
-                // يمكننا عرض صندوق بسيط لآخر الأسماء لمن انتهوا في الساعتين الأخيرتين
             }
         }
     }
