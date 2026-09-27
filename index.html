@@ -511,11 +511,12 @@
     </div>
 
     <div id="mainSystemContent" style="display: none;">
-        <!-- شاشة تأكيد الدور للموظف مع العداد التنازلي -->
+        <!-- شاشة تأكيد الدور للموظف مع العداد التنازلي الحي -->
         <div id="myTurnPromptBox" class="my-turn-prompt">
             <h3 id="myTurnTitle">🚨 حان دورك للبريك!</h3>
             <p id="myTurnDesc">يرجى الضغط على زر التأكيد أدناه للدخول الفعلي للبريك.</p>
             <div id="turnActionButtonsContainer">
+                <div id="liveCountdownDisplay" style="font-size: 0.95rem; font-weight: bold; color: #ffedd5; margin-bottom: 8px;">⏳ جاري حساب الوقت...</div>
                 <button type="button" class="btn" style="background: #ffffff; color: #0d9488; font-size: 1.05rem; width: 100%; border-radius: 10px; margin-bottom: 6px;" onclick="confirmMyTurn()">✅ تأكيد والدخول للبريك</button>
                 <div style="display: flex; gap: 6px; justify-content: center; margin-top: 6px;">
                     <span style="font-size: 0.85rem; align-self: center;">هل تريد استبدال دورك؟</span>
@@ -686,7 +687,7 @@
         firebase.initializeApp(firebaseConfig);
     }
     
-    const db = firebase.database().ref('alsalam_hospital_breaks_v46');
+    const db = firebase.database().ref('alsalam_hospital_breaks_v47');
     const usersDb = firebase.database().ref('alsalam_hospital_users');
 
     let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
@@ -978,6 +979,11 @@
         renderUI();
     });
 
+    // حلقة تحديث حية ثانية بسانية (Live Timer Loop) لتحديث العدادات دون الحاجة لعمل رفرش
+    setInterval(() => {
+        runLiveTimerCheck();
+    }, 1000);
+
     document.addEventListener('DOMContentLoaded', () => {
         checkSession();
         if ("Notification" in window && Notification.permission !== "granted") {
@@ -1121,33 +1127,38 @@
                 }
             }
         }
+    }
 
-        // مهلة 7 دقائق الأولى + دقيقتين إضافيتين = 9 دقائق إجمالية
+    // دالة الفحص الحي وتحديث العدادات على الشاشة بدون رفرش (تحديث كل ثانية)
+    function runLiveTimerCheck() {
+        const currentTime = Date.now();
+        const newWaiting = state.waiting || [];
+
         if (newWaiting.length > 0) {
-            let targetToShift = null;
             const hasNormalSlot = !state.active.some(a => a.type === 'normal' || a.type === 'request');
             const hasQuickSlot = !state.active.some(a => a.type === 'quick');
             
             const firstNormal = newWaiting.find(w => w.type === 'normal');
             const firstQuick = newWaiting.find(w => w.type === 'quick');
 
+            let targetToShift = null;
             if (firstNormal && hasNormalSlot) targetToShift = firstNormal;
             else if (firstQuick && hasQuickSlot) targetToShift = firstQuick;
 
             if (targetToShift) {
-                const now = Date.now();
                 if (!targetToShift.turnStartTime) {
-                    targetToShift.turnStartTime = now;
+                    targetToShift.turnStartTime = currentTime;
                     db.set(state);
                 } else {
-                    const elapsedMs = now - targetToShift.turnStartTime;
-                    if (elapsedMs > 540000) { 
+                    const elapsedMs = currentTime - targetToShift.turnStartTime;
+                    // مهلة 5 دقائق (300,000 مللي ثانية) + دقيقتين إضافيتين (120,000 مللي ثانية) = 7 دقائق إجمالية (420,000 مللي ثانية)
+                    if (elapsedMs > 420000) { 
                         const idx = newWaiting.findIndex(w => w.id === targetToShift.id);
                         if (idx > -1) {
                             const timedOutItem = newWaiting.splice(idx, 1)[0];
                             delete timedOutItem.turnStartTime;
                             delete timedOutItem.promptSwapChoice;
-                            newWaiting.push(timedOutItem);
+                            newWaiting.push(timedOutItem); // نقل الموظف المتأخر إلى نهاية قائمة الانتظار تلقائياً
 
                             if (!state.reports) state.reports = [];
                             state.reports.unshift({
@@ -1163,8 +1174,40 @@
 
                             db.set(state);
                             playBeep();
-                            showCustomAlert("⏱️ تنبيه: تم تجاوز مهلة التأكيد وإرجاع الموظف إلى قائمة الانتظار ودخول الرقم التالي إجبارياً.");
+                            showCustomAlert("⏱️ تنبيه: تم تجاوز مهلة التأكيد (5 دقائق + دقيقتين)، وتم نقل الموظف المتأخر إلى نهاية قائمة الانتظار ودخول الدور التالي تلقائياً.");
                             stopTitleBlink();
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
+        // تحديث نص العداد التنازلي الحي للمستخدم الحالي إن وجد دوره
+        const promptBox = document.getElementById('myTurnPromptBox');
+        if (currentEmployeeName && promptBox.style.display === 'block') {
+            const myUserLower = currentEmployeeName.trim().toLowerCase();
+            const firstNormal = newWaiting.find(w => w.type === 'normal');
+            const firstQuick = newWaiting.find(w => w.type === 'quick');
+            const targetItem = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower) ? firstNormal : 
+                             ((firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower) ? firstQuick : null);
+
+            if (targetItem && targetItem.turnStartTime) {
+                const elapsed = currentTime - targetItem.turnStartTime;
+                const remainingMs = 420000 - elapsed;
+                
+                if (remainingMs > 0) {
+                    const totalSecs = Math.floor(remainingMs / 1000);
+                    const mins = Math.floor(totalSecs / 60);
+                    const secs = totalSecs % 60;
+                    const timeFormatted = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+
+                    const countdownEl = document.getElementById('liveCountdownDisplay');
+                    if (countdownEl) {
+                        if (mins >= 2) {
+                            countdownEl.innerHTML = `⏳ العد التنازلي لمهلة التأكيد (5 دقائق): <span style="font-size: 1.1rem; color: #fff;">${timeFormatted}</span> متبقية`;
+                        } else {
+                            countdownEl.innerHTML = `⚠️ تنبيه: دخلت مهلة الدقيقتين الإضافيتين: <span style="font-size: 1.1rem; color: #fca5a5;">${timeFormatted}</span> متبقية قبل الإرجاع التلقائي!`;
                         }
                     }
                 }
@@ -1624,7 +1667,6 @@
         }
 
         const promptBox = document.getElementById('myTurnPromptBox');
-        const turnActionButtonsContainer = document.getElementById('turnActionButtonsContainer');
         let showMyPrompt = false;
 
         if (currentEmployeeName && state.waiting.length > 0) {
@@ -1637,29 +1679,6 @@
             if ((firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) ||
                 (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot)) {
                 showMyPrompt = true;
-                
-                const targetItem = firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower ? firstNormal : firstQuick;
-                if (targetItem && targetItem.turnStartTime) {
-                    const elapsed = currentTime - targetItem.turnStartTime;
-                    const remainingMs = 420000 - elapsed;
-                    const remainingMins = Math.max(0, Math.ceil(remainingMs / 60000));
-
-                    if (remainingMs > 0) {
-                        turnActionButtonsContainer.innerHTML = `
-                            <p style="font-size: 0.85rem; color: #ffedd5; margin-bottom: 8px;">⏳ عداد التنازلي لمهلة التأكيد: ${remainingMins} دقائق متبقية</p>
-                            <button type="button" class="btn" style="background: #ffffff; color: #0d9488; font-size: 1.05rem; width: 100%; border-radius: 10px; margin-bottom: 6px;" onclick="confirmMyTurn()">✅ تأكيد والدخول للبريك</button>
-                            <div style="display: flex; gap: 6px; justify-content: center; margin-top: 6px;">
-                                <span style="font-size: 0.85rem; align-self: center;">هل تريد استبدال دورك؟</span>
-                                <button type="button" class="btn btn-red" style="padding: 4px 10px;" onclick="promptSwapChoiceAction('no')">لا أريد</button>
-                            </div>
-                        `;
-                    } else {
-                        turnActionButtonsContainer.innerHTML = `
-                            <p style="font-size: 0.85rem; color: #fca5a5; margin-bottom: 8px;">⚠️ تنبيه: لقد تخطيت المهلة الأولى، أنت في فترة السماح النهائية (دقيقتان) قبل الإرجاع الإجباري!</p>
-                            <button type="button" class="btn" style="background: #ffffff; color: #0d9488; font-size: 1.05rem; width: 100%; border-radius: 10px;" onclick="confirmMyTurn()">✅ تأكيد والدخول للبريك</button>
-                        `;
-                    }
-                }
             }
         }
         promptBox.style.display = showMyPrompt ? 'block' : 'none';
@@ -1707,7 +1726,7 @@
                 const isQuick = item.type === 'quick';
 
                 let typeLabel = '<span style="color:#fbbf24;">[Normal]</span>';
-                if (isQuick) typeLabel = '<span style="color:#3b82f6;">[Quick]</span>';
+                if (isQuick) typeLabel = '<span style="color:#3b82f6;>[Quick]</span>';
 
                 let adminStatusBadge = '';
                 if (isAdmin) {
