@@ -511,7 +511,7 @@
     </div>
 
     <div id="mainSystemContent" style="display: none;">
-        <!-- شاشة تأكيد الدور (لا يتم الدخول للبريك تلقائياً إلا بالضغط هنا) -->
+        <!-- شاشة تأكيد الدور -->
         <div id="myTurnPromptBox" class="my-turn-prompt">
             <h3 id="myTurnTitle">🚨 حان دورك للبريك!</h3>
             <p id="myTurnDesc">يرجى الضغط على زر التأكيد أدناه للدخول الفعلي للبريك.</p>
@@ -685,7 +685,7 @@
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
-    const db = firebase.database().ref('alsalam_hospital_breaks_v41');
+    const db = firebase.database().ref('alsalam_hospital_breaks_v42');
 
     let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [], users: {} };
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
@@ -985,7 +985,7 @@
                 if (permission === "granted") {
                     playBeep();
                     showCustomAlert('تم تفعيل إشعارات المتصفح والأصوات بنجاح!');
-                    new Notification("مستشفيات السلام", { body: "تم تفعيل الإشعارات بنجاح ليعلمك النظام بأي تحديث أو دور حتى لو كنت بصفحة أخرى." });
+                    new Notification("مستشفيات السلام", { body: "تم تفعيل الإشعارات بنجاح ليعلمك النظام بأي تحديث حتى لو كنت بصفحة أخرى." });
                 } else {
                     showCustomAlert('يرجى السماح للإشعارات من إعدادات المتصفح.');
                 }
@@ -1018,25 +1018,38 @@
         }
     }
 
+    // تفعيل إشعار سطح المكتب القوي الذي يظهر حتى لو كانت الصفحة بالخلفية
     function sendBrowserNotification(title, bodyText) {
         try {
             if ("Notification" in window && Notification.permission === "granted") {
-                // إظهار إشعار النظام المباشر حتى لو كانت الصفحة بالخلفية أو متصفح آخر
-                navigator.serviceWorker && navigator.serviceWorker.ready.then(swRegistration => {
-                    swRegistration.showNotification(title, {
-                        body: bodyText,
-                        icon: "https://www.gstatic.com/images/icons/material/system/2/svg/ic_notifications_active.svg",
-                        tag: "break-alert"
-                    });
-                }).catch(() => {
-                    new Notification(title, {
-                        body: bodyText,
-                        icon: "https://www.gstatic.com/images/icons/material/system/2/svg/ic_notifications_active.svg"
-                    });
+                new Notification(title, {
+                    body: bodyText,
+                    icon: "https://www.gstatic.com/images/icons/material/system/2/svg/ic_notifications_active.svg",
+                    requireInteraction: true // يبقى الظهور على الشاشة حتى يقوم المستخدم بالتفاعل معه
                 });
             }
         } catch(e) {
             console.log("Notification error:", e);
+        }
+    }
+
+    // خاصية وميض عنوان المتصفح (Page Title Blinking) لجذب الانتباه في حال فتح صفحة أخرى
+    let titleBlinkInterval = null;
+    function startTitleBlink(alertMessage) {
+        if (titleBlinkInterval) return;
+        let originalTitle = document.title;
+        let isAlt = false;
+        titleBlinkInterval = setInterval(() => {
+            document.title = isAlt ? "🚨 " + alertMessage + " 🚨" : "🔔 تنبيه دورك للبريك!";
+            isAlt = !isAlt;
+        }, 1000);
+    }
+
+    function stopTitleBlink() {
+        if (titleBlinkInterval) {
+            clearInterval(titleBlinkInterval);
+            titleBlinkInterval = null;
+            document.title = "Contact Center Break - Al Salam Hospitals";
         }
     }
 
@@ -1073,13 +1086,14 @@
 
         const myIndex = newWaiting.findIndex(w => w.name.trim().toLowerCase() === myUserLower);
 
-        // إذا كان هناك شخص واحد فقط قبلك (أي ترتيبك الثاني في القائمة myIndex === 1)
+        // إذا كان هناك شخص واحد فقط قبلك (ترتيبك الثاني)
         if (myIndex === 1) {
             if (lastNotifiedAheadState !== myUserLower + "_ahead") {
                 lastNotifiedAheadState = myUserLower + "_ahead";
                 playBeep();
                 showCustomAlert("⚠️ تنبيه: يوجد شخص واحد فقط أمامك في قائمة الانتظار، استعد لدورك.");
                 sendBrowserNotification("تنبيه بريك مستشفيات السلام", "يوجد شخص واحد فقط أمامك في قائمة الانتظار، استعد لدورك.");
+                startTitleBlink("شخص واحد أمامك!");
             }
         } else if (myIndex !== 1) {
             lastNotifiedAheadState = "";
@@ -1093,17 +1107,19 @@
         const isMyTurn = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) ||
                          (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot);
 
-        // إذا حان دورك (يظهر إشعار + صوت حتى لو كنت فاتحاً صفحة أخرى)
+        // إذا حان دورك (صوت + إشعار سطح مكتب + وميض عنوان المتصفح)
         if (isMyTurn) {
             if (lastNotifiedTurnState !== "my_turn") {
                 lastNotifiedTurnState = "my_turn";
                 playBeep();
                 showCustomAlert("🚨 حان دورك للبريك! يرجى الضغط على زر (تأكيد والدخول للبريك) في الشاشة الرئيسية.");
-                sendBrowserNotification("🚨 حان دورك للبريك!", "دورك قد حان، يرجى فتح الصفحة وتأكيد الدخول للبريك.");
+                sendBrowserNotification("🚨 حان دورك للبريك!", "دورك قد حان، يرجى فتح الصفحة وتأكيد الدخول للبريك فوراً.");
+                startTitleBlink("🚨 حان دورك للبريك!");
             }
         } else {
             if (myIndex > 0 || myIndex === -1) {
                 lastNotifiedTurnState = "";
+                stopTitleBlink();
             }
         }
 
@@ -1141,6 +1157,7 @@
                             db.set(state);
                             playBeep();
                             showCustomAlert("⏱️ تنبيه: تم تبديل وتأخير دورك بسبب تجاوز مهلة التأكيد.");
+                            stopTitleBlink();
                         }
                     }
                 }
@@ -1180,6 +1197,7 @@
 
                 db.set(state);
                 showCustomAlert("⏱️ تم تبديل وتأخير دورك بناءً على اختيارك.");
+                stopTitleBlink();
             }
         }
     }
@@ -1203,6 +1221,7 @@
         }
 
         lastNotifiedTurnState = "";
+        stopTitleBlink();
 
         const now = Date.now();
         const newItem = {
@@ -1264,7 +1283,6 @@
         }
     }
 
-    // خاصية تأكيد الطلب بالخروج الفعلي للبريك بناءً على طلبك
     function confirmMyTurn() {
         initAudioContext();
         if (!currentEmployeeName) return;
@@ -1301,6 +1319,7 @@
         delete userItem.turnStartTime;
         state.active.push(userItem);
 
+        stopTitleBlink();
         db.set(state);
     }
 
@@ -1357,6 +1376,7 @@
 
         if (confirm(`Are you sure you want to cancel (${item.name})?`)) {
             state.waiting.splice(index, 1);
+            stopTitleBlink();
             db.set(state);
         }
     }
