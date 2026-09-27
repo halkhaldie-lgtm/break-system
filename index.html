@@ -462,12 +462,10 @@
     <header>
         <div class="top-header-row">
             <div style="display: flex; gap: 6px; align-items: center;">
-                <!-- زر الأدمن عند البوابة يظهر هنا فقط للأدمن المسجل دخول -->
                 <button class="admin-badge" id="adminBtn" onclick="openAdminModal()">🔒 Admin</button>
                 <button class="logout-badge" id="logoutBtn" onclick="logoutUser()">🚪 Logout</button>
             </div>
             
-            <!-- خيار Admin Access & Users العلوي (مخصص للأدمن حصرياً) -->
             <button class="top-admin-option-btn" id="topAdminOptionBtn" onclick="openAdminModal()">Admin Access & Users</button>
 
             <button class="notif-badge" id="notifBtn" onclick="requestNotificationPermission()">🔔 Alert</button>
@@ -491,15 +489,14 @@
         <div class="center-title">Contact Center Break System</div>
     </header>
 
-    <!-- صندوق تسجيل الدخول عند البوابة (مع زر الأدمن عند البوابة) -->
+    <!-- صندوق تسجيل الدخول عند البوابة -->
     <div id="loginSection" class="login-box">
         <h3>🔑 Employee Login</h3>
         <input type="text" id="loginUsername" placeholder="Username..." autocomplete="off" />
         <input type="password" id="loginPassword" placeholder="Password..." />
         <button type="button" class="btn btn-green" style="width: 100%; padding: 12px; margin-bottom: 8px;" onclick="handleLogin()">Login to System</button>
         <button type="button" class="btn btn-purple" style="width: 100%; padding: 8px; font-size: 0.85rem; margin-bottom: 8px;" onclick="openRegisterModal()">✨ Register New Account</button>
-        <!-- زر الأدمن عند البوابة ليتمكن من الدخول للوحة التحكم مباشرة -->
-        <button type="button" class="btn" style="background: #0f172a; color: #38bdf8; border: 1px solid #0284c7; width: 100%; padding: 8px; font-size: 0.85rem;" onclick="openAdminModal()">🔒 Admin Portal Access</button>
+        <button type="button" class="btn" style="background: #0f172a; color: #38bdf8; border: 1px solid #0284c7; width: 100%; padding: 8px; font-size: 0.85rem;" onclick="openAdminPortalPrompt()">🔒 Admin Portal Access</button>
     </div>
 
     <!-- المحتوى الأساسي للنظام -->
@@ -585,7 +582,7 @@
             <button type="button" class="btn btn-green" style="width: 100%; margin-top: 6px;" onclick="selfRegisterAccount()">Register Account</button>
         </div>
 
-        <!-- لوحة تحكم المستخدمين للأدمن (مع خيار تحديد نوع الحساب: عادي أم أدمن) -->
+        <!-- لوحة تحكم المستخدمين للأدمن -->
         <div id="adminDashboardBox" style="display: none;">
             <div style="font-size: 0.9rem; font-weight: bold; color: #1e293b; margin-bottom: 10px;">👥 Manage Employee Accounts</div>
             <div style="background: #f1f5f9; padding: 10px; border-radius: 8px; margin-bottom: 12px;">
@@ -593,7 +590,6 @@
                 <input type="text" id="admEmpName" placeholder="Employee Display Name..." />
                 <input type="text" id="admEmpUser" placeholder="Username..." />
                 <input type="password" id="admEmpPass" placeholder="New Password..." />
-                <!-- خيار نوع الحساب: للادمن فقط عند إنشاء أو تعديل حساب -->
                 <div style="font-size: 0.8rem; font-weight: bold; color: #334155; margin-top: 6px; margin-bottom: 4px;">Account Role Type:</div>
                 <select id="admEmpRole">
                     <option value="normal">Normal Employee (موظف عادي)</option>
@@ -749,8 +745,8 @@
                 reportBox.style.display = 'block';
             } else {
                 logoutBtn.style.display = 'inline-block';
-                adminBtn.style.display = 'none';      // مخفي تماماً للموظف العادي
-                topAdminBtn.style.display = 'none';   // مخفي تماماً للموظف العادي
+                adminBtn.style.display = 'none';
+                topAdminBtn.style.display = 'none';
                 reportBox.style.display = 'none';
             }
         } else {
@@ -791,7 +787,6 @@
             return;
         }
 
-        // الحساب المسجل ذاتياً يكون موظف عادي افتراضياً
         state.users[user] = { name: name, password: pass, role: 'normal' };
         db.set(state).then(() => {
             closeAdminModal();
@@ -799,6 +794,7 @@
         });
     }
 
+    // تُستدعى حصرياً عند الضغط على زر الأدمن أو زر بوابة الأدمن يدوياً
     function openAdminModal() {
         document.getElementById('adminModalTitle').innerText = 'Admin Access & Users';
         if (isAdmin) {
@@ -817,6 +813,18 @@
         }
     }
 
+    // زر البوابة الخاص بالادمن لفتح شاشة إدخال الباسورد
+    function openAdminPortalPrompt() {
+        isAdmin = false;
+        document.getElementById('adminModalTitle').innerText = 'Admin Access & Users';
+        document.getElementById('adminPassInput').value = '';
+        document.getElementById('adminPasswordPromptBox').style.display = 'block';
+        document.getElementById('selfRegisterBox').style.display = 'none';
+        document.getElementById('adminDashboardBox').style.display = 'none';
+        document.getElementById('adminModalOverlay').style.display = 'flex';
+        document.getElementById('adminPassInput').focus();
+    }
+
     function closeAdminModal() {
         document.getElementById('adminModalOverlay').style.display = 'none';
     }
@@ -830,11 +838,8 @@
             currentEmployeeName = 'Administrator';
             localStorage.setItem('logged_in_username', 'admin');
             localStorage.setItem('logged_in_empname', 'Administrator');
+            closeAdminModal(); // إغلاق النافذة تماماً وفتح الصفحة الرئيسية حصرياً
             checkSession();
-            
-            document.getElementById('adminPasswordPromptBox').style.display = 'none';
-            document.getElementById('adminDashboardBox').style.display = 'block';
-            renderAdminUsersList();
         } else {
             showCustomAlert('Incorrect admin password!');
         }
@@ -844,7 +849,7 @@
         const name = document.getElementById('admEmpName').value.trim();
         const user = document.getElementById('admEmpUser').value.trim();
         const pass = document.getElementById('admEmpPass').value.trim();
-        const role = document.getElementById('admEmpRole').value; // عادي أم أدمن (للأدمن فقط)
+        const role = document.getElementById('admEmpRole').value;
 
         if (!name || !user || !pass) {
             showCustomAlert('Please fill all user details!');
