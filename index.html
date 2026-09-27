@@ -511,7 +511,7 @@
     </div>
 
     <div id="mainSystemContent" style="display: none;">
-        <!-- شاشة تأكيد الدور -->
+        <!-- شاشة تأكيد الدور للموظف مع العداد التنازلي -->
         <div id="myTurnPromptBox" class="my-turn-prompt">
             <h3 id="myTurnTitle">🚨 حان دورك للبريك!</h3>
             <p id="myTurnDesc">يرجى الضغط على زر التأكيد أدناه للدخول الفعلي للبريك.</p>
@@ -686,9 +686,7 @@
         firebase.initializeApp(firebaseConfig);
     }
     
-    // مسار البريكات والبيانات التشغيلية
-    const db = firebase.database().ref('alsalam_hospital_breaks_v45');
-    // مسار مستقل وخاص باليوزرات للحفاظ عليها عند أي تحديث للنظام وعدم مسحها أبداً
+    const db = firebase.database().ref('alsalam_hospital_breaks_v46');
     const usersDb = firebase.database().ref('alsalam_hospital_users');
 
     let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
@@ -699,7 +697,6 @@
     let isReportsExpanded = false;
     let isUsersListExpanded = false;
 
-    // تهيئة الصوت والتعامل مع قيود المتصفح
     let audioCtx = null;
     function initAudioContext() {
         if (!audioCtx) {
@@ -955,12 +952,10 @@
         }).join('');
     }
 
-    // الاستماع لقاعدة بيانات اليوزرات المستقلة
     usersDb.on('value', (snapshot) => {
         usersState = snapshot.val() || {};
     });
 
-    // الاستماع لبيانات نظام البريكات
     db.on('value', (snapshot) => {
         const val = snapshot.val();
         if (val) {
@@ -1085,49 +1080,57 @@
     let lastNotifiedAheadState = "";
 
     function checkTurnLogicAndNotifications() {
-        if (!currentEmployeeName) return;
-        const myUserLower = currentEmployeeName.trim().toLowerCase();
         const newWaiting = state.waiting || [];
 
-        const myIndex = newWaiting.findIndex(w => w.name.trim().toLowerCase() === myUserLower);
+        if (currentEmployeeName) {
+            const myUserLower = currentEmployeeName.trim().toLowerCase();
+            const myIndex = newWaiting.findIndex(w => w.name.trim().toLowerCase() === myUserLower);
 
-        if (myIndex === 1) {
-            if (lastNotifiedAheadState !== myUserLower + "_ahead") {
-                lastNotifiedAheadState = myUserLower + "_ahead";
-                playBeep();
-                showCustomAlert("⚠️ تنبيه: يوجد شخص واحد فقط أمامك في قائمة الانتظار، استعد لدورك.");
-                sendBrowserNotification("تنبيه بريك مستشفيات السلام", "يوجد شخص واحد فقط أمامك في قائمة الانتظار، استعد لدورك.");
-                startTitleBlink("شخص واحد أمامك!");
+            if (myIndex === 1) {
+                if (lastNotifiedAheadState !== myUserLower + "_ahead") {
+                    lastNotifiedAheadState = myUserLower + "_ahead";
+                    playBeep();
+                    showCustomAlert("⚠️ تنبيه: يوجد شخص واحد فقط أمامك في قائمة الانتظار، استعد لدورك.");
+                    sendBrowserNotification("تنبيه بريك مستشفيات السلام", "يوجد شخص واحد فقط أمامك في قائمة الانتظار، استعد لدورك.");
+                    startTitleBlink("شخص واحد أمامك!");
+                }
+            } else if (myIndex !== 1) {
+                lastNotifiedAheadState = "";
             }
-        } else if (myIndex !== 1) {
-            lastNotifiedAheadState = "";
+
+            const firstNormal = newWaiting.find(w => w.type === 'normal');
+            const firstQuick = newWaiting.find(w => w.type === 'quick');
+            const hasNormalSlot = !state.active.some(a => a.type === 'normal' || a.type === 'request');
+            const hasQuickSlot = !state.active.some(a => a.type === 'quick');
+
+            const isMyTurn = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) ||
+                             (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot);
+
+            if (isMyTurn) {
+                if (lastNotifiedTurnState !== "my_turn") {
+                    lastNotifiedTurnState = "my_turn";
+                    playBeep();
+                    showCustomAlert("🚨 حان دورك للبريك! يرجى الضغط على زر (تأكيد والدخول للبريك) في الشاشة الرئيسية.");
+                    sendBrowserNotification("🚨 حان دورك للبريك!", "دورك قد حان، يرجى فتح الصفحة وتأكيد الدخول للبريك فوراً.");
+                    startTitleBlink("🚨 حان دورك للبريك!");
+                }
+            } else {
+                if (myIndex > 0 || myIndex === -1) {
+                    lastNotifiedTurnState = "";
+                    stopTitleBlink();
+                }
+            }
         }
 
-        const firstNormal = newWaiting.find(w => w.type === 'normal');
-        const firstQuick = newWaiting.find(w => w.type === 'quick');
-        const hasNormalSlot = !state.active.some(a => a.type === 'normal' || a.type === 'request');
-        const hasQuickSlot = !state.active.some(a => a.type === 'quick');
-
-        const isMyTurn = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) ||
-                         (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot);
-
-        if (isMyTurn) {
-            if (lastNotifiedTurnState !== "my_turn") {
-                lastNotifiedTurnState = "my_turn";
-                playBeep();
-                showCustomAlert("🚨 حان دورك للبريك! يرجى الضغط على زر (تأكيد والدخول للبريك) في الشاشة الرئيسية.");
-                sendBrowserNotification("🚨 حان دورك للبريك!", "دورك قد حان، يرجى فتح الصفحة وتأكيد الدخول للبريك فوراً.");
-                startTitleBlink("🚨 حان دورك للبريك!");
-            }
-        } else {
-            if (myIndex > 0 || myIndex === -1) {
-                lastNotifiedTurnState = "";
-                stopTitleBlink();
-            }
-        }
-
+        // التعامل مع المهترئة الزمنية (7 دقائق + دقيقتين = 9 دقائق إجمالية قبل الإرجاع الإجباري)
         if (newWaiting.length > 0) {
             let targetToShift = null;
+            const hasNormalSlot = !state.active.some(a => a.type === 'normal' || a.type === 'request');
+            const hasQuickSlot = !state.active.some(a => a.type === 'quick');
+            
+            const firstNormal = newWaiting.find(w => w.type === 'normal');
+            const firstQuick = newWaiting.find(w => w.type === 'quick');
+
             if (firstNormal && hasNormalSlot) targetToShift = firstNormal;
             else if (firstQuick && hasQuickSlot) targetToShift = firstQuick;
 
@@ -1138,13 +1141,14 @@
                     db.set(state);
                 } else {
                     const elapsedMs = now - targetToShift.turnStartTime;
-                    if (elapsedMs > 600000) { 
+                    // مجموع المهلتين: 7 دقائق + دقيقتين = 9 دقائق (540000 مللي ثانية)
+                    if (elapsedMs > 540000) { 
                         const idx = newWaiting.findIndex(w => w.id === targetToShift.id);
                         if (idx > -1) {
                             const timedOutItem = newWaiting.splice(idx, 1)[0];
                             delete timedOutItem.turnStartTime;
                             delete timedOutItem.promptSwapChoice;
-                            newWaiting.push(timedOutItem);
+                            newWaiting.push(timedOutItem); // إرجاعه لقائمة الانتظار
 
                             if (!state.reports) state.reports = [];
                             state.reports.unshift({
@@ -1160,7 +1164,7 @@
 
                             db.set(state);
                             playBeep();
-                            showCustomAlert("⏱️ تنبيه: تم تبديل وتأخير دورك بسبب تجاوز مهلة التأكيد.");
+                            showCustomAlert("⏱️ تنبيه: تم تجاوز مهلة التأكيد وإرجاع الموظف إلى قائمة الانتظار ودخول الرقم التالي إجبارياً.");
                             stopTitleBlink();
                         }
                     }
@@ -1638,12 +1642,13 @@
                 const targetItem = firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower ? firstNormal : firstQuick;
                 if (targetItem && targetItem.turnStartTime) {
                     const elapsed = currentTime - targetItem.turnStartTime;
+                    // مهلة 7 دقائق الأولى (420000 مللي ثانية)
                     const remainingMs = 420000 - elapsed;
                     const remainingMins = Math.max(0, Math.ceil(remainingMs / 60000));
 
                     if (remainingMs > 0) {
                         turnActionButtonsContainer.innerHTML = `
-                            <p style="font-size: 0.85rem; color: #ffedd5; margin-bottom: 8px;">متبقي على مهلة التأكيد: ${remainingMins} دقائق</p>
+                            <p style="font-size: 0.85rem; color: #ffedd5; margin-bottom: 8px;">⏳ عداد التنازلي لمهلة التأكيد: ${remainingMins} دقائق متبقية</p>
                             <button type="button" class="btn" style="background: #ffffff; color: #0d9488; font-size: 1.05rem; width: 100%; border-radius: 10px; margin-bottom: 6px;" onclick="confirmMyTurn()">✅ تأكيد والدخول للبريك</button>
                             <div style="display: flex; gap: 6px; justify-content: center; margin-top: 6px;">
                                 <span style="font-size: 0.85rem; align-self: center;">هل تريد استبدال دورك؟</span>
@@ -1651,8 +1656,9 @@
                             </div>
                         `;
                     } else {
+                        // دخل في الدقيقتين الإضافيتين
                         turnActionButtonsContainer.innerHTML = `
-                            <p style="font-size: 0.85rem; color: #fca5a5; margin-bottom: 8px;">انتهت مهلة الـ 7 دقائق، سيتم تبديل دورك قريباً...</p>
+                            <p style="font-size: 0.85rem; color: #fca5a5; margin-bottom: 8px;">⚠️ تنبيه: لقد تخطيت المهلة الأولى، أنت في فترة السماح النهائية (دقيقتان) قبل الإرجاع الإجباري!</p>
                             <button type="button" class="btn" style="background: #ffffff; color: #0d9488; font-size: 1.05rem; width: 100%; border-radius: 10px;" onclick="confirmMyTurn()">✅ تأكيد والدخول للبريك</button>
                         `;
                     }
@@ -1706,6 +1712,22 @@
                 let typeLabel = '<span style="color:#fbbf24;">[Normal]</span>';
                 if (isQuick) typeLabel = '<span style="color:#3b82f6;">[Quick]</span>';
 
+                // فحص حالة الانتظار والتأكيد لظهورها عند الأدمن
+                let adminStatusBadge = '';
+                if (isAdmin) {
+                    if (item.turnStartTime) {
+                        const elapsedWaiting = currentTime - item.turnStartTime;
+                        const waitingMins = Math.floor(elapsedWaiting / 60000);
+                        if (waitingMins >= 7) {
+                            adminStatusBadge = `<br><span style="background:#7f1d1d; color:#fca5a5; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:bold;">⚠️ متأخر بالتاكيد (${waitingMins} دقيقة)</span>`;
+                        } else {
+                            adminStatusBadge = `<br><span style="background:#065f46; color:#34d399; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:bold;">⏳ بانتظار التأكيد (${waitingMins} دقيقة)</span>`;
+                        }
+                    } else {
+                        adminStatusBadge = `<br><span style="color:var(--text-muted); font-size:0.75rem;">في قائمة الانتظار</span>`;
+                    }
+                }
+
                 let swapMessageHtml = '';
                 if (state.swapLogs && state.swapLogs.length > 0) {
                     const itemNameLower = item.name.trim().toLowerCase();
@@ -1722,10 +1744,11 @@
                             <strong>${item.name}</strong>
                             <span style="margin-left: 8px; color:var(--text-muted); font-size: 0.85rem;">Waiting: ${minsWaiting}m</span>
                             ${typeLabel}
+                            ${adminStatusBadge}
                             ${swapMessageHtml}
                         </div>
                         <div style="display: flex; gap: 6px; align-items: center;">
-                            ${isAdmin ? `<button type="button" class="btn btn-green" style="padding: 6px 10px; font-size: 0.75rem;" onclick="forceAdminEnter(${i})" title="Force Out">Force Out</button>` : ``}
+                            ${isAdmin ? `<button type="button" class="btn btn-green" style="padding: 6px 10px; font-size: 0.75rem;" onclick="forceAdminEnter(${i})" title="Force Out / Swap Role">استبدال أو إخراج</button>` : ``}
                             ${showCancelBtn ? `<button type="button" class="btn btn-red" onclick="cancelWaiting(${i})">Cancel</button>` : ``}
                         </div>
                     </div>
