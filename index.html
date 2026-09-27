@@ -480,7 +480,7 @@
             
             <button class="top-admin-option-btn" id="topAdminOptionBtn" onclick="openAdminModal()">Admin Access & Users</button>
 
-            <button class="notif-badge" id="notifBtn" onclick="requestNotificationPermission()">🔔 Active</button>
+            <button class="notif-badge" id="notifBtn" onclick="requestNotificationPermission()">🔔 تفعيل الإشعارات والأصوات</button>
         </div>
 
         <div class="hospital-logo-box">
@@ -511,10 +511,10 @@
     </div>
 
     <div id="mainSystemContent" style="display: none;">
-        <!-- شاشة تأكيد الدور (لا يدخل البريك إلا عند الضغط هنا يدوياً) -->
+        <!-- شاشة تأكيد الدور (لا يتم الدخول للبريك تلقائياً إلا بالضغط هنا) -->
         <div id="myTurnPromptBox" class="my-turn-prompt">
-            <h3 id="myTurnTitle">🎉 حان دورك للبريك!</h3>
-            <p id="myTurnDesc">يرجى الضغط على زر التأكيد أدناه للدخول للبريك.</p>
+            <h3 id="myTurnTitle">🚨 حان دورك للبريك!</h3>
+            <p id="myTurnDesc">يرجى الضغط على زر التأكيد أدناه للدخول الفعلي للبريك.</p>
             <div id="turnActionButtonsContainer">
                 <button type="button" class="btn" style="background: #ffffff; color: #0d9488; font-size: 1.05rem; width: 100%; border-radius: 10px; margin-bottom: 6px;" onclick="confirmMyTurn()">✅ تأكيد والدخول للبريك</button>
                 <div style="display: flex; gap: 6px; justify-content: center; margin-top: 6px;">
@@ -694,6 +694,21 @@
     let isReportsExpanded = false;
     let isUsersListExpanded = false;
 
+    // تهيئة الصوت والتعامل مع قيود المتصفح
+    let audioCtx = null;
+    function initAudioContext() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+    }
+
+    document.addEventListener('click', function() {
+        initAudioContext();
+    }, { once: true });
+
     function getAdminPassword() {
         return localStorage.getItem('admin_secret_pass') || '1234';
     }
@@ -712,6 +727,7 @@
     }
 
     function handleLogin() {
+        initAudioContext();
         const u = document.getElementById('loginUsername').value.trim();
         const p = document.getElementById('loginPassword').value.trim();
 
@@ -937,8 +953,10 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-        updateNotificationButtonUI();
         checkSession();
+        if ("Notification" in window && Notification.permission !== "granted") {
+            Notification.requestPermission();
+        }
         
         document.getElementById('adminPassInput').addEventListener('keypress', function (e) {
             if (e.key === 'Enter') verifyAdminPassword();
@@ -960,29 +978,57 @@
         }
     }
 
-    function updateNotificationButtonUI() {
-        const btn = document.getElementById('notifBtn');
-        btn.innerText = '🔔 Active';
-    }
-
     function requestNotificationPermission() {
-        playBeep();
-        showCustomAlert('تم تفعيل التنبيهات والأصوات بنجاح!');
+        initAudioContext();
+        if ("Notification" in window) {
+            Notification.requestPermission().then(permission => {
+                if (permission === "granted") {
+                    playBeep();
+                    showCustomAlert('تم تفعيل إشعارات المتصفح والأصوات بنجاح!');
+                    new Notification("مستشفيات السلام", { body: "تم تفعيل الإشعارات بنجاح ليعلمك النظام بأي تحديث أو دور." });
+                } else {
+                    showCustomAlert('يرجى السماح للإشعارات من إعدادات المتصفح.');
+                }
+            });
+        } else {
+            playBeep();
+            showCustomAlert('متصفحك لا يدعم الإشعارات المنبثقة.');
+        }
     }
 
     function playBeep() {
         try {
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
             osc.type = 'sine';
             osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
-            gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
             osc.connect(gain);
             gain.connect(audioCtx.destination);
             osc.start();
-            osc.stop(audioCtx.currentTime + 0.5);
-        } catch(e) {}
+            osc.stop(audioCtx.currentTime + 0.6);
+        } catch(e) {
+            console.error("Audio playback error:", e);
+        }
+    }
+
+    function sendBrowserNotification(title, bodyText) {
+        try {
+            if ("Notification" in window && Notification.permission === "granted") {
+                new Notification(title, {
+                    body: bodyText,
+                    icon: "https://www.gstatic.com/images/icons/material/system/2/svg/ic_notifications_active.svg"
+                });
+            }
+        } catch(e) {
+            console.log("Notification error:", e);
+        }
     }
 
     let lastNotifiedTurnState = "";
@@ -1018,12 +1064,13 @@
 
         const myIndex = newWaiting.findIndex(w => w.name.trim().toLowerCase() === myUserLower);
 
-        // تنبيه في حال بقي شخص واحد أمامه
+        // إذا كان هناك شخص واحد فقط قبلك (أي ترتيبك الثاني في القائمة myIndex === 1)
         if (myIndex === 1) {
             if (lastNotifiedAheadState !== myUserLower + "_ahead") {
                 lastNotifiedAheadState = myUserLower + "_ahead";
                 playBeep();
-                showCustomAlert("⚠️ تنبيه استعد: يوجد شخص واحد فقط أمامك في قائمة الانتظار، استعد لدورك.");
+                showCustomAlert("⚠️ تنبيه: يوجد شخص واحد فقط أمامك في قائمة الانتظار، استعد لدورك.");
+                sendBrowserNotification("تنبيه بريك مستشفيات السلام", "يوجد شخص واحد فقط أمامك في قائمة الانتظار، استعد لدورك.");
             }
         } else if (myIndex !== 1) {
             lastNotifiedAheadState = "";
@@ -1037,12 +1084,13 @@
         const isMyTurn = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) ||
                          (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot);
 
-        // تنبيه صوتي ومرئي عندما يحين دورك (لكن دون دخول تلقائي للبريك)
+        // إذا حان دورك (يظهر إشعار + صوت مع وجوب الضغط على زر التأكيد)
         if (isMyTurn) {
             if (lastNotifiedTurnState !== "my_turn") {
                 lastNotifiedTurnState = "my_turn";
                 playBeep();
                 showCustomAlert("🚨 حان دورك للبريك! يرجى الضغط على زر (تأكيد والدخول للبريك) في الشاشة الرئيسية.");
+                sendBrowserNotification("🚨 حان دورك للبريك!", "دورك قد حان، يرجى فتح الصفحة وتأكيد الدخول للبريك.");
             }
         } else {
             if (myIndex > 0 || myIndex === -1) {
@@ -1050,7 +1098,6 @@
             }
         }
 
-        // فحص المهلة الزمنية (7 دقائق للتأكيد، ثم دقيقتين إضافيتين للاستبدال أو الرجوع تلقائياً)
         if (newWaiting.length > 0) {
             let targetToShift = null;
             if (firstNormal && hasNormalSlot) targetToShift = firstNormal;
@@ -1063,7 +1110,7 @@
                     db.set(state);
                 } else {
                     const elapsedMs = now - targetToShift.turnStartTime;
-                    if (elapsedMs > 600000) { // بعد 10 دقائق إجمالية (7 دقائق + 3 دقائق تأخير)
+                    if (elapsedMs > 600000) { 
                         const idx = newWaiting.findIndex(w => w.id === targetToShift.id);
                         if (idx > -1) {
                             const timedOutItem = newWaiting.splice(idx, 1)[0];
@@ -1129,6 +1176,7 @@
     }
 
     function submitBreak(type) {
+        initAudioContext();
         if (!currentEmployeeName) {
             showCustomAlert('Please login first!');
             return;
@@ -1159,18 +1207,8 @@
         if (type === 'request') {
             state.requests.push(newItem);
         } else {
-            const hasNormal = state.active.some(item => item.type === 'normal' || item.type === 'request');
-            const hasQuick = state.active.some(item => item.type === 'quick');
-
-            let canEnter = false;
-            if (type === 'normal' && !hasNormal) canEnter = true;
-            else if (type === 'quick' && !hasQuick) canEnter = true;
-
-            if (canEnter && state.waiting.length === 0) {
-                state.active.push(newItem);
-            } else {
-                state.waiting.push(newItem);
-            }
+            // يتم وضعه دائماً في قائمة الانتظار لضمان أن النظام لا ينقله للبريك تلقائياً إلا بعد تأكيده اليدوي
+            state.waiting.push(newItem);
         }
 
         db.set(state);
@@ -1181,7 +1219,7 @@
         const item = state.waiting[index];
         if (!item) return;
 
-        const keepInQueue = confirm(`إخراج الموظف (${item.name}) للبريك:\n\n- اضغط (OK) إذا كنت تريد إخراجه للبريك مع إبقائه في نفس دوره في قائمة الانتظار (بحيث لا يتقدم إلا إذا خرج من قبله).\n- اضغط (Cancel) لإخراجه نهائياً ونقله للبريك العادي.`);
+        const keepInQueue = confirm(`إخراج الموظف (${item.name}) للبريك:\n\n- اضغط (OK) إذا كنت تريد إخراجه للبريك مع إبقائه في نفس دوره في قائمة الانتظار.\n- اضغط (Cancel) لإخراجه نهائياً ونقله للبريك العادي.`);
 
         const itemToBreak = state.waiting.splice(index, 1)[0];
         itemToBreak.timestamp = Date.now();
@@ -1200,14 +1238,7 @@
         if (!isAdmin) return;
         const reqItem = state.requests.splice(index, 1)[0];
         if (reqItem) {
-            const hasNormal = state.active.some(item => item.type === 'normal' || item.type === 'request');
-            if (!hasNormal && state.waiting.length === 0) {
-                reqItem.timestamp = Date.now();
-                reqItem.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-                state.active.push(reqItem);
-            } else {
-                state.waiting.push(reqItem);
-            }
+            state.waiting.push(reqItem);
             db.set(state);
         }
     }
@@ -1225,7 +1256,9 @@
         }
     }
 
+    // خاصية تأكيد الطلب بالخروج الفعلي للبريك بناءً على طلبك
     function confirmMyTurn() {
+        initAudioContext();
         if (!currentEmployeeName) return;
         const myUserLower = currentEmployeeName.trim().toLowerCase();
         
@@ -1264,6 +1297,7 @@
     }
 
     function endBreak(index) {
+        initAudioContext();
         const finishedItem = state.active.splice(index, 1)[0];
         
         if (finishedItem) {
@@ -1298,22 +1332,6 @@
                 delete finishedItem.keepPositionOnReturn;
                 finishedItem.timestamp = Date.now();
                 state.waiting.unshift(finishedItem);
-            } else if (state.waiting.length > 0) {
-                const nextItem = state.waiting[0];
-                const hasNormal = state.active.some(a => a.type === 'normal' || a.type === 'request');
-                const hasQuick = state.active.some(a => a.type === 'quick');
-
-                let canAutoEnter = false;
-                if (nextItem.type === 'quick' && !hasQuick) canAutoEnter = true;
-                else if ((nextItem.type === 'normal' || nextItem.type === 'request') && !hasNormal) canAutoEnter = true;
-
-                if (canAutoEnter) {
-                    const shifted = state.waiting.shift();
-                    shifted.timestamp = Date.now();
-                    shifted.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-                    delete shifted.turnStartTime;
-                    state.active.push(shifted);
-                }
             }
         }
 
@@ -1336,6 +1354,7 @@
     }
 
     function executeSwap() {
+        initAudioContext();
         let id1, id2;
 
         if (isAdmin) {
