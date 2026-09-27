@@ -55,7 +55,6 @@
             position: relative;
         }
 
-        /* زر Admin Active أصبح شارة نصية بحتة بدون تفاعل كما طلبتم */
         .admin-active-badge {
             background: #065f46;
             color: #34d399;
@@ -475,14 +474,13 @@
     <header>
         <div class="top-header-row">
             <div style="display: flex; gap: 6px; align-items: center;">
-                <!-- شارة Admin Active أصبحت نصاً بحتاً لا يضغط ولا يفتح نوافذ كما طلبتم -->
                 <div class="admin-active-badge" id="adminActiveBadge">🔒 Admin Active</div>
                 <button class="logout-badge" id="logoutBtn" onclick="logoutUser()">🚪 Logout</button>
             </div>
             
             <button class="top-admin-option-btn" id="topAdminOptionBtn" onclick="openAdminModal()">Admin Access & Users</button>
 
-            <button class="notif-badge" id="notifBtn" onclick="requestNotificationPermission()">🔔 Alert</button>
+            <button class="notif-badge" id="notifBtn" onclick="requestNotificationPermission()">🔔 Active</button>
         </div>
 
         <div class="hospital-logo-box">
@@ -503,7 +501,6 @@
         <div class="center-title">Contact Center Break System</div>
     </header>
 
-    <!-- صندوق تسجيل الدخول عند البوابة -->
     <div id="loginSection" class="login-box">
         <h3>🔑 Employee Login</h3>
         <input type="text" id="loginUsername" placeholder="Username..." autocomplete="off" />
@@ -513,13 +510,17 @@
         <button type="button" class="btn" style="background: #0f172a; color: #38bdf8; border: 1px solid #0284c7; width: 100%; padding: 8px; font-size: 0.85rem;" onclick="openAdminPortalPrompt()">🔒 Admin Portal Access</button>
     </div>
 
-    <!-- المحتوى الأساسي للنظام -->
     <div id="mainSystemContent" style="display: none;">
+        <!-- شاشة تأكيد الدور (لا يدخل البريك إلا عند الضغط هنا يدوياً) -->
         <div id="myTurnPromptBox" class="my-turn-prompt">
-            <h3 id="myTurnTitle">🎉 It's your turn for break!</h3>
-            <p id="myTurnDesc">Please confirm and enter now.</p>
+            <h3 id="myTurnTitle">🎉 حان دورك للبريك!</h3>
+            <p id="myTurnDesc">يرجى الضغط على زر التأكيد أدناه للدخول للبريك.</p>
             <div id="turnActionButtonsContainer">
-                <button type="button" class="btn" style="background: #ffffff; color: #0d9488; font-size: 1.05rem; width: 100%; border-radius: 10px;" onclick="confirmMyTurn()">✅ Confirm & Enter Break</button>
+                <button type="button" class="btn" style="background: #ffffff; color: #0d9488; font-size: 1.05rem; width: 100%; border-radius: 10px; margin-bottom: 6px;" onclick="confirmMyTurn()">✅ تأكيد والدخول للبريك</button>
+                <div style="display: flex; gap: 6px; justify-content: center; margin-top: 6px;">
+                    <span style="font-size: 0.85rem; align-self: center;">هل تريد استبدال دورك؟</span>
+                    <button type="button" class="btn btn-red" style="padding: 4px 10px;" onclick="promptSwapChoiceAction('no')">لا أريد</button>
+                </div>
             </div>
         </div>
 
@@ -558,7 +559,6 @@
             <div class="swap-controls" id="swapControlsContainer"></div>
         </div>
 
-        <!-- تقارير السجلات (تظهر فقط للأدمن) -->
         <div class="report-box" id="adminReportContainer">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div style="font-size: 0.85rem; font-weight: bold; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
@@ -577,19 +577,16 @@
     </div>
 </div>
 
-<!-- نافذة الأدمن أو التسجيل (Admin / Register Modal) -->
 <div class="custom-modal-overlay" id="adminModalOverlay">
     <div class="custom-modal-box">
         <div class="custom-modal-title" id="adminModalTitle">Admin Access & Users</div>
         
-        <!-- صندوق كلمة مرور الأدمن -->
         <div id="adminPasswordPromptBox">
             <div class="custom-modal-subtitle">Please enter admin password:</div>
             <input type="password" id="adminPassInput" placeholder="Password..." />
             <button type="button" class="btn" style="background: #3b82f6; width: 100%; margin-top: 6px;" onclick="verifyAdminPassword()">Login as Admin</button>
         </div>
 
-        <!-- صندوق تسجيل موظف جديد ذاتياً (للموظف العادي) -->
         <div id="selfRegisterBox" style="display: none;">
             <div class="custom-modal-subtitle">Create your own account username & password:</div>
             <input type="text" id="regEmpName" placeholder="Your Full Name..." />
@@ -598,7 +595,6 @@
             <button type="button" class="btn btn-green" style="width: 100%; margin-top: 6px;" onclick="selfRegisterAccount()">Register Account</button>
         </div>
 
-        <!-- لوحة تحكم المستخدمين للأدمن مع زر سهم إضافي لإظهار وإخفاء اليوزرات كما طلبتم -->
         <div id="adminDashboardBox" style="display: none;">
             <div style="font-size: 0.9rem; font-weight: bold; color: #1e293b; margin-bottom: 10px;">👥 Manage Employee Accounts</div>
             <div style="background: #f1f5f9; padding: 10px; border-radius: 8px; margin-bottom: 12px;">
@@ -614,7 +610,6 @@
                 <button type="button" class="btn btn-green" style="width: 100%; margin-top: 8px;" onclick="saveEmployeeAccount()">Save / Update Account</button>
             </div>
             
-            <!-- زر سهم اختياري لإظهار وإخفاء قائمة اليوزرات -->
             <div style="display: flex; justify-content: space-between; align-items: center; background: #e2e8f0; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; cursor: pointer;" onclick="toggleUsersListExpand()">
                 <span style="font-size: 0.85rem; font-weight: bold; color: #334155;">Registered Users List</span>
                 <span id="usersToggleArrow" style="font-weight: bold; color: #334155;">▼</span>
@@ -655,7 +650,7 @@
         titleDiv.style.fontSize = '20px';
         titleDiv.style.fontWeight = 'bold';
         titleDiv.style.marginBottom = '10px';
-        titleDiv.innerHTML = '⚠️ تنبيه';
+        titleDiv.innerHTML = '⚠️ تنبيه النظام';
 
         var msgDiv = document.createElement('div');
         msgDiv.style.color = '#333';
@@ -967,24 +962,12 @@
 
     function updateNotificationButtonUI() {
         const btn = document.getElementById('notifBtn');
-        if (!("Notification" in window)) {
-            btn.style.display = 'none';
-            return;
-        }
-        if (Notification.permission === "granted") {
-            btn.innerText = '🔔 On';
-        } else if (Notification.permission === "denied") {
-            btn.innerText = '🔕 Off';
-        } else {
-            btn.innerText = '🔔 Alert';
-        }
+        btn.innerText = '🔔 Active';
     }
 
     function requestNotificationPermission() {
-        if (!("Notification" in window)) return;
-        Notification.requestPermission().then(() => {
-            updateNotificationButtonUI();
-        });
+        playBeep();
+        showCustomAlert('تم تفعيل التنبيهات والأصوات بنجاح!');
     }
 
     function playBeep() {
@@ -994,21 +977,12 @@
             const gain = audioCtx.createGain();
             osc.type = 'sine';
             osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
-            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
             osc.connect(gain);
             gain.connect(audioCtx.destination);
             osc.start();
-            osc.stop(audioCtx.currentTime + 0.4);
+            osc.stop(audioCtx.currentTime + 0.5);
         } catch(e) {}
-    }
-
-    function sendDesktopNotification(title, bodyText) {
-        playBeep();
-        if ("Notification" in window && Notification.permission === "granted") {
-            try {
-                new Notification(title, { body: bodyText });
-            } catch(e) {}
-        }
     }
 
     let lastNotifiedTurnState = "";
@@ -1040,16 +1014,7 @@
     function checkTurnLogicAndNotifications() {
         if (!currentEmployeeName) return;
         const myUserLower = currentEmployeeName.trim().toLowerCase();
-        const newActive = state.active || [];
         const newWaiting = state.waiting || [];
-
-        const firstNormal = newWaiting.find(w => w.type === 'normal');
-        const firstQuick = newWaiting.find(w => w.type === 'quick');
-        const hasNormalSlot = !newActive.some(a => a.type === 'normal' || a.type === 'request');
-        const hasQuickSlot = !newActive.some(a => a.type === 'quick');
-
-        const isMyTurn = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) ||
-                         (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot);
 
         const myIndex = newWaiting.findIndex(w => w.name.trim().toLowerCase() === myUserLower);
 
@@ -1057,17 +1022,27 @@
         if (myIndex === 1) {
             if (lastNotifiedAheadState !== myUserLower + "_ahead") {
                 lastNotifiedAheadState = myUserLower + "_ahead";
-                sendDesktopNotification("⚠️ استعد", "يوجد شخص واحد فقط أمامك في قائمة الانتظار، استعد لدورك.");
+                playBeep();
+                showCustomAlert("⚠️ تنبيه استعد: يوجد شخص واحد فقط أمامك في قائمة الانتظار، استعد لدورك.");
             }
         } else if (myIndex !== 1) {
             lastNotifiedAheadState = "";
         }
 
-        // تنبيه حان دورك
+        const firstNormal = newWaiting.find(w => w.type === 'normal');
+        const firstQuick = newWaiting.find(w => w.type === 'quick');
+        const hasNormalSlot = !state.active.some(a => a.type === 'normal' || a.type === 'request');
+        const hasQuickSlot = !state.active.some(a => a.type === 'quick');
+
+        const isMyTurn = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) ||
+                         (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot);
+
+        // تنبيه صوتي ومرئي عندما يحين دورك (لكن دون دخول تلقائي للبريك)
         if (isMyTurn) {
             if (lastNotifiedTurnState !== "my_turn") {
                 lastNotifiedTurnState = "my_turn";
-                sendDesktopNotification("🚨 حان دورك للبريك", "لقد حان دورك الآن، يرجى الضغط على زر التأكيد.");
+                playBeep();
+                showCustomAlert("🚨 حان دورك للبريك! يرجى الضغط على زر (تأكيد والدخول للبريك) في الشاشة الرئيسية.");
             }
         } else {
             if (myIndex > 0 || myIndex === -1) {
@@ -1088,16 +1063,14 @@
                     db.set(state);
                 } else {
                     const elapsedMs = now - targetToShift.turnStartTime;
-                    // بعد 7 دقائق (420000ms) يظهر خيار استبدال الدور، وإذا مر دقيقتين إضافيتين (600000ms إجمالي) يتم التأخير تلقائياً
-                    if (elapsedMs > 600000) {
+                    if (elapsedMs > 600000) { // بعد 10 دقائق إجمالية (7 دقائق + 3 دقائق تأخير)
                         const idx = newWaiting.findIndex(w => w.id === targetToShift.id);
                         if (idx > -1) {
                             const timedOutItem = newWaiting.splice(idx, 1)[0];
                             delete timedOutItem.turnStartTime;
                             delete timedOutItem.promptSwapChoice;
-                            newWaiting.push(timedOutItem); // يرجع بقائمة الانتظار رقم واحد
+                            newWaiting.push(timedOutItem);
 
-                            // تسجيل بالتقرير
                             if (!state.reports) state.reports = [];
                             state.reports.unshift({
                                 name: timedOutItem.name,
@@ -1110,7 +1083,8 @@
                             });
 
                             db.set(state);
-                            sendDesktopNotification("⏱️ تم تبديل دورك", "تم تبديل دورك بسبب التأخير وتجاوز المهلة الزمنية.");
+                            playBeep();
+                            showCustomAlert("⏱️ تنبيه: تم تبديل وتأخير دورك بسبب تجاوز مهلة التأكيد.");
                         }
                     }
                 }
@@ -1149,7 +1123,7 @@
                 });
 
                 db.set(state);
-                sendDesktopNotification("⏱️ تم تبديل دورك", "تم تبديل دورك بناءً على اختيارك.");
+                showCustomAlert("⏱️ تم تبديل وتأخير دورك بناءً على اختيارك.");
             }
         }
     }
@@ -1591,18 +1565,17 @@
                 (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot)) {
                 showMyPrompt = true;
                 
-                // حساب الوقت المتبقي للمهلة (7 دقائق)
                 const targetItem = firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower ? firstNormal : firstQuick;
                 if (targetItem && targetItem.turnStartTime) {
                     const elapsed = currentTime - targetItem.turnStartTime;
-                    const remainingMs = 420000 - elapsed; // 7 دقائق
+                    const remainingMs = 420000 - elapsed;
                     const remainingMins = Math.max(0, Math.ceil(remainingMs / 60000));
 
                     if (remainingMs > 0) {
                         turnActionButtonsContainer.innerHTML = `
                             <p style="font-size: 0.85rem; color: #ffedd5; margin-bottom: 8px;">متبقي على مهلة التأكيد: ${remainingMins} دقائق</p>
-                            <button type="button" class="btn" style="background: #ffffff; color: #0d9488; font-size: 1.05rem; width: 100%; border-radius: 10px; margin-bottom: 6px;" onclick="confirmMyTurn()">✅ Confirm & Enter Break</button>
-                            <div style="display: flex; gap: 6px; margin-top: 6px;">
+                            <button type="button" class="btn" style="background: #ffffff; color: #0d9488; font-size: 1.05rem; width: 100%; border-radius: 10px; margin-bottom: 6px;" onclick="confirmMyTurn()">✅ تأكيد والدخول للبريك</button>
+                            <div style="display: flex; gap: 6px; justify-content: center; margin-top: 6px;">
                                 <span style="font-size: 0.85rem; align-self: center;">هل تريد استبدال دورك؟</span>
                                 <button type="button" class="btn btn-red" style="padding: 4px 10px;" onclick="promptSwapChoiceAction('no')">لا أريد</button>
                             </div>
@@ -1610,7 +1583,7 @@
                     } else {
                         turnActionButtonsContainer.innerHTML = `
                             <p style="font-size: 0.85rem; color: #fca5a5; margin-bottom: 8px;">انتهت مهلة الـ 7 دقائق، سيتم تبديل دورك قريباً...</p>
-                            <button type="button" class="btn" style="background: #ffffff; color: #0d9488; font-size: 1.05rem; width: 100%; border-radius: 10px;" onclick="confirmMyTurn()">✅ Confirm & Enter Break</button>
+                            <button type="button" class="btn" style="background: #ffffff; color: #0d9488; font-size: 1.05rem; width: 100%; border-radius: 10px;" onclick="confirmMyTurn()">✅ تأكيد والدخول للبريك</button>
                         `;
                     }
                 }
@@ -1661,7 +1634,7 @@
                 const isQuick = item.type === 'quick';
 
                 let typeLabel = '<span style="color:#fbbf24;">[Normal]</span>';
-                if (isQuick) typeLabel = '<span style="color:#3b82f6;>[Quick]</span>';
+                if (isQuick) typeLabel = '<span style="color:#3b82f6;">[Quick]</span>';
 
                 let swapMessageHtml = '';
                 if (state.swapLogs && state.swapLogs.length > 0) {
