@@ -293,10 +293,6 @@
             justify-content: space-between;
             align-items: center;
         }
-        .card-item.overtime {
-            background: #450a0a;
-            border-color: #991b1b;
-        }
 
         .waiting-badge-num {
             display: inline-flex;
@@ -323,8 +319,6 @@
             box-shadow: 0 8px 20px rgba(13, 148, 136, 0.3);
             display: none;
         }
-        .my-turn-prompt h3 { margin-bottom: 6px; font-size: 1.2rem; }
-        .my-turn-prompt p { color: #ccfbf1; margin-bottom: 12px; font-size: 0.95rem; }
 
         .swap-box {
             background: var(--card-bg);
@@ -333,13 +327,7 @@
             padding: 16px;
             margin-bottom: 20px;
             box-shadow: 0 8px 20px rgba(0,0,0,0.2);
-        }
-        .swap-controls {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            margin-top: 12px;
-            flex-wrap: wrap;
+            display: none;
         }
 
         .report-box {
@@ -357,43 +345,6 @@
             border-top: 1px solid #475569;
             padding-top: 10px;
             overflow-x: auto;
-        }
-        .report-table-title {
-            background-color: #bae6fd;
-            color: #0369a1;
-            padding: 4px 8px;
-            font-weight: bold;
-            font-size: 0.78rem;
-            border-radius: 4px;
-            margin-bottom: 6px;
-            display: inline-block;
-        }
-        .report-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.72rem;
-            text-align: left;
-            background: #0f172a;
-            border-radius: 6px;
-            overflow: hidden;
-        }
-        .report-table th {
-            background: #1e293b;
-            color: var(--text-main);
-            padding: 4px 6px;
-            border: 1px solid #334155;
-            font-weight: 600;
-        }
-        .report-table td {
-            padding: 4px 6px;
-            border: 1px solid #334155;
-            color: var(--text-main);
-        }
-        .report-table td.exceed-cell {
-            background-color: #ef4444 !important;
-            color: #ffffff !important;
-            font-weight: bold;
-            text-align: center;
         }
 
         .empty-msg { color: var(--text-muted); font-size: 0.85rem; padding: 8px 0; text-align: center; }
@@ -456,9 +407,6 @@
             border-radius: 8px;
             outline: none;
         }
-        .custom-modal-box input:focus, .custom-modal-box select:focus {
-            border-color: #3b82f6 !important;
-        }
         .custom-modal-buttons {
             display: flex;
             gap: 8px;
@@ -475,12 +423,12 @@
         <div class="top-header-row">
             <div style="display: flex; gap: 6px; align-items: center;">
                 <div class="admin-active-badge" id="adminActiveBadge">🔒 Admin Active</div>
-                <button class="logout-badge" id="logoutBtn" onclick="logoutUser()">🚪 Logout</button>
+                <button type="button" class="logout-badge" id="logoutBtn">🚪 Logout</button>
             </div>
             
-            <button class="top-admin-option-btn" id="topAdminOptionBtn" onclick="openAdminModal()">Admin Access & Users</button>
+            <button type="button" class="top-admin-option-btn" id="topAdminOptionBtn">Admin Access & Users</button>
 
-            <button class="notif-badge" id="notifBtn" onclick="requestNotificationPermission()">🔔 تفعيل الإشعارات والأصوات</button>
+            <button type="button" class="notif-badge" id="notifBtn">🔔 تفعيل الإشعارات والأصوات</button>
         </div>
 
         <div class="hospital-logo-box">
@@ -505,37 +453,32 @@
         <h3>🔑 Employee Login</h3>
         <input type="text" id="loginUsername" placeholder="Username..." autocomplete="off" />
         <input type="password" id="loginPassword" placeholder="Password..." />
-        <button type="button" class="btn btn-green" style="width: 100%; padding: 12px; margin-bottom: 8px;" onclick="handleLogin()">Login to System</button>
-        <button type="button" class="btn btn-purple" style="width: 100%; padding: 8px; font-size: 0.85rem; margin-bottom: 8px;" onclick="openRegisterModal()">✨ Register New Account</button>
-        <button type="button" class="btn" style="background: #0f172a; color: #38bdf8; border: 1px solid #0284c7; width: 100%; padding: 8px; font-size: 0.85rem;" onclick="openAdminPortalPrompt()">🔒 Admin Portal Access</button>
+        <button type="button" id="loginSubmitBtn" class="btn btn-green" style="width: 100%; padding: 12px; margin-bottom: 8px;">Login to System</button>
+        <button type="button" id="openRegisterBtn" class="btn btn-purple" style="width: 100%; padding: 8px; font-size: 0.85rem; margin-bottom: 8px;">✨ Register New Account</button>
+        <button type="button" id="openAdminPortalBtn" class="btn" style="background: #0f172a; color: #38bdf8; border: 1px solid #0284c7; width: 100%; padding: 8px; font-size: 0.85rem;">🔒 Admin Portal Access</button>
     </div>
 
     <div id="mainSystemContent" style="display: none;">
-        <!-- شاشة تأكيد الدور -->
         <div id="myTurnPromptBox" class="my-turn-prompt">
             <h3 id="myTurnTitle">🚨 حان دورك للبريك!</h3>
             <p id="myTurnDesc">يرجى الضغط على زر التأكيد أدناه للدخول الفعلي للبريك.</p>
-            <div id="turnActionButtonsContainer">
-                <button type="button" class="btn" style="background: #ffffff; color: #0d9488; font-size: 1.05rem; width: 100%; border-radius: 10px; margin-bottom: 6px;" onclick="confirmMyTurn()">✅ تأكيد والدخول للبريك</button>
-                <div style="display: flex; gap: 6px; justify-content: center; margin-top: 6px;">
-                    <span style="font-size: 0.85rem; align-self: center;">هل تريد استبدال دورك؟</span>
-                    <button type="button" class="btn btn-red" style="padding: 4px 10px;" onclick="promptSwapChoiceAction('no')">لا أريد</button>
-                </div>
+            <div>
+                <button type="button" id="confirmTurnBtn" class="btn" style="background: #ffffff; color: #0d9488; font-size: 1.05rem; width: 100%; border-radius: 10px; margin-bottom: 6px;">✅ تأكيد والدخول للبريك</button>
             </div>
         </div>
 
         <div class="action-box">
             <div style="font-weight: bold; color: var(--accent-blue); font-size: 0.95rem;" id="welcomeEmpLabel">Welcome: -</div>
             <div class="action-buttons">
-                <button type="button" class="btn btn-green" onclick="submitBreak('normal')">Normal Break 🏃</button>
-                <button type="button" class="btn btn-amber" onclick="submitBreak('quick')">⚡ Quick Break (5m)</button>
-                <button type="button" class="btn btn-purple" onclick="submitBreak('request')">(Request Break From The Leader)</button>
+                <button type="button" id="breakNormalBtn" class="btn btn-green">Normal Break 🏃</button>
+                <button type="button" id="breakQuickBtn" class="btn btn-amber">⚡ Quick Break (5m)</button>
+                <button type="button" id="breakReqBtn" class="btn btn-purple">(Request Break)</button>
             </div>
         </div>
 
         <div class="section-card" id="requestsSectionContainer" style="display: none; border-color: #5b21b6;">
             <div class="section-header-title" style="color: #a78bfa;">
-                <span>⏳ Pending Break Requests (Admin Approval)</span>
+                <span>⏳ Pending Break Requests</span>
             </div>
             <div id="requestsBox"></div>
         </div>
@@ -554,20 +497,15 @@
             <div id="waitingBox"></div>
         </div>
 
-        <div class="swap-box" id="swapSection" style="display: none;">
-            <div style="font-weight: bold; color: var(--accent-amber);" id="swapSectionTitle">🔄 Swap your position in queue:</div>
-            <div class="swap-controls" id="swapControlsContainer"></div>
-        </div>
-
         <div class="report-box" id="adminReportContainer">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div style="font-size: 0.85rem; font-weight: bold; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
-                    <span>📊 Contact Center Break Report (Last 48 Hours)</span>
+                <div style="font-size: 0.85rem; font-weight: bold; color: var(--text-main);">
+                    <span>📊 Contact Center Break Report</span>
                 </div>
                 <div style="display: flex; gap: 6px; align-items: center;">
-                    <button type="button" class="btn btn-excel" id="excelBtn" onclick="exportToExcel()">📥 Excel</button>
-                    <button type="button" class="btn btn-gray" id="clearBtn" style="padding: 4px 10px; font-size: 0.75rem;" onclick="clearReports()">Clear</button>
-                    <button type="button" class="toggle-arrow-btn" id="toggleReportsBtn" onclick="toggleReportsExpand()" title="Toggle Log" style="width: 26px; height: 26px; font-size: 0.8rem;">▼</button>
+                    <button type="button" id="excelBtn" class="btn btn-excel">📥 Excel</button>
+                    <button type="button" id="clearReportsBtn" class="btn btn-gray" style="padding: 4px 10px; font-size: 0.75rem;">Clear</button>
+                    <button type="button" id="toggleReportsBtn" class="toggle-arrow-btn" style="width: 26px; height: 26px; font-size: 0.8rem;">▼</button>
                 </div>
             </div>
             <div id="reportsContainerWrapper" class="report-content-wrapper">
@@ -584,7 +522,7 @@
         <div id="adminPasswordPromptBox">
             <div class="custom-modal-subtitle">Please enter admin password:</div>
             <input type="password" id="adminPassInput" placeholder="Password..." />
-            <button type="button" class="btn" style="background: #3b82f6; width: 100%; margin-top: 6px;" onclick="verifyAdminPassword()">Login as Admin</button>
+            <button type="button" id="verifyAdminPassBtn" class="btn" style="background: #3b82f6; width: 100%; margin-top: 6px;">Login as Admin</button>
         </div>
 
         <div id="selfRegisterBox" style="display: none;">
@@ -592,7 +530,7 @@
             <input type="text" id="regEmpName" placeholder="Your Full Name..." />
             <input type="text" id="regEmpUser" placeholder="Choose Username..." />
             <input type="password" id="regEmpPass" placeholder="Choose Password..." />
-            <button type="button" class="btn btn-green" style="width: 100%; margin-top: 6px;" onclick="selfRegisterAccount()">Register Account</button>
+            <button type="button" id="submitRegisterBtn" class="btn btn-green" style="width: 100%; margin-top: 6px;">Register Account</button>
         </div>
 
         <div id="adminDashboardBox" style="display: none;">
@@ -607,10 +545,10 @@
                     <option value="normal">Normal Employee (موظف عادي)</option>
                     <option value="admin">Admin (أدمن)</option>
                 </select>
-                <button type="button" class="btn btn-green" style="width: 100%; margin-top: 8px;" onclick="saveEmployeeAccount()">Save / Update Account</button>
+                <button type="button" id="saveEmpAccountBtn" class="btn btn-green" style="width: 100%; margin-top: 8px;">Save / Update Account</button>
             </div>
             
-            <div style="display: flex; justify-content: space-between; align-items: center; background: #e2e8f0; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; cursor: pointer;" onclick="toggleUsersListExpand()">
+            <div style="display: flex; justify-content: space-between; align-items: center; background: #e2e8f0; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; cursor: pointer;" id="toggleUsersListHeader">
                 <span style="font-size: 0.85rem; font-weight: bold; color: #334155;">Registered Users List</span>
                 <span id="usersToggleArrow" style="font-weight: bold; color: #334155;">▼</span>
             </div>
@@ -618,7 +556,7 @@
         </div>
 
         <div class="custom-modal-buttons" style="margin-top: 15px;">
-            <button type="button" class="btn btn-gray" style="background: #f1f5f9; color: #475569; width: 100%;" onclick="closeAdminModal()">Close Window</button>
+            <button type="button" id="closeModalBtn" class="btn btn-gray" style="background: #f1f5f9; color: #475569; width: 100%;">Close Window</button>
         </div>
     </div>
 </div>
@@ -643,7 +581,6 @@
         alertBox.style.textAlign = 'center';
         alertBox.style.maxWidth = '400px';
         alertBox.style.width = '90%';
-        alertBox.style.fontFamily = 'Arial, sans-serif';
 
         var titleDiv = document.createElement('div');
         titleDiv.style.color = '#ff4d4d';
@@ -655,7 +592,6 @@
         var msgDiv = document.createElement('div');
         msgDiv.style.color = '#333';
         msgDiv.style.fontSize = '15px';
-        msgDiv.style.lineHeight = '1.5';
         msgDiv.style.marginBottom = '15px';
         msgDiv.textContent = message;
 
@@ -689,7 +625,7 @@
     const db = firebase.database().ref('alsalam_hospital_breaks_v45');
     const usersDb = firebase.database().ref('alsalam_hospital_users');
 
-    let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
+    let state = { active: [], waiting: [], requests: [], reports: [] };
     let usersState = {};
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
     let currentLoggedInUser = localStorage.getItem('logged_in_username') || '';
@@ -697,23 +633,36 @@
     let isReportsExpanded = false;
     let isUsersListExpanded = false;
 
-    let audioCtx = null;
-    function initAudioContext() {
-        if (!audioCtx) {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        if (audioCtx.state === 'suspended') {
-            audioCtx.resume();
-        }
-    }
-
-    document.addEventListener('click', function() {
-        initAudioContext();
-    }, { once: true });
-
     function getAdminPassword() {
         return localStorage.getItem('admin_secret_pass') || '1234';
     }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // ربط الأحداث بجميع الأزرار بشكل مباشر وضمان عملها
+        document.getElementById('loginSubmitBtn').addEventListener('click', handleLogin);
+        document.getElementById('openRegisterBtn').addEventListener('click', openRegisterModal);
+        document.getElementById('openAdminPortalBtn').addEventListener('click', openAdminPortalPrompt);
+        document.getElementById('logoutBtn').addEventListener('click', logoutUser);
+        document.getElementById('topAdminOptionBtn').addEventListener('click', openAdminModal);
+        document.getElementById('notifBtn').addEventListener('click', requestNotificationPermission);
+        
+        document.getElementById('breakNormalBtn').addEventListener('click', () => submitBreak('normal'));
+        document.getElementById('breakQuickBtn').addEventListener('click', () => submitBreak('quick'));
+        document.getElementById('breakReqBtn').addEventListener('click', () => submitBreak('request'));
+        
+        document.getElementById('confirmTurnBtn').addEventListener('click', confirmMyTurn);
+        document.getElementById('excelBtn').addEventListener('click', exportToExcel);
+        document.getElementById('clearReportsBtn').addEventListener('click', clearReports);
+        document.getElementById('toggleReportsBtn').addEventListener('click', toggleReportsExpand);
+        
+        document.getElementById('verifyAdminPassBtn').addEventListener('click', verifyAdminPassword);
+        document.getElementById('submitRegisterBtn').addEventListener('click', selfRegisterAccount);
+        document.getElementById('saveEmpAccountBtn').addEventListener('click', saveEmployeeAccount);
+        document.getElementById('toggleUsersListHeader').addEventListener('click', toggleUsersListExpand);
+        document.getElementById('closeModalBtn').addEventListener('click', closeAdminModal);
+
+        checkSession();
+    });
 
     function toggleUsersListExpand() {
         isUsersListExpanded = !isUsersListExpanded;
@@ -729,7 +678,6 @@
     }
 
     function handleLogin() {
-        initAudioContext();
         const u = document.getElementById('loginUsername').value.trim();
         const p = document.getElementById('loginPassword').value.trim();
 
@@ -931,6 +879,8 @@
         }
     }
 
+    window.deleteEmployeeAccount = deleteEmployeeAccount;
+
     function renderAdminUsersList() {
         const container = document.getElementById('empAccountsListContainer');
         const users = usersState || {};
@@ -952,7 +902,6 @@
         container.innerHTML = html;
     }
 
-    // دوال الوظائف الأساسية للتشغيل
     function submitBreak(type) {
         if (!currentLoggedInUser) {
             showCustomAlert('Please login first!');
@@ -965,8 +914,8 @@
             type: type,
             time: new Date().toLocaleTimeString()
         };
-        db.child('waiting').once('snapshot').then(() => {
-            let currentWaiting = state.waiting || [];
+        db.child('waiting').once('value').then((snapshot) => {
+            let currentWaiting = snapshot.val() || [];
             currentWaiting.push(newWaitingItem);
             db.update({ waiting: currentWaiting });
         });
@@ -975,10 +924,6 @@
     function confirmMyTurn() {
         document.getElementById('myTurnPromptBox').style.display = 'none';
         showCustomAlert('تم تأكيد الدخول للبريك بنجاح.');
-    }
-
-    function promptSwapChoiceAction(val) {
-        document.getElementById('myTurnPromptBox').style.display = 'none';
     }
 
     function requestNotificationPermission() {
@@ -1030,11 +975,10 @@
                 active: data.active || [],
                 waiting: data.waiting || [],
                 requests: data.requests || [],
-                reports: data.reports || [],
-                swapLogs: data.swapLogs || []
+                reports: data.reports || []
             };
         } else {
-            state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
+            state = { active: [], waiting: [], requests: [], reports: [] };
         }
         renderUI();
     });
@@ -1042,8 +986,6 @@
     function renderUI() {
         const waitingBox = document.getElementById('waitingBox');
         const activeBox = document.getElementById('activeBox');
-        const requestsBox = document.getElementById('requestsBox');
-        const requestsContainer = document.getElementById('requestsSectionContainer');
 
         if (waitingBox) {
             if (!state.waiting || state.waiting.length === 0) {
@@ -1074,28 +1016,7 @@
                 activeBox.innerHTML = html;
             }
         }
-
-        if (requestsBox && requestsContainer) {
-            if (!state.requests || state.requests.length === 0) {
-                requestsContainer.style.display = 'none';
-            } else {
-                requestsContainer.style.display = 'block';
-                let html = '';
-                state.requests.forEach((item) => {
-                    html += `<div class="card-item">
-                        <div><strong>${item.name}</strong></div>
-                        <div style="font-size: 0.8rem; color: #a78bfa;">Pending Request</div>
-                    </div>`;
-                });
-                requestsBox.innerHTML = html;
-            }
-        }
     }
-
-    // التحقق الفوري من الجلسة عند التحميل
-    window.onload = function() {
-        checkSession();
-    };
 </script>
 </body>
 </html>
