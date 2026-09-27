@@ -1122,7 +1122,7 @@
             }
         }
 
-        // التعامل مع المهترئة الزمنية (7 دقائق + دقيقتين = 9 دقائق إجمالية قبل الإرجاع الإجباري)
+        // مهلة 7 دقائق الأولى + دقيقتين إضافيتين = 9 دقائق إجمالية
         if (newWaiting.length > 0) {
             let targetToShift = null;
             const hasNormalSlot = !state.active.some(a => a.type === 'normal' || a.type === 'request');
@@ -1141,14 +1141,13 @@
                     db.set(state);
                 } else {
                     const elapsedMs = now - targetToShift.turnStartTime;
-                    // مجموع المهلتين: 7 دقائق + دقيقتين = 9 دقائق (540000 مللي ثانية)
                     if (elapsedMs > 540000) { 
                         const idx = newWaiting.findIndex(w => w.id === targetToShift.id);
                         if (idx > -1) {
                             const timedOutItem = newWaiting.splice(idx, 1)[0];
                             delete timedOutItem.turnStartTime;
                             delete timedOutItem.promptSwapChoice;
-                            newWaiting.push(timedOutItem); // إرجاعه لقائمة الانتظار
+                            newWaiting.push(timedOutItem);
 
                             if (!state.reports) state.reports = [];
                             state.reports.unshift({
@@ -1642,7 +1641,6 @@
                 const targetItem = firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower ? firstNormal : firstQuick;
                 if (targetItem && targetItem.turnStartTime) {
                     const elapsed = currentTime - targetItem.turnStartTime;
-                    // مهلة 7 دقائق الأولى (420000 مللي ثانية)
                     const remainingMs = 420000 - elapsed;
                     const remainingMins = Math.max(0, Math.ceil(remainingMs / 60000));
 
@@ -1656,7 +1654,6 @@
                             </div>
                         `;
                     } else {
-                        // دخل في الدقيقتين الإضافيتين
                         turnActionButtonsContainer.innerHTML = `
                             <p style="font-size: 0.85rem; color: #fca5a5; margin-bottom: 8px;">⚠️ تنبيه: لقد تخطيت المهلة الأولى، أنت في فترة السماح النهائية (دقيقتان) قبل الإرجاع الإجباري!</p>
                             <button type="button" class="btn" style="background: #ffffff; color: #0d9488; font-size: 1.05rem; width: 100%; border-radius: 10px;" onclick="confirmMyTurn()">✅ تأكيد والدخول للبريك</button>
@@ -1712,7 +1709,6 @@
                 let typeLabel = '<span style="color:#fbbf24;">[Normal]</span>';
                 if (isQuick) typeLabel = '<span style="color:#3b82f6;">[Quick]</span>';
 
-                // فحص حالة الانتظار والتأكيد لظهورها عند الأدمن
                 let adminStatusBadge = '';
                 if (isAdmin) {
                     if (item.turnStartTime) {
