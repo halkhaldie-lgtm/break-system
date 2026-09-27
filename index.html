@@ -65,11 +65,12 @@
             cursor: pointer;
             font-weight: bold;
             transition: all 0.2s;
+            display: none; /* مخفي افتراضياً ولا يظهر إلا للأدمن */
         }
         .admin-badge:hover, .logout-badge:hover { background: #1e293b; }
         .logout-badge { color: #f87171; border-color: #ef4444; }
 
-        /* خيار Admin Access & Users يظهر حصرياً للأدمن */
+        /* خيار Admin Access & Users العلوي (مخفي افتراضياً للموظف العادي) */
         .top-admin-option-btn {
             background: #1e293b;
             color: #38bdf8;
@@ -81,7 +82,7 @@
             font-weight: bold;
             box-shadow: 0 2px 6px rgba(0,0,0,0.2);
             transition: all 0.2s;
-            display: none; /* مخفي افتراضياً للموظف العادي */
+            display: none; 
         }
         .top-admin-option-btn:hover { background: #0369a1; color: #fff; }
 
@@ -473,12 +474,11 @@
     <header>
         <div class="top-header-row">
             <div style="display: flex; gap: 6px; align-items: center;">
-                <!-- زر Admin يظهر فقط إذا كان المستخدم أدمن أو لإظهار نافذة تسجيل دخول الأدمن -->
                 <button class="admin-badge" id="adminBtn" onclick="openAdminModal()">🔒 Admin</button>
-                <button class="logout-badge" id="logoutBtn" onclick="logoutUser()" style="display: none;">🚪 Logout</button>
+                <button class="logout-badge" id="logoutBtn" onclick="logoutUser()">🚪 Logout</button>
             </div>
             
-            <!-- خيار Admin Access & Users العلوي (مخفي افتراضياً للموظف ولا يظهر إلا للأدمن) -->
+            <!-- خيار Admin Access & Users العلوي (يظهر حصرياً للأدمن) -->
             <button class="top-admin-option-btn" id="topAdminOptionBtn" onclick="openAdminModal()">Admin Access & Users</button>
 
             <button class="notif-badge" id="notifBtn" onclick="requestNotificationPermission()">🔔 Alert</button>
@@ -735,28 +735,33 @@
         const loginSec = document.getElementById('loginSection');
         const mainSec = document.getElementById('mainSystemContent');
         const logoutBtn = document.getElementById('logoutBtn');
-        const reportBox = document.getElementById('adminReportContainer');
+        const adminBtn = document.getElementById('adminBtn');
         const topAdminBtn = document.getElementById('topAdminOptionBtn');
+        const reportBox = document.getElementById('adminReportContainer');
 
         if (currentLoggedInUser) {
             loginSec.style.display = 'none';
             mainSec.style.display = 'block';
-            logoutBtn.style.display = 'inline-block';
             document.getElementById('welcomeEmpLabel').innerText = `Welcome, ${currentEmployeeName} (${currentLoggedInUser})`;
             
             if (isAdmin) {
+                logoutBtn.style.display = 'inline-block';
+                adminBtn.style.display = 'inline-block';
+                topAdminBtn.style.display = 'inline-block';
                 reportBox.style.display = 'block';
-                topAdminBtn.style.display = 'inline-block'; // يظهر للأدمن فقط
             } else {
+                logoutBtn.style.display = 'inline-block';
+                adminBtn.style.display = 'none';      // مخفي تماماً للموظف العادي
+                topAdminBtn.style.display = 'none';   // مخفي تماماً للموظف العادي
                 reportBox.style.display = 'none';
-                topAdminBtn.style.display = 'none'; // مخفي تماماً للموظف العادي
             }
         } else {
             loginSec.style.display = 'block';
             mainSec.style.display = 'none';
             logoutBtn.style.display = 'none';
-            reportBox.style.display = 'none';
+            adminBtn.style.display = 'none';
             topAdminBtn.style.display = 'none';
+            reportBox.style.display = 'none';
         }
         renderUI();
     }
@@ -1432,13 +1437,13 @@
             adminBtn.style.color = '#34d399';
             adminBtn.style.borderColor = '#10b981';
             adminBtn.innerText = '🔓 Admin Active';
-            if (currentLoggedInUser) topAdminBtn.style.display = 'inline-block';
+            if (currentLoggedInUser) {
+                adminBtn.style.display = 'inline-block';
+                topAdminBtn.style.display = 'inline-block';
+            }
         } else {
-            adminBtn.style.background = '#0f172a';
-            adminBtn.style.color = 'var(--accent-blue)';
-            adminBtn.style.borderColor = '#3b82f6';
-            adminBtn.innerText = '🔒 Admin';
-            topAdminBtn.style.display = 'none'; // مخفي تماماً للموظف
+            adminBtn.style.display = 'none';
+            topAdminBtn.style.display = 'none';
         }
 
         const requestsSection = document.getElementById('requestsSectionContainer');
