@@ -52,6 +52,7 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 12px;
+            position: relative;
         }
 
         .admin-badge, .logout-badge {
@@ -67,6 +68,21 @@
         }
         .admin-badge:hover, .logout-badge:hover { background: #1e293b; }
         .logout-badge { color: #f87171; border-color: #ef4444; }
+
+        /* زر خيار Admin Access & Users في الأعلى بالمكان المحدد */
+        .top-admin-option-btn {
+            background: #1e293b;
+            color: #38bdf8;
+            border: 1px solid #0284c7;
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            transition: all 0.2s;
+        }
+        .top-admin-option-btn:hover { background: #0369a1; color: #fff; }
 
         .notif-badge {
             background: #0f172a;
@@ -455,10 +471,14 @@
 <div class="container">
     <header>
         <div class="top-header-row">
-            <div style="display: flex; gap: 6px;">
+            <div style="display: flex; gap: 6px; align-items: center;">
                 <button class="admin-badge" id="adminBtn" onclick="openAdminModal()">🔒 Admin</button>
                 <button class="logout-badge" id="logoutBtn" onclick="logoutUser()" style="display: none;">🚪 Logout</button>
             </div>
+            
+            <!-- خيار Admin Access & Users اختياري في المكان المخصص أعلى المنتصف -->
+            <button class="top-admin-option-btn" onclick="openAdminModal()">Admin Access & Users</button>
+
             <button class="notif-badge" id="notifBtn" onclick="requestNotificationPermission()">🔔 Alert</button>
         </div>
 
@@ -489,7 +509,7 @@
         <button type="button" class="btn btn-purple" style="width: 100%; padding: 8px; font-size: 0.85rem;" onclick="openRegisterModal()">✨ Register New Account</button>
     </div>
 
-    <!-- المحتوى الأساسي للنظام (يظهر بعد تسجيل الدخول) -->
+    <!-- المحتوى الأساسي للنظام -->
     <div id="mainSystemContent" style="display: none;">
         <div id="myTurnPromptBox" class="my-turn-prompt">
             <h3>🎉 It's your turn for break!</h3>
@@ -502,7 +522,7 @@
             <div class="action-buttons">
                 <button type="button" class="btn btn-green" onclick="submitBreak('normal')">Normal Break 🏃</button>
                 <button type="button" class="btn btn-amber" onclick="submitBreak('quick')">⚡ Quick Break (5m)</button>
-                <button type="button" class="btn btn-purple" onclick="submitBreak('request')">📝 Request Break</button>
+                <button type="button" class="btn btn-purple" onclick="submitBreak('request')">(Request Break From The Leader)</button>
             </div>
         </div>
 
@@ -1061,7 +1081,6 @@
         db.set(state);
     }
 
-    // عندما يضغط الأدمن Force Out، يظهر خيار للأدمن نفسه
     function forceAdminEnter(index) {
         if (!isAdmin) return;
         const item = state.waiting[index];
@@ -1069,7 +1088,6 @@
 
         const keepInQueue = confirm(`إخراج الموظف (${item.name}) للبريك:\n\n- اضغط (OK) إذا كنت تريد إخراجه للبريك مع إبقائه في نفس دوره في قائمة الانتظار (بحيث لا يتقدم إلا إذا خرج من قبله).\n- اضغط (Cancel) لإخراجه نهائياً ونقله للبريك العادي.`);
 
-        // نقله للبريك النشط
         const itemToBreak = state.waiting.splice(index, 1)[0];
         itemToBreak.timestamp = Date.now();
         itemToBreak.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
@@ -1077,9 +1095,6 @@
         state.active.push(itemToBreak);
 
         if (keepInQueue) {
-            // إذا اختار البقاء في دوره: نقوم بإعادة إضافته كأول القائمة أو في نفس مكانه الترتيبي الوهمي، أو ببساطة نجعله يأخذ دوره القادم فوراً عند تفريغ الخانة
-            // وحسب طلبك: "يبقى بنفس الدور مثلا لو كان رقم 2... له الا في حال خرج رقم 1 يكون مكانه"
-            // بمعني أنه إذا انتهى البريك النشط التالي، سيعود للترتيب فوراً. لتنفيذ ذلك برمجياً نجعل له أولوية عودة:
             itemToBreak.keepPositionOnReturn = true;
         }
 
@@ -1184,11 +1199,10 @@
                 endTimestamp: endTime
             });
 
-            // إذا كان الموظف مفعل له خاصية البقاء في دوره عند عودته من البريك، نعيده لنفس مكانه السابق في طابور الانتظار
             if (finishedItem.keepPositionOnReturn) {
                 delete finishedItem.keepPositionOnReturn;
                 finishedItem.timestamp = Date.now();
-                state.waiting.unshift(finishedItem); // يعود ليأخذ دوره فوراً حسب الترتيب
+                state.waiting.unshift(finishedItem);
             } else if (state.waiting.length > 0) {
                 const nextItem = state.waiting[0];
                 const hasNormal = state.active.some(a => a.type === 'normal' || a.type === 'request');
