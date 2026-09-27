@@ -55,19 +55,32 @@
             position: relative;
         }
 
-        .admin-badge, .logout-badge {
+        /* زر Admin Active أصبح شارة نصية بحتة بدون تفاعل كما طلبتم */
+        .admin-active-badge {
+            background: #065f46;
+            color: #34d399;
+            border: 1px solid #10b981;
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            display: none;
+            cursor: default;
+        }
+
+        .logout-badge {
             background: #0f172a;
-            color: var(--accent-blue);
-            border: 1px solid #3b82f6;
+            color: #f87171;
+            border: 1px solid #ef4444;
             padding: 5px 10px;
             border-radius: 6px;
             font-size: 0.75rem;
             cursor: pointer;
             font-weight: bold;
             transition: all 0.2s;
+            display: none;
         }
-        .admin-badge:hover, .logout-badge:hover { background: #1e293b; }
-        .logout-badge { color: #f87171; border-color: #ef4444; }
+        .logout-badge:hover { background: #1e293b; }
 
         .top-admin-option-btn {
             background: #1e293b;
@@ -462,7 +475,8 @@
     <header>
         <div class="top-header-row">
             <div style="display: flex; gap: 6px; align-items: center;">
-                <button class="admin-badge" id="adminBtn" onclick="openAdminModal()">🔒 Admin</button>
+                <!-- شارة Admin Active أصبحت نصاً بحتاً لا يضغط ولا يفتح نوافذ كما طلبتم -->
+                <div class="admin-active-badge" id="adminActiveBadge">🔒 Admin Active</div>
                 <button class="logout-badge" id="logoutBtn" onclick="logoutUser()">🚪 Logout</button>
             </div>
             
@@ -502,9 +516,11 @@
     <!-- المحتوى الأساسي للنظام -->
     <div id="mainSystemContent" style="display: none;">
         <div id="myTurnPromptBox" class="my-turn-prompt">
-            <h3>🎉 It's your turn for break!</h3>
-            <p>Please confirm and enter now.</p>
-            <button type="button" class="btn" style="background: #ffffff; color: #0d9488; font-size: 1.05rem; width: 100%; border-radius: 10px;" onclick="confirmMyTurn()">✅ Confirm & Enter Break</button>
+            <h3 id="myTurnTitle">🎉 It's your turn for break!</h3>
+            <p id="myTurnDesc">Please confirm and enter now.</p>
+            <div id="turnActionButtonsContainer">
+                <button type="button" class="btn" style="background: #ffffff; color: #0d9488; font-size: 1.05rem; width: 100%; border-radius: 10px;" onclick="confirmMyTurn()">✅ Confirm & Enter Break</button>
+            </div>
         </div>
 
         <div class="action-box">
@@ -582,7 +598,7 @@
             <button type="button" class="btn btn-green" style="width: 100%; margin-top: 6px;" onclick="selfRegisterAccount()">Register Account</button>
         </div>
 
-        <!-- لوحة تحكم المستخدمين للأدمن -->
+        <!-- لوحة تحكم المستخدمين للأدمن مع زر سهم إضافي لإظهار وإخفاء اليوزرات كما طلبتم -->
         <div id="adminDashboardBox" style="display: none;">
             <div style="font-size: 0.9rem; font-weight: bold; color: #1e293b; margin-bottom: 10px;">👥 Manage Employee Accounts</div>
             <div style="background: #f1f5f9; padding: 10px; border-radius: 8px; margin-bottom: 12px;">
@@ -597,7 +613,13 @@
                 </select>
                 <button type="button" class="btn btn-green" style="width: 100%; margin-top: 8px;" onclick="saveEmployeeAccount()">Save / Update Account</button>
             </div>
-            <div style="max-height: 150px; overflow-y: auto;" id="empAccountsListContainer"></div>
+            
+            <!-- زر سهم اختياري لإظهار وإخفاء قائمة اليوزرات -->
+            <div style="display: flex; justify-content: space-between; align-items: center; background: #e2e8f0; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; cursor: pointer;" onclick="toggleUsersListExpand()">
+                <span style="font-size: 0.85rem; font-weight: bold; color: #334155;">Registered Users List</span>
+                <span id="usersToggleArrow" style="font-weight: bold; color: #334155;">▼</span>
+            </div>
+            <div style="max-height: 150px; overflow-y: auto; display: none;" id="empAccountsListContainer"></div>
         </div>
 
         <div class="custom-modal-buttons" style="margin-top: 15px;">
@@ -675,9 +697,23 @@
     let currentLoggedInUser = localStorage.getItem('logged_in_username') || '';
     let currentEmployeeName = localStorage.getItem('logged_in_empname') || '';
     let isReportsExpanded = false;
+    let isUsersListExpanded = false;
 
     function getAdminPassword() {
         return localStorage.getItem('admin_secret_pass') || '1234';
+    }
+
+    function toggleUsersListExpand() {
+        isUsersListExpanded = !isUsersListExpanded;
+        const container = document.getElementById('empAccountsListContainer');
+        const arrow = document.getElementById('usersToggleArrow');
+        if (isUsersListExpanded) {
+            container.style.display = 'block';
+            arrow.innerText = '▲';
+        } else {
+            container.style.display = 'none';
+            arrow.innerText = '▼';
+        }
     }
 
     function handleLogin() {
@@ -729,7 +765,7 @@
         const loginSec = document.getElementById('loginSection');
         const mainSec = document.getElementById('mainSystemContent');
         const logoutBtn = document.getElementById('logoutBtn');
-        const adminBtn = document.getElementById('adminBtn');
+        const adminActiveBadge = document.getElementById('adminActiveBadge');
         const topAdminBtn = document.getElementById('topAdminOptionBtn');
         const reportBox = document.getElementById('adminReportContainer');
 
@@ -740,12 +776,12 @@
             
             if (isAdmin) {
                 logoutBtn.style.display = 'inline-block';
-                adminBtn.style.display = 'inline-block';
+                adminActiveBadge.style.display = 'inline-block';
                 topAdminBtn.style.display = 'inline-block';
                 reportBox.style.display = 'block';
             } else {
                 logoutBtn.style.display = 'inline-block';
-                adminBtn.style.display = 'none';
+                adminActiveBadge.style.display = 'none';
                 topAdminBtn.style.display = 'none';
                 reportBox.style.display = 'none';
             }
@@ -753,7 +789,7 @@
             loginSec.style.display = 'block';
             mainSec.style.display = 'none';
             logoutBtn.style.display = 'none';
-            adminBtn.style.display = 'none';
+            adminActiveBadge.style.display = 'none';
             topAdminBtn.style.display = 'none';
             reportBox.style.display = 'none';
         }
@@ -794,13 +830,15 @@
         });
     }
 
-    // تُستدعى حصرياً عند الضغط على زر الأدمن أو زر بوابة الأدمن يدوياً
     function openAdminModal() {
         document.getElementById('adminModalTitle').innerText = 'Admin Access & Users';
         if (isAdmin) {
             document.getElementById('adminPasswordPromptBox').style.display = 'none';
             document.getElementById('selfRegisterBox').style.display = 'none';
             document.getElementById('adminDashboardBox').style.display = 'block';
+            isUsersListExpanded = false;
+            document.getElementById('empAccountsListContainer').style.display = 'none';
+            document.getElementById('usersToggleArrow').innerText = '▼';
             renderAdminUsersList();
             document.getElementById('adminModalOverlay').style.display = 'flex';
         } else {
@@ -813,7 +851,6 @@
         }
     }
 
-    // زر البوابة الخاص بالادمن لفتح شاشة إدخال الباسورد
     function openAdminPortalPrompt() {
         isAdmin = false;
         document.getElementById('adminModalTitle').innerText = 'Admin Access & Users';
@@ -838,7 +875,7 @@
             currentEmployeeName = 'Administrator';
             localStorage.setItem('logged_in_username', 'admin');
             localStorage.setItem('logged_in_empname', 'Administrator');
-            closeAdminModal(); // إغلاق النافذة تماماً وفتح الصفحة الرئيسية حصرياً
+            closeAdminModal();
             checkSession();
         } else {
             showCustomAlert('Incorrect admin password!');
@@ -975,6 +1012,7 @@
     }
 
     let lastNotifiedTurnState = "";
+    let lastNotifiedAheadState = "";
 
     db.on('value', (snapshot) => {
         const val = snapshot.val();
@@ -995,11 +1033,11 @@
             state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [], users: {} };
         }
 
-        checkMyTurnAndNotify();
+        checkTurnLogicAndNotifications();
         renderUI();
     });
 
-    function checkMyTurnAndNotify() {
+    function checkTurnLogicAndNotifications() {
         if (!currentEmployeeName) return;
         const myUserLower = currentEmployeeName.trim().toLowerCase();
         const newActive = state.active || [];
@@ -1015,10 +1053,21 @@
 
         const myIndex = newWaiting.findIndex(w => w.name.trim().toLowerCase() === myUserLower);
 
+        // تنبيه في حال بقي شخص واحد أمامه
+        if (myIndex === 1) {
+            if (lastNotifiedAheadState !== myUserLower + "_ahead") {
+                lastNotifiedAheadState = myUserLower + "_ahead";
+                sendDesktopNotification("⚠️ استعد", "يوجد شخص واحد فقط أمامك في قائمة الانتظار، استعد لدورك.");
+            }
+        } else if (myIndex !== 1) {
+            lastNotifiedAheadState = "";
+        }
+
+        // تنبيه حان دورك
         if (isMyTurn) {
             if (lastNotifiedTurnState !== "my_turn") {
                 lastNotifiedTurnState = "my_turn";
-                sendDesktopNotification("🚨 It's your turn for break", "It is your turn now, please confirm and enter.");
+                sendDesktopNotification("🚨 حان دورك للبريك", "لقد حان دورك الآن، يرجى الضغط على زر التأكيد.");
             }
         } else {
             if (myIndex > 0 || myIndex === -1) {
@@ -1026,6 +1075,7 @@
             }
         }
 
+        // فحص المهلة الزمنية (7 دقائق للتأكيد، ثم دقيقتين إضافيتين للاستبدال أو الرجوع تلقائياً)
         if (newWaiting.length > 0) {
             let targetToShift = null;
             if (firstNormal && hasNormalSlot) targetToShift = firstNormal;
@@ -1037,16 +1087,69 @@
                     targetToShift.turnStartTime = now;
                     db.set(state);
                 } else {
-                    if (now - targetToShift.turnStartTime > 300000) {
+                    const elapsedMs = now - targetToShift.turnStartTime;
+                    // بعد 7 دقائق (420000ms) يظهر خيار استبدال الدور، وإذا مر دقيقتين إضافيتين (600000ms إجمالي) يتم التأخير تلقائياً
+                    if (elapsedMs > 600000) {
                         const idx = newWaiting.findIndex(w => w.id === targetToShift.id);
                         if (idx > -1) {
-                            const shiftedItem = newWaiting.splice(idx, 1)[0];
-                            delete shiftedItem.turnStartTime;
-                            newWaiting.push(shiftedItem);
+                            const timedOutItem = newWaiting.splice(idx, 1)[0];
+                            delete timedOutItem.turnStartTime;
+                            delete timedOutItem.promptSwapChoice;
+                            newWaiting.push(timedOutItem); // يرجع بقائمة الانتظار رقم واحد
+
+                            // تسجيل بالتقرير
+                            if (!state.reports) state.reports = [];
+                            state.reports.unshift({
+                                name: timedOutItem.name,
+                                type: 'Auto-Delayed (Timeout)',
+                                startTime: '-',
+                                endTime: '-',
+                                duration: '0 mins',
+                                isOvertime: true,
+                                endTimestamp: Date.now()
+                            });
+
                             db.set(state);
+                            sendDesktopNotification("⏱️ تم تبديل دورك", "تم تبديل دورك بسبب التأخير وتجاوز المهلة الزمنية.");
                         }
                     }
                 }
+            }
+        }
+    }
+
+    function promptSwapChoiceAction(choice) {
+        if (!currentEmployeeName) return;
+        const myUserLower = currentEmployeeName.trim().toLowerCase();
+        const firstNormal = state.waiting.find(w => w.type === 'normal');
+        const firstQuick = state.waiting.find(w => w.type === 'quick');
+        
+        let targetItem = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower) ? firstNormal : 
+                         ((firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower) ? firstQuick : null);
+
+        if (!targetItem) return;
+
+        if (choice === 'no') {
+            const idx = state.waiting.findIndex(w => w.id === targetItem.id);
+            if (idx > -1) {
+                const movedItem = state.waiting.splice(idx, 1)[0];
+                delete movedItem.turnStartTime;
+                delete movedItem.promptSwapChoice;
+                state.waiting.push(movedItem);
+
+                if (!state.reports) state.reports = [];
+                state.reports.unshift({
+                    name: movedItem.name,
+                    type: 'Delayed by choice (No Swap)',
+                    startTime: '-',
+                    endTime: '-',
+                    duration: '0 mins',
+                    isOvertime: false,
+                    endTimestamp: Date.now()
+                });
+
+                db.set(state);
+                sendDesktopNotification("⏱️ تم تبديل دورك", "تم تبديل دورك بناءً على اختيارك.");
             }
         }
     }
@@ -1436,20 +1539,16 @@
 
     function renderUI() {
         const currentTime = Date.now();
-        const adminBtn = document.getElementById('adminBtn');
+        const adminActiveBadge = document.getElementById('adminActiveBadge');
         const topAdminBtn = document.getElementById('topAdminOptionBtn');
         
         if (isAdmin) {
-            adminBtn.style.background = '#065f46';
-            adminBtn.style.color = '#34d399';
-            adminBtn.style.borderColor = '#10b981';
-            adminBtn.innerText = '🔓 Admin Active';
             if (currentLoggedInUser) {
-                adminBtn.style.display = 'inline-block';
+                adminActiveBadge.style.display = 'inline-block';
                 topAdminBtn.style.display = 'inline-block';
             }
         } else {
-            adminBtn.style.display = 'none';
+            adminActiveBadge.style.display = 'none';
             topAdminBtn.style.display = 'none';
         }
 
@@ -1478,6 +1577,7 @@
         }
 
         const promptBox = document.getElementById('myTurnPromptBox');
+        const turnActionButtonsContainer = document.getElementById('turnActionButtonsContainer');
         let showMyPrompt = false;
 
         if (currentEmployeeName && state.waiting.length > 0) {
@@ -1487,10 +1587,33 @@
             const hasNormalSlot = !state.active.some(a => a.type === 'normal' || a.type === 'request');
             const hasQuickSlot = !state.active.some(a => a.type === 'quick');
 
-            if (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) {
+            if ((firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) ||
+                (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot)) {
                 showMyPrompt = true;
-            } else if (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot) {
-                showMyPrompt = true;
+                
+                // حساب الوقت المتبقي للمهلة (7 دقائق)
+                const targetItem = firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower ? firstNormal : firstQuick;
+                if (targetItem && targetItem.turnStartTime) {
+                    const elapsed = currentTime - targetItem.turnStartTime;
+                    const remainingMs = 420000 - elapsed; // 7 دقائق
+                    const remainingMins = Math.max(0, Math.ceil(remainingMs / 60000));
+
+                    if (remainingMs > 0) {
+                        turnActionButtonsContainer.innerHTML = `
+                            <p style="font-size: 0.85rem; color: #ffedd5; margin-bottom: 8px;">متبقي على مهلة التأكيد: ${remainingMins} دقائق</p>
+                            <button type="button" class="btn" style="background: #ffffff; color: #0d9488; font-size: 1.05rem; width: 100%; border-radius: 10px; margin-bottom: 6px;" onclick="confirmMyTurn()">✅ Confirm & Enter Break</button>
+                            <div style="display: flex; gap: 6px; margin-top: 6px;">
+                                <span style="font-size: 0.85rem; align-self: center;">هل تريد استبدال دورك؟</span>
+                                <button type="button" class="btn btn-red" style="padding: 4px 10px;" onclick="promptSwapChoiceAction('no')">لا أريد</button>
+                            </div>
+                        `;
+                    } else {
+                        turnActionButtonsContainer.innerHTML = `
+                            <p style="font-size: 0.85rem; color: #fca5a5; margin-bottom: 8px;">انتهت مهلة الـ 7 دقائق، سيتم تبديل دورك قريباً...</p>
+                            <button type="button" class="btn" style="background: #ffffff; color: #0d9488; font-size: 1.05rem; width: 100%; border-radius: 10px;" onclick="confirmMyTurn()">✅ Confirm & Enter Break</button>
+                        `;
+                    }
+                }
             }
         }
         promptBox.style.display = showMyPrompt ? 'block' : 'none';
@@ -1538,7 +1661,7 @@
                 const isQuick = item.type === 'quick';
 
                 let typeLabel = '<span style="color:#fbbf24;">[Normal]</span>';
-                if (isQuick) typeLabel = '<span style="color:#3b82f6;">[Quick]</span>';
+                if (isQuick) typeLabel = '<span style="color:#3b82f6;>[Quick]</span>';
 
                 let swapMessageHtml = '';
                 if (state.swapLogs && state.swapLogs.length > 0) {
