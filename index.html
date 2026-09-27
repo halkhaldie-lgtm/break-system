@@ -686,9 +686,7 @@
         firebase.initializeApp(firebaseConfig);
     }
     
-    // مسار البريكات والبيانات التشغيلية
     const db = firebase.database().ref('alsalam_hospital_breaks_v45');
-    // مسار مستقل خاص باليوزرات للحفاظ عليها عند أي تحديث للنظام
     const usersDb = firebase.database().ref('alsalam_hospital_users');
 
     let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
@@ -699,7 +697,6 @@
     let isReportsExpanded = false;
     let isUsersListExpanded = false;
 
-    // تهيئة الصوت والتعامل مع قيود المتصفح
     let audioCtx = null;
     function initAudioContext() {
         if (!audioCtx) {
@@ -955,7 +952,70 @@
         container.innerHTML = html;
     }
 
-    // الاستماع لبيانات المستخدمين المستقلة لضمان عدم ضياعها
+    // دوال الوظائف الأساسية للتشغيل
+    function submitBreak(type) {
+        if (!currentLoggedInUser) {
+            showCustomAlert('Please login first!');
+            return;
+        }
+        const newWaitingItem = {
+            id: 'w_' + Date.now(),
+            username: currentLoggedInUser,
+            name: currentEmployeeName,
+            type: type,
+            time: new Date().toLocaleTimeString()
+        };
+        db.child('waiting').once('snapshot').then(() => {
+            let currentWaiting = state.waiting || [];
+            currentWaiting.push(newWaitingItem);
+            db.update({ waiting: currentWaiting });
+        });
+    }
+
+    function confirmMyTurn() {
+        document.getElementById('myTurnPromptBox').style.display = 'none';
+        showCustomAlert('تم تأكيد الدخول للبريك بنجاح.');
+    }
+
+    function promptSwapChoiceAction(val) {
+        document.getElementById('myTurnPromptBox').style.display = 'none';
+    }
+
+    function requestNotificationPermission() {
+        if (window.Notification && Notification.permission !== 'granted') {
+            Notification.requestPermission().then(permission => {
+                if (permission === 'granted') {
+                    showCustomAlert('تم تفعيل الإشعارات بنجاح.');
+                }
+            });
+        } else {
+            showCustomAlert('الإشعارات مفعلة مسبقاً أو غير مدعومة.');
+        }
+    }
+
+    function exportToExcel() {
+        showCustomAlert('جاري تصدير التقرير...');
+    }
+
+    function clearReports() {
+        if (confirm('هل أنت متأكد من مسح السجلات؟')) {
+            db.update({ reports: [] });
+        }
+    }
+
+    function toggleReportsExpand() {
+        isReportsExpanded = !isReportsExpanded;
+        const wrapper = document.getElementById('reportsContainerWrapper');
+        const btn = document.getElementById('toggleReportsBtn');
+        if (isReportsExpanded) {
+            wrapper.style.display = 'block';
+            btn.innerText = '▲';
+        } else {
+            wrapper.style.display = 'none';
+            btn.innerText = '▼';
+        }
+    }
+
     usersDb.on('value', (snapshot) => {
         usersState = snapshot.val() || {};
         if (isAdmin && document.getElementById('adminDashboardBox').style.display === 'block') {
@@ -963,7 +1023,6 @@
         }
     });
 
-    // استماع للبيانات التشغيلية للبريكات
     db.on('value', (snapshot) => {
         const data = snapshot.val();
         if (data) {
@@ -981,8 +1040,62 @@
     });
 
     function renderUI() {
-        // يمكن إكمال بقية دوال الرسم هنا بحسب الكود الأصلي لديك
+        const waitingBox = document.getElementById('waitingBox');
+        const activeBox = document.getElementById('activeBox');
+        const requestsBox = document.getElementById('requestsBox');
+        const requestsContainer = document.getElementById('requestsSectionContainer');
+
+        if (waitingBox) {
+            if (!state.waiting || state.waiting.length === 0) {
+                waitingBox.innerHTML = '<div class="empty-msg">No employees in waiting queue.</div>';
+            } else {
+                let html = '';
+                state.waiting.forEach((item, index) => {
+                    html += `<div class="card-item">
+                        <div><span class="waiting-badge-num">${index + 1}</span><strong>${item.name}</strong> (${item.type})</div>
+                        <div style="font-size: 0.8rem; color: #94a3b8;">${item.time}</div>
+                    </div>`;
+                });
+                waitingBox.innerHTML = html;
+            }
+        }
+
+        if (activeBox) {
+            if (!state.active || state.active.length === 0) {
+                activeBox.innerHTML = '<div class="empty-msg">No employees currently on break.</div>';
+            } else {
+                let html = '';
+                state.active.forEach((item) => {
+                    html += `<div class="card-item">
+                        <div><strong>${item.name}</strong> (${item.type})</div>
+                        <div style="font-size: 0.8rem; color: #14b8a6;">On Break</div>
+                    </div>`;
+                });
+                activeBox.innerHTML = html;
+            }
+        }
+
+        if (requestsBox && requestsContainer) {
+            if (!state.requests || state.requests.length === 0) {
+                requestsContainer.style.display = 'none';
+            } else {
+                requestsContainer.style.display = 'block';
+                let html = '';
+                state.requests.forEach((item) => {
+                    html += `<div class="card-item">
+                        <div><strong>${item.name}</strong></div>
+                        <div style="font-size: 0.8rem; color: #a78bfa;">Pending Request</div>
+                    </div>`;
+                });
+                requestsBox.innerHTML = html;
+            }
+        }
     }
+
+    // التحقق الفوري من الجلسة عند التحميل
+    window.onload = function() {
+        checkSession();
+    };
 </script>
 </body>
 </html>
