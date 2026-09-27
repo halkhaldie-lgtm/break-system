@@ -979,7 +979,7 @@
         renderUI();
     });
 
-    // حلقة تحديث حية ثانية بسانية (Live Timer Loop) لتحديث العدادات دون الحاجة لعمل رفرش
+    // حلقة تحديث حية ثانية بسانية (Live Timer Loop) لتحديث العدادات بدون رفرش
     setInterval(() => {
         runLiveTimerCheck();
     }, 1000);
@@ -1213,6 +1213,18 @@
                 }
             }
         }
+
+        // تحديث العدادات التصاعدية الحية للأدمن في قائمة الانتظار كل ثانية بدون رفرش
+        const waitingItems = document.querySelectorAll('.admin-countup-timer');
+        waitingItems.forEach(el => {
+            const startTime = parseInt(el.getAttribute('data-starttime') || '0', 10);
+            if (startTime) {
+                const elapsedSecs = Math.floor((currentTime - startTime) / 1000);
+                const mins = Math.floor(elapsedSecs / 60);
+                const secs = elapsedSecs % 60;
+                el.innerText = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+            }
+        });
     }
 
     function promptSwapChoiceAction(choice) {
@@ -1293,12 +1305,37 @@
         db.set(state);
     }
 
-    function forceAdminEnter(index) {
+    // زرار الـ Swap الخاص بالأدمن (لاستبدال دور الموظف وتأخيره لنهاية القائمة)
+    function adminSwapAction(index) {
         if (!isAdmin) return;
         const item = state.waiting[index];
         if (!item) return;
 
-        const keepInQueue = confirm(`إخراج الموظف (${item.name}) للبريك:\n\n- اضغط (OK) إذا كنت تريد إخراجه للبريك مع إبقائه في نفس دوره في قائمة الانتظار.\n- اضغط (Cancel) لإخراجه نهائياً ونقله للبريك العادي.`);
+        const movedItem = state.waiting.splice(index, 1)[0];
+        delete movedItem.turnStartTime;
+        state.waiting.push(movedItem); // نقله لنهاية قائمة الانتظار
+
+        if (!state.reports) state.reports = [];
+        state.reports.unshift({
+            name: movedItem.name,
+            type: 'Admin Swap (Moved to end)',
+            dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+            startTime: '-',
+            endTime: '-',
+            duration: '0 mins',
+            isOvertime: false,
+            endTimestamp: Date.now()
+        });
+
+        db.set(state);
+        showCustomAlert(`تم استبدال وتأخير دور الموظف (${item.name}) إلى نهاية قائمة الانتظار بنجاح.`);
+    }
+
+    // زرار الـ Force Out الخاص بالأدمن (لإخراج الموظف وبدء وقت البريك له بشكل إجباري)
+    function adminForceOutAction(index) {
+        if (!isAdmin) return;
+        const item = state.waiting[index];
+        if (!item) return;
 
         const itemToBreak = state.waiting.splice(index, 1)[0];
         itemToBreak.timestamp = Date.now();
@@ -1307,11 +1344,8 @@
         delete itemToBreak.turnStartTime;
         state.active.push(itemToBreak);
 
-        if (keepInQueue) {
-            itemToBreak.keepPositionOnReturn = true;
-        }
-
         db.set(state);
+        showCustomAlert(`تم إخراج الموظف (${item.name}) وبدء وقت البريك له بشكل إجباري بنجاح.`);
     }
 
     function approveRequest(index) {
@@ -1720,13 +1754,21 @@
             wBox.innerHTML = '<div class="empty-msg">Waiting queue is empty</div>';
         } else {
             wBox.innerHTML = state.waiting.map((item, i) => {
-                const minsWaiting = Math.floor((currentTime - item.timestamp) / 60000);
                 const isOwner = currentEmployeeName && item.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase();
                 const showCancelBtn = (isOwner || isAdmin);
                 const isQuick = item.type === 'quick';
 
+                // تسجيل وقت بدء الانتظار إن لم يكن موجوداً
+                if (!item.queueStartTime) {
+                    item.queueStartTime = item.timestamp || currentTime;
+                }
+                const elapsedSecs = Math.floor((currentTime - item.queueStartTime) / 1000);
+                const initMins = Math.floor(elapsedSecs / 60);
+                const initSecs = elapsedSecs % 60;
+                const countupText = initMins > 0 ? `${initMins}m ${initSecs}s` : `${initSecs}s`;
+
                 let typeLabel = '<span style="color:#fbbf24;">[Normal]</span>';
-                if (isQuick) typeLabel = '<span style="color:#3b82f6;>[Quick]</span>';
+                if (isQuick) typeLabel = '<span style="color:#3b82f6;">[Quick]</span>';
 
                 let adminStatusBadge = '';
                 if (isAdmin) {
@@ -1757,13 +1799,16 @@
                         <div>
                             <span class="waiting-badge-num">#${i + 1}</span>
                             <strong>${item.name}</strong>
-                            <span style="margin-left: 8px; color:var(--text-muted); font-size: 0.85rem;">Waiting: ${minsWaiting}m</span>
+                            <span style="margin-left: 8px; color:var(--text-muted); font-size: 0.85rem;">Waiting: <span class="admin-countup-timer" data-starttime="${item.queueStartTime}">${countupText}</span></span>
                             ${typeLabel}
                             ${adminStatusBadge}
                             ${swapMessageHtml}
                         </div>
                         <div style="display: flex; gap: 6px; align-items: center;">
-                            ${isAdmin ? `<button type="button" class="btn btn-green" style="padding: 6px 10px; font-size: 0.75rem;" onclick="forceAdminEnter(${i})" title="Force Out / Swap Role">استبدال أو إخراج</button>` : ``}
+                            ${isAdmin ? `
+                                <button type="button" class="btn btn-amber" style="padding: 6px 10px; font-size: 0.75rem;" onclick="adminSwapAction(${i})">Swap</button>
+                                <button type="button" class="btn btn-green" style="padding: 6px 10px; font-size: 0.75rem;" onclick="adminForceOutAction(${i})">Force Out</button>
+                            ` : ``}
                             ${showCancelBtn ? `<button type="button" class="btn btn-red" onclick="cancelWaiting(${i})">Cancel</button>` : ``}
                         </div>
                     </div>
