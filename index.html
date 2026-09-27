@@ -685,7 +685,7 @@
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
-    const db = firebase.database().ref('alsalam_hospital_breaks_v40');
+    const db = firebase.database().ref('alsalam_hospital_breaks_v41');
 
     let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [], users: {} };
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
@@ -985,7 +985,7 @@
                 if (permission === "granted") {
                     playBeep();
                     showCustomAlert('تم تفعيل إشعارات المتصفح والأصوات بنجاح!');
-                    new Notification("مستشفيات السلام", { body: "تم تفعيل الإشعارات بنجاح ليعلمك النظام بأي تحديث أو دور." });
+                    new Notification("مستشفيات السلام", { body: "تم تفعيل الإشعارات بنجاح ليعلمك النظام بأي تحديث أو دور حتى لو كنت بصفحة أخرى." });
                 } else {
                     showCustomAlert('يرجى السماح للإشعارات من إعدادات المتصفح.');
                 }
@@ -1021,9 +1021,18 @@
     function sendBrowserNotification(title, bodyText) {
         try {
             if ("Notification" in window && Notification.permission === "granted") {
-                new Notification(title, {
-                    body: bodyText,
-                    icon: "https://www.gstatic.com/images/icons/material/system/2/svg/ic_notifications_active.svg"
+                // إظهار إشعار النظام المباشر حتى لو كانت الصفحة بالخلفية أو متصفح آخر
+                navigator.serviceWorker && navigator.serviceWorker.ready.then(swRegistration => {
+                    swRegistration.showNotification(title, {
+                        body: bodyText,
+                        icon: "https://www.gstatic.com/images/icons/material/system/2/svg/ic_notifications_active.svg",
+                        tag: "break-alert"
+                    });
+                }).catch(() => {
+                    new Notification(title, {
+                        body: bodyText,
+                        icon: "https://www.gstatic.com/images/icons/material/system/2/svg/ic_notifications_active.svg"
+                    });
                 });
             }
         } catch(e) {
@@ -1084,7 +1093,7 @@
         const isMyTurn = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) ||
                          (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot);
 
-        // إذا حان دورك (يظهر إشعار + صوت مع وجوب الضغط على زر التأكيد)
+        // إذا حان دورك (يظهر إشعار + صوت حتى لو كنت فاتحاً صفحة أخرى)
         if (isMyTurn) {
             if (lastNotifiedTurnState !== "my_turn") {
                 lastNotifiedTurnState = "my_turn";
@@ -1207,7 +1216,6 @@
         if (type === 'request') {
             state.requests.push(newItem);
         } else {
-            // يتم وضعه دائماً في قائمة الانتظار لضمان أن النظام لا ينقله للبريك تلقائياً إلا بعد تأكيده اليدوي
             state.waiting.push(newItem);
         }
 
