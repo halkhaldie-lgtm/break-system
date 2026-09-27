@@ -65,12 +65,10 @@
             cursor: pointer;
             font-weight: bold;
             transition: all 0.2s;
-            display: none; /* مخفي افتراضياً ولا يظهر إلا للأدمن */
         }
         .admin-badge:hover, .logout-badge:hover { background: #1e293b; }
         .logout-badge { color: #f87171; border-color: #ef4444; }
 
-        /* خيار Admin Access & Users العلوي (مخفي افتراضياً للموظف العادي) */
         .top-admin-option-btn {
             background: #1e293b;
             color: #38bdf8;
@@ -222,7 +220,7 @@
         .action-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
         .action-buttons button { flex: 1; min-width: 110px; }
 
-        input[type="text"], input[type="password"] {
+        input[type="text"], input[type="password"], select {
             width: 100%;
             background: #0f172a;
             border: 1px solid var(--card-border);
@@ -233,7 +231,7 @@
             outline: none;
             transition: border-color 0.2s;
         }
-        input[type="text"]:focus, input[type="password"]:focus { border-color: var(--accent-blue); background: #1e293b; }
+        input[type="text"]:focus, input[type="password"]:focus, select:focus { border-color: var(--accent-blue); background: #1e293b; }
 
         .btn {
             background: var(--accent-blue);
@@ -330,16 +328,6 @@
             align-items: center;
             margin-top: 12px;
             flex-wrap: wrap;
-        }
-        select {
-            flex: 1;
-            background: #0f172a;
-            border: 1px solid var(--card-border);
-            color: var(--text-main);
-            padding: 12px;
-            border-radius: 10px;
-            min-width: 120px;
-            outline: none;
         }
 
         .report-box {
@@ -445,7 +433,7 @@
             color: #475569;
             margin-bottom: 10px;
         }
-        .custom-modal-box input {
+        .custom-modal-box input, .custom-modal-box select {
             background: #ffffff !important;
             border: 1px solid #cbd5e1 !important;
             color: #0f172a !important;
@@ -456,7 +444,7 @@
             border-radius: 8px;
             outline: none;
         }
-        .custom-modal-box input:focus {
+        .custom-modal-box input:focus, .custom-modal-box select:focus {
             border-color: #3b82f6 !important;
         }
         .custom-modal-buttons {
@@ -474,11 +462,12 @@
     <header>
         <div class="top-header-row">
             <div style="display: flex; gap: 6px; align-items: center;">
+                <!-- زر الأدمن عند البوابة يظهر هنا فقط للأدمن المسجل دخول -->
                 <button class="admin-badge" id="adminBtn" onclick="openAdminModal()">🔒 Admin</button>
                 <button class="logout-badge" id="logoutBtn" onclick="logoutUser()">🚪 Logout</button>
             </div>
             
-            <!-- خيار Admin Access & Users العلوي (يظهر حصرياً للأدمن) -->
+            <!-- خيار Admin Access & Users العلوي (مخصص للأدمن حصرياً) -->
             <button class="top-admin-option-btn" id="topAdminOptionBtn" onclick="openAdminModal()">Admin Access & Users</button>
 
             <button class="notif-badge" id="notifBtn" onclick="requestNotificationPermission()">🔔 Alert</button>
@@ -502,13 +491,15 @@
         <div class="center-title">Contact Center Break System</div>
     </header>
 
-    <!-- صندوق تسجيل الدخول وإنشاء حساب جديد -->
+    <!-- صندوق تسجيل الدخول عند البوابة (مع زر الأدمن عند البوابة) -->
     <div id="loginSection" class="login-box">
         <h3>🔑 Employee Login</h3>
         <input type="text" id="loginUsername" placeholder="Username..." autocomplete="off" />
         <input type="password" id="loginPassword" placeholder="Password..." />
         <button type="button" class="btn btn-green" style="width: 100%; padding: 12px; margin-bottom: 8px;" onclick="handleLogin()">Login to System</button>
-        <button type="button" class="btn btn-purple" style="width: 100%; padding: 8px; font-size: 0.85rem;" onclick="openRegisterModal()">✨ Register New Account</button>
+        <button type="button" class="btn btn-purple" style="width: 100%; padding: 8px; font-size: 0.85rem; margin-bottom: 8px;" onclick="openRegisterModal()">✨ Register New Account</button>
+        <!-- زر الأدمن عند البوابة ليتمكن من الدخول للوحة التحكم مباشرة -->
+        <button type="button" class="btn" style="background: #0f172a; color: #38bdf8; border: 1px solid #0284c7; width: 100%; padding: 8px; font-size: 0.85rem;" onclick="openAdminModal()">🔒 Admin Portal Access</button>
     </div>
 
     <!-- المحتوى الأساسي للنظام -->
@@ -585,7 +576,7 @@
             <button type="button" class="btn" style="background: #3b82f6; width: 100%; margin-top: 6px;" onclick="verifyAdminPassword()">Login as Admin</button>
         </div>
 
-        <!-- صندوق تسجيل موظف جديد ذاتياً -->
+        <!-- صندوق تسجيل موظف جديد ذاتياً (للموظف العادي) -->
         <div id="selfRegisterBox" style="display: none;">
             <div class="custom-modal-subtitle">Create your own account username & password:</div>
             <input type="text" id="regEmpName" placeholder="Your Full Name..." />
@@ -594,7 +585,7 @@
             <button type="button" class="btn btn-green" style="width: 100%; margin-top: 6px;" onclick="selfRegisterAccount()">Register Account</button>
         </div>
 
-        <!-- لوحة تحكم المستخدمين للأدمن -->
+        <!-- لوحة تحكم المستخدمين للأدمن (مع خيار تحديد نوع الحساب: عادي أم أدمن) -->
         <div id="adminDashboardBox" style="display: none;">
             <div style="font-size: 0.9rem; font-weight: bold; color: #1e293b; margin-bottom: 10px;">👥 Manage Employee Accounts</div>
             <div style="background: #f1f5f9; padding: 10px; border-radius: 8px; margin-bottom: 12px;">
@@ -602,7 +593,13 @@
                 <input type="text" id="admEmpName" placeholder="Employee Display Name..." />
                 <input type="text" id="admEmpUser" placeholder="Username..." />
                 <input type="password" id="admEmpPass" placeholder="New Password..." />
-                <button type="button" class="btn btn-green" style="width: 100%; margin-top: 4px;" onclick="saveEmployeeAccount()">Save / Update Account</button>
+                <!-- خيار نوع الحساب: للادمن فقط عند إنشاء أو تعديل حساب -->
+                <div style="font-size: 0.8rem; font-weight: bold; color: #334155; margin-top: 6px; margin-bottom: 4px;">Account Role Type:</div>
+                <select id="admEmpRole">
+                    <option value="normal">Normal Employee (موظف عادي)</option>
+                    <option value="admin">Admin (أدمن)</option>
+                </select>
+                <button type="button" class="btn btn-green" style="width: 100%; margin-top: 8px;" onclick="saveEmployeeAccount()">Save / Update Account</button>
             </div>
             <div style="max-height: 150px; overflow-y: auto;" id="empAccountsListContainer"></div>
         </div>
@@ -709,8 +706,9 @@
 
         const users = state.users || {};
         if (users[u] && users[u].password === p) {
-            isAdmin = false;
-            localStorage.setItem('is_admin_mode', 'false');
+            const isUserAdmin = (users[u].role === 'admin');
+            isAdmin = isUserAdmin;
+            localStorage.setItem('is_admin_mode', isUserAdmin ? 'true' : 'false');
             currentLoggedInUser = u;
             currentEmployeeName = users[u].name;
             localStorage.setItem('logged_in_username', u);
@@ -793,7 +791,8 @@
             return;
         }
 
-        state.users[user] = { name: name, password: pass };
+        // الحساب المسجل ذاتياً يكون موظف عادي افتراضياً
+        state.users[user] = { name: name, password: pass, role: 'normal' };
         db.set(state).then(() => {
             closeAdminModal();
             showCustomAlert('Account created successfully! You can now login.');
@@ -845,6 +844,7 @@
         const name = document.getElementById('admEmpName').value.trim();
         const user = document.getElementById('admEmpUser').value.trim();
         const pass = document.getElementById('admEmpPass').value.trim();
+        const role = document.getElementById('admEmpRole').value; // عادي أم أدمن (للأدمن فقط)
 
         if (!name || !user || !pass) {
             showCustomAlert('Please fill all user details!');
@@ -852,12 +852,13 @@
         }
 
         if (!state.users) state.users = {};
-        state.users[user] = { name: name, password: pass };
+        state.users[user] = { name: name, password: pass, role: role };
         
         db.set(state).then(() => {
             document.getElementById('admEmpName').value = '';
             document.getElementById('admEmpUser').value = '';
             document.getElementById('admEmpPass').value = '';
+            document.getElementById('admEmpRole').value = 'normal';
             renderAdminUsersList();
             showCustomAlert('Account saved successfully!');
         });
@@ -886,10 +887,11 @@
 
         container.innerHTML = keys.map(uname => {
             const u = users[uname];
+            const roleBadge = (u.role === 'admin') ? ' <span style="color:#b91c1c; font-weight:bold;">[Admin]</span>' : ' <span style="color:#047857;">[Normal]</span>';
             return `
                 <div style="display: flex; justify-content: space-between; align-items: center; background: #ffffff; padding: 6px 10px; border-radius: 6px; margin-bottom: 6px; border: 1px solid #cbd5e1;">
                     <div style="font-size: 0.82rem; color: #0f172a;">
-                        <strong>${u.name}</strong> (${uname})
+                        <strong>${u.name}</strong> (${uname}) ${roleBadge}
                     </div>
                     <button type="button" class="btn btn-red" style="padding: 2px 6px; font-size: 0.7rem;" onclick="deleteEmployeeAccount('${uname}')">Delete</button>
                 </div>
