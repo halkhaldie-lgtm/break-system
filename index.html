@@ -298,6 +298,20 @@
         .my-turn-prompt h3 { margin-bottom: 6px; font-size: 1.2rem; }
         .my-turn-prompt p { color: #ccfbf1; margin-bottom: 12px; font-size: 0.95rem; }
 
+        /* نافذة طلب إرسال البريك من الأدمن للموظف */
+        .admin-push-prompt {
+            background: linear-gradient(135deg, #d97706, #b45309);
+            color: white;
+            border-radius: 16px;
+            padding: 18px;
+            margin-bottom: 20px;
+            text-align: center;
+            box-shadow: 0 8px 20px rgba(217, 119, 6, 0.3);
+            display: none;
+        }
+        .admin-push-prompt h3 { margin-bottom: 6px; font-size: 1.15rem; }
+        .admin-push-prompt p { color: #fef3c7; margin-bottom: 12px; font-size: 0.9rem; }
+
         .swap-box {
             background: var(--card-bg);
             border: 1px solid var(--card-border);
@@ -427,7 +441,6 @@
             color: #475569;
             margin-bottom: 10px;
         }
-        /* تعديل خانات الإدخال في مودال الأدمن لتكون بخلفية بيضاء ونصوص واضحة تماماً */
         .custom-modal-box input {
             background: #ffffff !important;
             border: 1px solid #cbd5e1 !important;
@@ -496,6 +509,16 @@
             <h3>🎉 It's your turn for break!</h3>
             <p>Please confirm and enter now.</p>
             <button type="button" class="btn" style="background: #ffffff; color: #0d9488; font-size: 1.05rem; width: 100%; border-radius: 10px;" onclick="confirmMyTurn()">✅ Confirm & Enter Break</button>
+        </div>
+
+        <!-- صندوق تنبيه طلب الأدمن للموظف بالخروج للبريك -->
+        <div id="adminPushPromptBox" class="admin-push-prompt">
+            <h3>⚠️ Admin requested you to take your break now!</h3>
+            <p>Do you want to enter the break now, or stay in your queue position?</p>
+            <div style="display: flex; gap: 8px;">
+                <button type="button" class="btn btn-green" style="flex: 1; background: #ffffff; color: #065f46;" onclick="acceptAdminPushBreak()">✅ Go to Break Now</button>
+                <button type="button" class="btn btn-red" style="flex: 1;" onclick="declineAdminPushBreak()">❌ Stay in My Position</button>
+            </div>
         </div>
 
         <div class="action-box">
@@ -736,7 +759,6 @@
         renderUI();
     }
 
-    // فتح نافذة التسجيل الذاتي للموظف
     function openRegisterModal() {
         document.getElementById('adminModalTitle').innerText = 'Employee Registration';
         document.getElementById('adminPasswordPromptBox').style.display = 'none';
@@ -953,10 +975,11 @@
                 requests: val.requests || [],
                 reports: filteredReports,
                 swapLogs: filteredSwaps,
-                users: val.users || {}
+                users: val.users || {},
+                adminPush: val.adminPush || {}
             };
         } else {
-            state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [], users: {} };
+            state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [], users: {}, adminPush: {} };
         }
 
         checkMyTurnAndNotify();
@@ -1063,6 +1086,54 @@
         db.set(state);
     }
 
+    // أمر الأدمن لإجبار الموظف على البريك (مع إرسال إشعار له لكي يقبل أو يرفض ويبقى بدوره)
+    function forceAdminEnter(index) {
+        if (!isAdmin) return;
+        const item = state.waiting[index];
+        if (item) {
+            if (!state.adminPush) state.adminPush = {};
+            state.adminPush[item.name.trim().toLowerCase()] = {
+                active: true,
+                id: item.id
+            };
+            db.set(state);
+            showCustomAlert(`Sent break prompt to (${item.name}). Waiting for their response.`);
+        }
+    }
+
+    function acceptAdminPushBreak() {
+        if (!currentEmployeeName) return;
+        const myKey = currentEmployeeName.trim().toLowerCase();
+        
+        // إزالة من الطابور وإضافة للنشط
+        const index = state.waiting.findIndex(item => item.name.trim().toLowerCase() === myKey);
+        if (index > -1) {
+            const userItem = state.waiting.splice(index, 1)[0];
+            userItem.timestamp = Date.now();
+            userItem.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            delete userItem.turnStartTime;
+            state.active.push(userItem);
+        }
+
+        if (state.adminPush && state.adminPush[myKey]) {
+            delete state.adminPush[myKey];
+        }
+
+        db.set(state);
+    }
+
+    function declineAdminPushBreak() {
+        if (!currentEmployeeName) return;
+        const myKey = currentEmployeeName.trim().toLowerCase();
+        
+        // يبقى في دوره تماماً (لا يتم نقله ولا يخرج من القائمة، فقط يختفي التنبيه)
+        if (state.adminPush && state.adminPush[myKey]) {
+            delete state.adminPush[myKey];
+        }
+
+        db.set(state);
+    }
+
     function approveRequest(index) {
         if (!isAdmin) return;
         const reqItem = state.requests.splice(index, 1)[0];
@@ -1088,18 +1159,6 @@
         }
         if (confirm(`Are you sure you want to cancel request for (${item.name})?`)) {
             state.requests.splice(index, 1);
-            db.set(state);
-        }
-    }
-
-    function forceAdminEnter(index) {
-        if (!isAdmin) return;
-        const item = state.waiting.splice(index, 1)[0];
-        if (item) {
-            item.timestamp = Date.now();
-            item.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-            delete item.turnStartTime;
-            state.active.push(item);
             db.set(state);
         }
     }
@@ -1427,22 +1486,34 @@
         }
 
         const promptBox = document.getElementById('myTurnPromptBox');
+        const adminPushBox = document.getElementById('adminPushPromptBox');
         let showMyPrompt = false;
+        let showAdminPush = false;
 
-        if (currentEmployeeName && state.waiting.length > 0) {
+        if (currentEmployeeName) {
             const myUserLower = currentEmployeeName.trim().toLowerCase();
-            const firstNormal = state.waiting.find(w => w.type === 'normal');
-            const firstQuick = state.waiting.find(w => w.type === 'quick');
-            const hasNormalSlot = !state.active.some(a => a.type === 'normal' || a.type === 'request');
-            const hasQuickSlot = !state.active.some(a => a.type === 'quick');
 
-            if (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) {
-                showMyPrompt = true;
-            } else if (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot) {
-                showMyPrompt = true;
+            // فحص تنبيه إجبار الأدمن للموظف
+            if (state.adminPush && state.adminPush[myUserLower] && state.adminPush[myUserLower].active) {
+                showAdminPush = true;
+            }
+
+            // الدور الطبيعي
+            if (state.waiting.length > 0) {
+                const firstNormal = state.waiting.find(w => w.type === 'normal');
+                const firstQuick = state.waiting.find(w => w.type === 'quick');
+                const hasNormalSlot = !state.active.some(a => a.type === 'normal' || a.type === 'request');
+                const hasQuickSlot = !state.active.some(a => a.type === 'quick');
+
+                if (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) {
+                    showMyPrompt = true;
+                } else if (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot) {
+                    showMyPrompt = true;
+                }
             }
         }
         promptBox.style.display = showMyPrompt ? 'block' : 'none';
+        adminPushBox.style.display = showAdminPush ? 'block' : 'none';
 
         const aBox = document.getElementById('activeBox');
         if (!state.active || state.active.length === 0) {
@@ -1508,7 +1579,7 @@
                             ${swapMessageHtml}
                         </div>
                         <div style="display: flex; gap: 6px; align-items: center;">
-                            ${isAdmin ? `<button type="button" class="btn btn-green" style="padding: 6px 10px; font-size: 0.75rem;" onclick="forceAdminEnter(${i})" title="Force to Break">Force Out</button>` : ``}
+                            ${isAdmin ? `<button type="button" class="btn btn-green" style="padding: 6px 10px; font-size: 0.75rem;" onclick="forceAdminEnter(${i})" title="Push to Break">Force Out</button>` : ``}
                             ${showCancelBtn ? `<button type="button" class="btn btn-red" onclick="cancelWaiting(${i})">Cancel</button>` : ``}
                         </div>
                     </div>
