@@ -639,7 +639,7 @@
 <div class="custom-modal-overlay" id="forceOutModalOverlay">
     <div class="custom-modal-box">
         <div class="custom-modal-title" style="text-align: right; direction: rtl;">⚠️ خيار إخراج الموظف إجبارياً</div>
-        <div class="custom-modal-subtitle" id="forceOutModalText">هل ترغب في إبقاء دور الموظف محجوزاً في قائمة الانتظار (بحيث يظهر في خانة البريك مع عبارة [خروج مؤقت] ويعود لمكانه عند الإنهاء)، أم إلغاء دوره تماماً؟</div>
+        <div class="custom-modal-subtitle" id="forceOutModalText">هل ترغب في إبقاء دور الموظف محجوزاً في قائمة الانتظار ، أم إلغاء دوره تماماً؟</div>
         <div class="custom-modal-buttons" style="display: flex; gap: 10px; margin-top: 20px; direction: rtl;">
             <button type="button" class="btn btn-green" style="flex: 1;" onclick="handleForceOutChoice(true)">إبقاء دور الموظف محجوزاً</button>
             <button type="button" class="btn btn-red" style="flex: 1;" onclick="handleForceOutChoice(false)">إلغاء دوره تماماً</button>
@@ -710,7 +710,7 @@
         firebase.initializeApp(firebaseConfig);
     }
     
-    const db = firebase.database().ref('alsalam_hospital_breaks_v48');
+    const db = firebase.database().ref('alsalam_hospital_breaks_v47');
     const usersDb = firebase.database().ref('alsalam_hospital_users');
 
     let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
@@ -1245,16 +1245,6 @@
                 el.innerText = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
             }
         });
-
-        const activeItems = document.querySelectorAll('.active-break-timer');
-        activeItems.forEach(el => {
-            const startTime = Number(el.getAttribute('data-starttime') || '0');
-            if (Number.isFinite(startTime) && startTime > 0) {
-                el.innerText = formatDuration(Math.max(0, currentTime - startTime));
-            } else {
-                el.innerText = '0s';
-            }
-        });
     }
 
     function promptSwapChoiceAction(choice) {
@@ -1354,31 +1344,19 @@
 
         const originalPosition = index + 1;
 
-        // تعديل وفق اقتراحك: إبقاء الموظف في قائمة الانتظار وفي نفس الوقت إضافته لخانة النشطين مع علامة خروج مؤقت
-        const itemToBreak = Object.assign({}, item);
+        const itemToBreak = state.waiting.splice(index, 1)[0];
         itemToBreak.timestamp = Date.now();
         itemToBreak.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
         itemToBreak.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
         delete itemToBreak.turnStartTime;
 
         if (keepInQueue) {
-            // إبقاء دوره محجوزاً في قائمة الانتظار مع حفظ رقمه السابق لتتبعه
+            // الخيار الأول: إبقاء دوره محجوزاً مع تحديث موقعه تلقائياً إذا تقدم الدور
             itemToBreak.keepInQueueRole = true;
             itemToBreak.originalQueuePos = originalPosition;
-            itemToBreak.forceOutByAdmin = true;
-            itemToBreak.forceOutTimestamp = itemToBreak.timestamp;
-            
-            // Keep the employee visible in the waiting queue while also showing them in Active Breaks.
-            item.isTemporaryOut = true;
-            item.forceOutByAdmin = true;
-            item.forceOutTimestamp = itemToBreak.timestamp;
-            item.activeTimestamp = itemToBreak.timestamp;
-            item.activeTimeStr = itemToBreak.timeStr;
-            item.activeType = itemToBreak.type;
         } else {
-            // إذا اختار عدم إبقائه، نزيله نهائياً من قائمة الانتظار
+            // الخيار الثاني: إلغاء دوره تماماً (لا نقوم بتعيين خاصية الحجز)
             itemToBreak.keepInQueueRole = false;
-            state.waiting.splice(index, 1);
         }
 
         state.active.push(itemToBreak);
@@ -1420,14 +1398,14 @@
         }
 
         const userItem = state.waiting[index];
-        const firstOfThisType = state.waiting.find(w => w.type === userItem.type && !w.isTemporaryOut);
+        const firstOfThisType = state.waiting.find(w => w.type === userItem.type);
         if (!firstOfThisType || firstOfThisType.id !== userItem.id) {
             showCustomAlert('Sorry, there is someone ahead of you in the queue who must take their turn first!');
             return;
         }
 
-        const hasNormal = state.active.some(item => (item.type === 'normal' || item.type === 'request') && !item.keepInQueueRole);
-        const hasQuick = state.active.some(item => item.type === 'quick' && !item.keepInQueueRole);
+        const hasNormal = state.active.some(item => item.type === 'normal' || item.type === 'request');
+        const hasQuick = state.active.some(item => item.type === 'quick');
 
         let canEnter = false;
         if (userItem.type === 'quick' && !hasQuick) canEnter = true;
@@ -1449,64 +1427,29 @@
         db.set(state);
     }
 
-    function formatDuration(ms) {
-        const safeMs = Number.isFinite(Number(ms)) && Number(ms) >= 0 ? Number(ms) : 0;
-        const totalSeconds = Math.floor(safeMs / 1000);
-        const hours = Math.floor(totalSeconds / 3600);
-        const minutes = Math.floor((totalSeconds % 3600) / 60);
-        const seconds = totalSeconds % 60;
-        if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
-        if (minutes > 0) return `${minutes}m ${seconds}s`;
-        return `${seconds}s`;
-    }
-
-    function getReportDurationMs(rep) {
-        if (Number.isFinite(Number(rep.durationMs)) && Number(rep.durationMs) >= 0) {
-            return Number(rep.durationMs);
-        }
-        // Backward compatibility for old reports saved before durationMs existed.
-        if (rep.durationSeconds !== undefined && Number.isFinite(Number(rep.durationSeconds))) {
-            return Number(rep.durationSeconds) * 1000;
-        }
-        const text = String(rep.duration || '');
-        const h = text.match(/(\d+)\s*h/);
-        const m = text.match(/(\d+)\s*(?:m|min|mins|minute|minutes)/);
-        const sec = text.match(/(\d+)\s*s/);
-        const hours = h ? Number(h[1]) : 0;
-        const minutes = m ? Number(m[1]) : 0;
-        const seconds = sec ? Number(sec[1]) : 0;
-        if (hours || minutes || seconds) return ((hours * 3600) + (minutes * 60) + seconds) * 1000;
-        return 0;
-    }
-
     function endBreak(index) {
         initAudioContext();
         const finishedItem = state.active.splice(index, 1)[0];
         
         if (finishedItem) {
             const endTime = Date.now();
-            let startTimestamp = Number(finishedItem.timestamp);
-            if (!Number.isFinite(startTimestamp) || startTimestamp <= 0) {
-                startTimestamp = Number(finishedItem.activeTimestamp);
-            }
-            if (!Number.isFinite(startTimestamp) || startTimestamp <= 0) {
-                startTimestamp = endTime;
-            }
-
-            const durationMs = Math.max(0, endTime - startTimestamp);
-            const durationSeconds = Math.floor(durationMs / 1000);
-            const durationText = formatDuration(durationMs);
-            const durationMins = Math.floor(durationSeconds / 60);
-            const endTimeStr = new Date(endTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const durationMs = endTime - finishedItem.timestamp;
+            const durationMins = Math.floor(durationMs / 60000);
+            const durationText = durationMins === 0 ? 'Less than a minute' : `${durationMins} mins`;
+            const endTimeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
             
-            const breakDateStr = finishedItem.dateStr || new Date(endTime).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            const breakDateStr = finishedItem.dateStr || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
             
             let typeText = 'Normal Break';
             if (finishedItem.type === 'quick') typeText = 'Quick Break (5m)';
             else if (finishedItem.type === 'request') typeText = 'Requested Break';
 
-            const isOvertime = (finishedItem.type === 'quick' && durationSeconds > 5 * 60) ||
-                               ((finishedItem.type === 'normal' || finishedItem.type === 'request') && durationSeconds > 20 * 60);
+            let isOvertime = false;
+            if (finishedItem.type === 'quick' && durationMins > 5) {
+                isOvertime = true;
+            } else if ((finishedItem.type === 'normal' || finishedItem.type === 'request') && durationMins > 20) {
+                isOvertime = true;
+            }
 
             state.reports.unshift({
                 name: finishedItem.name,
@@ -1515,36 +1458,24 @@
                 startTime: finishedItem.timeStr,
                 endTime: endTimeStr,
                 duration: durationText,
-                durationMs: durationMs,
-                durationSeconds: durationSeconds,
                 isOvertime: isOvertime,
                 endTimestamp: endTime
             });
 
-            // If Admin forced the employee out temporarily, keep the employee in the queue.
+            // منطق عودة الموظف حسب اختيار الأدمن عند إخراجه إجبارياً
             if (finishedItem.keepInQueueRole === true) {
-                const existingIndex = state.waiting.findIndex(w => w.name.trim().toLowerCase() === finishedItem.name.trim().toLowerCase());
-                if (existingIndex > -1) {
-                    delete state.waiting[existingIndex].isTemporaryOut;
-                    delete state.waiting[existingIndex].activeTimestamp;
-                    delete state.waiting[existingIndex].activeTimeStr;
-                    delete state.waiting[existingIndex].activeType;
-                    delete state.waiting[existingIndex].forceOutByAdmin;
-                    delete state.waiting[existingIndex].forceOutTimestamp;
-                } else {
-                    let targetPos = Number(finishedItem.originalQueuePos) - 1;
-                    if (!Number.isFinite(targetPos) || targetPos < 0) targetPos = 0;
-                    if (targetPos > state.waiting.length) targetPos = state.waiting.length;
-                    delete finishedItem.keepInQueueRole;
-                    delete finishedItem.originalQueuePos;
-                    delete finishedItem.forceOutByAdmin;
-                    delete finishedItem.forceOutTimestamp;
-                    finishedItem.timestamp = Date.now();
-                    finishedItem.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                    finishedItem.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-                    state.waiting.splice(targetPos, 0, finishedItem);
-                }
+                let targetPos = finishedItem.originalQueuePos - 1; 
+                delete finishedItem.keepInQueueRole;
+                delete finishedItem.originalQueuePos;
+                finishedItem.timestamp = Date.now();
+                finishedItem.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+                // إذا تقدم الدور في غيابه وأصبح عدد الموجودين أقل من موضعه السابق، يتم وضعه في نهاية القائمة لضمان عدم حدوث خطأ في الترتيب
+                if (targetPos < 0) targetPos = 0;
+                if (targetPos > state.waiting.length) targetPos = state.waiting.length;
+                state.waiting.splice(targetPos, 0, finishedItem);
             }
+            // إذا كان الخيار False (إلغاء دوره تماماً)، فلن يتم إضافته لقائمة الانتظار وسيعتبر منتهياً من القائمة وعليه التسجيل لاحقاً كبريك جديد عند الرغبة.
         }
 
         db.set(state);
@@ -1663,8 +1594,11 @@
                 employeeSummaryMap[rep.name] = { totalBreaks: 0, totalMins: 0, details: [] };
             }
             employeeSummaryMap[rep.name].totalBreaks += 1;
-            const repMs = getReportDurationMs(rep);
-            employeeSummaryMap[rep.name].totalMs = (employeeSummaryMap[rep.name].totalMs || 0) + repMs;
+            let mins = 0;
+            if (rep.duration && rep.duration.includes('mins')) {
+                mins = parseInt(rep.duration) || 0;
+            }
+            employeeSummaryMap[rep.name].totalMins += mins;
             employeeSummaryMap[rep.name].details.push(rep);
         });
 
@@ -1710,7 +1644,7 @@
                         <td>${repDate}</td>
                         <td>${rep.startTime}</td>
                         <td>${rep.endTime}</td>
-                        <td>${(rep.duration && rep.duration !== 'NaN mins') ? rep.duration : formatDuration(getReportDurationMs(rep))}</td>
+                        <td>${rep.duration}</td>
                         <td class="${statusClass}">${statusText}</td>
                     </tr>
                 `;
@@ -1718,7 +1652,7 @@
             html += `
                 <tr>
                     <td colspan="5" style="text-align: right; font-weight: bold; background-color: #e2e8f0;">مجموع البريكات للموظف (${empName}):</td>
-                    <td colspan="2" style="font-weight: bold; background-color: #e2e8f0;">إجمالي البريكات: ${empData.totalBreaks} | إجمالي الوقت: ${formatDuration(empData.totalMs || 0)}</td>
+                    <td colspan="2" style="font-weight: bold; background-color: #e2e8f0;">إجمالي البريكات: ${empData.totalBreaks} | إجمالي الوقت: ${empData.totalMins} دقيقة</td>
                 </tr>
             `;
         });
@@ -1787,10 +1721,10 @@
 
         if (currentEmployeeName && state.waiting.length > 0) {
             const myUserLower = currentEmployeeName.trim().toLowerCase();
-            const firstNormal = state.waiting.find(w => w.type === 'normal' && !w.isTemporaryOut);
-            const firstQuick = state.waiting.find(w => w.type === 'quick' && !w.isTemporaryOut);
-            const hasNormalSlot = !state.active.some(a => (a.type === 'normal' || a.type === 'request') && !a.keepInQueueRole);
-            const hasQuickSlot = !state.active.some(a => a.type === 'quick' && !a.keepInQueueRole);
+            const firstNormal = state.waiting.find(w => w.type === 'normal');
+            const firstQuick = state.waiting.find(w => w.type === 'quick');
+            const hasNormalSlot = !state.active.some(a => a.type === 'normal' || a.type === 'request');
+            const hasQuickSlot = !state.active.some(a => a.type === 'quick');
 
             if ((firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) ||
                 (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot)) {
@@ -1805,14 +1739,16 @@
             myHistorySection.style.display = 'block';
             const myReports = (state.reports || []).filter(rep => rep.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase());
             
-            let totalMyMs = 0;
             if (myReports.length === 0) {
                 myHistoryBox.innerHTML = '<div class="empty-msg">لا توجد سجلات بريكات سابقة لك</div>';
             } else {
+                let totalMyMins = 0;
                 let listHtml = myReports.map(rep => {
-                    const repMs = getReportDurationMs(rep);
-                    totalMyMs += repMs;
-                    const repDuration = formatDuration(repMs);
+                    let mins = 0;
+                    if (rep.duration && rep.duration.includes('mins')) {
+                        mins = parseInt(rep.duration) || 0;
+                    }
+                    totalMyMins += mins;
                     return `
                         <div style="background: #0f172a; border: 1px solid #334155; padding: 10px; border-radius: 8px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
                             <div>
@@ -1820,7 +1756,7 @@
                                 <br><small style="color:var(--text-muted)">التوقيت: من ${rep.startTime} إلى ${rep.endTime}</small>
                             </div>
                             <div style="text-align: right;">
-                                <span style="color: #38bdf8; font-weight: bold;">${repDuration}</span>
+                                <span style="color: #38bdf8; font-weight: bold;">${rep.duration}</span>
                             </div>
                         </div>
                     `;
@@ -1828,7 +1764,7 @@
 
                 listHtml += `
                     <div style="background: #1e293b; padding: 10px; border-radius: 8px; margin-top: 10px; text-align: center; font-weight: bold; color: #34d399; font-size: 0.95rem;">
-                        إجمالي وقت بريكاتك: ${formatDuration(totalMyMs)}
+                        مجموع دقائق بريكاتك الكلية: ${totalMyMins} دقيقة
                     </div>
                 `;
                 myHistoryBox.innerHTML = listHtml;
@@ -1842,13 +1778,8 @@
             aBox.innerHTML = '<div class="empty-msg">No one on break right now</div>';
         } else {
             aBox.innerHTML = state.active.map((item, i) => {
-                let activeStart = Number(item.timestamp);
-                if (!Number.isFinite(activeStart) || activeStart <= 0) activeStart = Number(item.activeTimestamp);
-                if (!Number.isFinite(activeStart) || activeStart <= 0) activeStart = currentTime;
-                const activeElapsedMs = Math.max(0, currentTime - activeStart);
-                const activeSeconds = Math.floor(activeElapsedMs / 1000);
-                const minsInBreak = Math.floor(activeSeconds / 60);
-                const activeDurationStr = formatDuration(activeElapsedMs);
+                const minsInBreak = Math.floor((currentTime - item.timestamp) / 60000);
+                const activeDurationStr = minsInBreak === 0 ? 'Less than a minute ago' : `${minsInBreak} mins ago`;
                 const isOwner = currentEmployeeName && item.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase();
                 const showEndBtn = (isOwner || isAdmin);
                 
@@ -1859,14 +1790,11 @@
                 if (isQuick) typeLabel = '<span style="color:#3b82f6;">[Quick]</span>';
                 else if (item.type === 'request') typeLabel = '<span style="color:#a78bfa;">[Requested]</span>';
 
-                // إضافة تسمية "خروج مؤقت" في حال تم إخراجه إجبارياً مع إبقاء دوره
-                let tempOutBadge = item.keepInQueueRole ? ` <span style="background: #3b82f6; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold;">[خروج مؤقت بواسطة الأدمن — سيعود لنفس دوره]</span>` : '';
-
                 return `
                     <div class="card-item ${isOvertime ? 'overtime' : ''}">
                         <div>
-                            <strong>${item.name}</strong> ${tempOutBadge}
-                            <span style="margin-left: 8px; font-size: 0.9rem;">⏱️ <span class="active-break-timer" data-starttime="${activeStart}">${activeDurationStr}</span></span>
+                            <strong>${item.name}</strong> 
+                            <span style="margin-left: 8px; font-size: 0.9rem;">⏱️ ${activeDurationStr}</span>
                             ${typeLabel}
                             <br><small style="color:var(--text-muted)">Out at: ${item.dateStr || ''} ${item.timeStr}</small>
                             ${isOvertime ? `<br><span style="color: var(--accent-red); font-weight: bold; font-size: 0.85rem;">⚠️ Exceeded limit time (${isQuick ? '5m' : '20m'})!</span>` : ''}
@@ -1898,9 +1826,7 @@
                 if (isQuick) typeLabel = '<span style="color:#3b82f6;">[Quick]</span>';
 
                 let adminStatusBadge = '';
-                if (item.isTemporaryOut) {
-                    adminStatusBadge = `<br><span style="background:#1e3a8a; color:#93c5fd; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:bold;">🏃 في البريك حالياً — خروج مؤقت بواسطة الأدمن، والدور محفوظ</span>`;
-                } else if (isAdmin) {
+                if (isAdmin) {
                     if (item.turnStartTime) {
                         const elapsedWaiting = currentTime - item.turnStartTime;
                         const waitingMins = Math.floor(elapsedWaiting / 60000);
@@ -1934,10 +1860,10 @@
                             ${swapMessageHtml}
                         </div>
                         <div style="display: flex; gap: 6px; align-items: center;">
-                            ${isAdmin && !item.isTemporaryOut ? `
+                            ${isAdmin ? `
                                 <button type="button" class="btn btn-green" style="padding: 6px 10px; font-size: 0.75rem;" onclick="adminForceOutAction(${i})">Force Out</button>
                             ` : ``}
-                            ${showCancelBtn && !item.isTemporaryOut ? `<button type="button" class="btn btn-red" onclick="cancelWaiting(${i})">Cancel</button>` : ``}
+                            ${showCancelBtn ? `<button type="button" class="btn btn-red" onclick="cancelWaiting(${i})">Cancel</button>` : ``}
                         </div>
                     </div>
                 `;
@@ -1982,7 +1908,7 @@
                     }
                     if (myIdx < state.waiting.length - 1) {
                         const belowItem = state.waiting[myIdx + 1];
-                        sTarget.add(new Option(`#${myIdx} - ${belowItem.name} [Directly Below]`, belowItem.id));
+                        sTarget.add(new Option(`#${myIdx + 2} - ${belowItem.name} [Directly Below]`, belowItem.id));
                     }
                 }
             }
@@ -2020,7 +1946,7 @@
                             <td>${repDate}</td>
                             <td>${rep.startTime}</td>
                             <td>${rep.endTime}</td>
-                            <td class="${rep.isOvertime ? 'exceed-cell' : ''}">${(rep.duration && rep.duration !== 'NaN mins') ? rep.duration : formatDuration(getReportDurationMs(rep))}</td>
+                            <td class="${rep.isOvertime ? 'exceed-cell' : ''}">${rep.duration}</td>
                             <td>${rep.isOvertime ? 'Exceed' : 'Normal'}</td>
                         </tr>
                     `;
