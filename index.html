@@ -639,7 +639,7 @@
 <div class="custom-modal-overlay" id="forceOutModalOverlay">
     <div class="custom-modal-box">
         <div class="custom-modal-title" style="text-align: right; direction: rtl;">⚠️ خيار إخراج الموظف إجبارياً</div>
-        <div class="custom-modal-subtitle" id="forceOutModalText">هل ترغب في إبقاء دور الموظف محجوزاً في قائمة الانتظار ، أم إلغاء دوره تماماً؟</div>
+        <div class="custom-modal-subtitle" id="forceOutModalText">هل ترغب في إبقاء دور الموظف محجوزاً في قائمة الانتظار (بحيث يظهر في خانة البريك مع عبارة [خروج مؤقت] ويعود لمكانه عند الإنهاء)، أم إلغاء دوره تماماً؟</div>
         <div class="custom-modal-buttons" style="display: flex; gap: 10px; margin-top: 20px; direction: rtl;">
             <button type="button" class="btn btn-green" style="flex: 1;" onclick="handleForceOutChoice(true)">إبقاء دور الموظف محجوزاً</button>
             <button type="button" class="btn btn-red" style="flex: 1;" onclick="handleForceOutChoice(false)">إلغاء دوره تماماً</button>
@@ -710,7 +710,7 @@
         firebase.initializeApp(firebaseConfig);
     }
     
-    const db = firebase.database().ref('alsalam_hospital_breaks_v47');
+    const db = firebase.database().ref('alsalam_hospital_breaks_v48');
     const usersDb = firebase.database().ref('alsalam_hospital_users');
 
     let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
@@ -1344,19 +1344,27 @@
 
         const originalPosition = index + 1;
 
-        const itemToBreak = state.waiting.splice(index, 1)[0];
+        // تعديل وفق اقتراحك: إبقاء الموظف في قائمة الانتظار وفي نفس الوقت إضافته لخانة النشطين مع علامة خروج مؤقت
+        const itemToBreak = Object.assign({}, item);
         itemToBreak.timestamp = Date.now();
         itemToBreak.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
         itemToBreak.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
         delete itemToBreak.turnStartTime;
 
         if (keepInQueue) {
-            // الخيار الأول: إبقاء دوره محجوزاً مع تحديث موقعه تلقائياً إذا تقدم الدور
+            // إبقاء دوره محجوزاً في قائمة الانتظار مع حفظ رقمه السابق لتتبعه
             itemToBreak.keepInQueueRole = true;
             itemToBreak.originalQueuePos = originalPosition;
+            
+            // في قائمة الانتظار، نقوم بتحديث عنصره ليعلم النظام أنه في حالة خروج مؤقت للبريك (يبقى اسمه في القائمة)
+            item.isTemporaryOut = true;
+            item.activeTimestamp = itemToBreak.timestamp;
+            item.activeTimeStr = itemToBreak.timeStr;
+            item.activeType = itemToBreak.type;
         } else {
-            // الخيار الثاني: إلغاء دوره تماماً (لا نقوم بتعيين خاصية الحجز)
+            // إذا اختار عدم إبقائه، نزيله نهائياً من قائمة الانتظار
             itemToBreak.keepInQueueRole = false;
+            state.waiting.splice(index, 1);
         }
 
         state.active.push(itemToBreak);
@@ -1398,14 +1406,14 @@
         }
 
         const userItem = state.waiting[index];
-        const firstOfThisType = state.waiting.find(w => w.type === userItem.type);
+        const firstOfThisType = state.waiting.find(w => w.type === userItem.type && !w.isTemporaryOut);
         if (!firstOfThisType || firstOfThisType.id !== userItem.id) {
             showCustomAlert('Sorry, there is someone ahead of you in the queue who must take their turn first!');
             return;
         }
 
-        const hasNormal = state.active.some(item => item.type === 'normal' || item.type === 'request');
-        const hasQuick = state.active.some(item => item.type === 'quick');
+        const hasNormal = state.active.some(item => (item.type === 'normal' || item.type === 'request') && !item.keepInQueueRole);
+        const hasQuick = state.active.some(item => item.type === 'quick' && !item.keepInQueueRole);
 
         let canEnter = false;
         if (userItem.type === 'quick' && !hasQuick) canEnter = true;
@@ -1462,20 +1470,27 @@
                 endTimestamp: endTime
             });
 
-            // منطق عودة الموظف حسب اختيار الأدمن عند إخراجه إجبارياً
+            // منطق عودة الموظف حسب الخيار الذي تم حفظه
             if (finishedItem.keepInQueueRole === true) {
-                let targetPos = finishedItem.originalQueuePos - 1; 
-                delete finishedItem.keepInQueueRole;
-                delete finishedItem.originalQueuePos;
-                finishedItem.timestamp = Date.now();
-                finishedItem.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                // إزالة علامة "خروج مؤقت" من اسمه في قائمة الانتظار إن وجد، أو إعادة إدراجه في مكانه السليم
+                const existingIndex = state.waiting.findIndex(w => w.name.trim().toLowerCase() === finishedItem.name.trim().toLowerCase());
+                if (existingIndex > -1) {
+                    // إذا كان اسمه ما زال موجوداً في قائمة الانتظار بمعلم الخروج المؤقت، نقوم فقط بإزالة علامة المؤقت ليعود طبيعياً
+                    delete state.waiting[existingIndex].isTemporaryOut;
+                    delete state.waiting[existingIndex].activeTimestamp;
+                } else {
+                    // إذا تم إزالته لأي سبب، نقوم بإرجاعه لمكانه السابق مع مراعاة تحرك الدور
+                    let targetPos = finishedItem.originalQueuePos - 1; 
+                    delete finishedItem.keepInQueueRole;
+                    delete finishedItem.originalQueuePos;
+                    finishedItem.timestamp = Date.now();
+                    finishedItem.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-                // إذا تقدم الدور في غيابه وأصبح عدد الموجودين أقل من موضعه السابق، يتم وضعه في نهاية القائمة لضمان عدم حدوث خطأ في الترتيب
-                if (targetPos < 0) targetPos = 0;
-                if (targetPos > state.waiting.length) targetPos = state.waiting.length;
-                state.waiting.splice(targetPos, 0, finishedItem);
+                    if (targetPos < 0) targetPos = 0;
+                    if (targetPos > state.waiting.length) targetPos = state.waiting.length;
+                    state.waiting.splice(targetPos, 0, finishedItem);
+                }
             }
-            // إذا كان الخيار False (إلغاء دوره تماماً)، فلن يتم إضافته لقائمة الانتظار وسيعتبر منتهياً من القائمة وعليه التسجيل لاحقاً كبريك جديد عند الرغبة.
         }
 
         db.set(state);
@@ -1721,10 +1736,10 @@
 
         if (currentEmployeeName && state.waiting.length > 0) {
             const myUserLower = currentEmployeeName.trim().toLowerCase();
-            const firstNormal = state.waiting.find(w => w.type === 'normal');
-            const firstQuick = state.waiting.find(w => w.type === 'quick');
-            const hasNormalSlot = !state.active.some(a => a.type === 'normal' || a.type === 'request');
-            const hasQuickSlot = !state.active.some(a => a.type === 'quick');
+            const firstNormal = state.waiting.find(w => w.type === 'normal' && !w.isTemporaryOut);
+            const firstQuick = state.waiting.find(w => w.type === 'quick' && !w.isTemporaryOut);
+            const hasNormalSlot = !state.active.some(a => (a.type === 'normal' || a.type === 'request') && !a.keepInQueueRole);
+            const hasQuickSlot = !state.active.some(a => a.type === 'quick' && !a.keepInQueueRole);
 
             if ((firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) ||
                 (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot)) {
@@ -1790,10 +1805,13 @@
                 if (isQuick) typeLabel = '<span style="color:#3b82f6;">[Quick]</span>';
                 else if (item.type === 'request') typeLabel = '<span style="color:#a78bfa;">[Requested]</span>';
 
+                // إضافة تسمية "خروج مؤقت" في حال تم إخراجه إجبارياً مع إبقاء دوره
+                let tempOutBadge = item.keepInQueueRole ? ` <span style="background: #3b82f6; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold;">[خروج مؤقت]</span>` : '';
+
                 return `
                     <div class="card-item ${isOvertime ? 'overtime' : ''}">
                         <div>
-                            <strong>${item.name}</strong> 
+                            <strong>${item.name}</strong> ${tempOutBadge}
                             <span style="margin-left: 8px; font-size: 0.9rem;">⏱️ ${activeDurationStr}</span>
                             ${typeLabel}
                             <br><small style="color:var(--text-muted)">Out at: ${item.dateStr || ''} ${item.timeStr}</small>
@@ -1826,7 +1844,9 @@
                 if (isQuick) typeLabel = '<span style="color:#3b82f6;">[Quick]</span>';
 
                 let adminStatusBadge = '';
-                if (isAdmin) {
+                if (item.isTemporaryOut) {
+                    adminStatusBadge = `<br><span style="background:#1e3a8a; color:#93c5fd; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:bold;">🏃 في البريك حالياً (خروج مؤقت)</span>`;
+                } else if (isAdmin) {
                     if (item.turnStartTime) {
                         const elapsedWaiting = currentTime - item.turnStartTime;
                         const waitingMins = Math.floor(elapsedWaiting / 60000);
@@ -1860,10 +1880,10 @@
                             ${swapMessageHtml}
                         </div>
                         <div style="display: flex; gap: 6px; align-items: center;">
-                            ${isAdmin ? `
+                            ${isAdmin && !item.isTemporaryOut ? `
                                 <button type="button" class="btn btn-green" style="padding: 6px 10px; font-size: 0.75rem;" onclick="adminForceOutAction(${i})">Force Out</button>
                             ` : ``}
-                            ${showCancelBtn ? `<button type="button" class="btn btn-red" onclick="cancelWaiting(${i})">Cancel</button>` : ``}
+                            ${showCancelBtn && !item.isTemporaryOut ? `<button type="button" class="btn btn-red" onclick="cancelWaiting(${i})">Cancel</button>` : ``}
                         </div>
                     </div>
                 `;
@@ -1908,7 +1928,7 @@
                     }
                     if (myIdx < state.waiting.length - 1) {
                         const belowItem = state.waiting[myIdx + 1];
-                        sTarget.add(new Option(`#${myIdx + 2} - ${belowItem.name} [Directly Below]`, belowItem.id));
+                        sTarget.add(new Option(`#${myIdx} - ${belowItem.name} [Directly Below]`, belowItem.id));
                     }
                 }
             }
