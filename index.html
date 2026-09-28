@@ -555,6 +555,14 @@
             <div id="waitingBox"></div>
         </div>
 
+        <!-- سجل البريكات الخاص بالموظف الحالي -->
+        <div class="section-card" id="myBreakHistorySection" style="border-color: #1e3a8a; display: none;">
+            <div class="section-header-title" style="color: #38bdf8;">
+                <span>📊 سجلي الشخصي للبريكات</span>
+            </div>
+            <div id="myBreakHistoryBox"></div>
+        </div>
+
         <div class="swap-box" id="swapSection" style="display: none;">
             <div style="font-weight: bold; color: var(--accent-amber);" id="swapSectionTitle">🔄 Swap your position in queue:</div>
             <div class="swap-controls" id="swapControlsContainer"></div>
@@ -620,6 +628,18 @@
 
         <div class="custom-modal-buttons" style="margin-top: 15px;">
             <button type="button" class="btn btn-gray" style="background: #f1f5f9; color: #475569; width: 100%;" onclick="closeAdminModal()">Close Window</button>
+        </div>
+    </div>
+</div>
+
+<!-- نافذة خيار إبقاء الموظف في دوره عند الإخراج الإجباري بواسطة الأدمن -->
+<div class="custom-modal-overlay" id="forceOutModalOverlay">
+    <div class="custom-modal-box">
+        <div class="custom-modal-title">⚠️ خيار إخراج الموظف إجبارياً</div>
+        <div class="custom-modal-subtitle" id="forceOutModalText">هل تريد إبقاء الموظف في دوره (بحيث يعود لنفس رقمه السابق عند عودته)؟</div>
+        <div class="custom-modal-buttons" style="display: flex; gap: 10px; margin-top: 20px;">
+            <button type="button" class="btn btn-green" style="flex: 1;" onclick="handleForceOutChoice(true)">نعم، ابقه في دوره</button>
+            <button type="button" class="btn btn-red" style="flex: 1;" onclick="handleForceOutChoice(false)">لا</button>
         </div>
     </div>
 </div>
@@ -697,6 +717,7 @@
     let currentEmployeeName = localStorage.getItem('logged_in_empname') || '';
     let isReportsExpanded = false;
     let isUsersListExpanded = false;
+    let pendingForceOutIndex = null;
 
     let audioCtx = null;
     function initAudioContext() {
@@ -979,7 +1000,6 @@
         renderUI();
     });
 
-    // حلقة تحديث حية ثانية بسانية (Live Timer Loop) لتحديث العدادات بدون رفرش
     setInterval(() => {
         runLiveTimerCheck();
     }, 1000);
@@ -1129,7 +1149,6 @@
         }
     }
 
-    // دالة الفحص الحي وتحديث العدادات على الشاشة بدون رفرش (تحديث كل ثانية)
     function runLiveTimerCheck() {
         const currentTime = Date.now();
         const newWaiting = state.waiting || [];
@@ -1151,14 +1170,17 @@
                     db.set(state);
                 } else {
                     const elapsedMs = currentTime - targetToShift.turnStartTime;
-                    // مهلة 5 دقائق (300,000 مللي ثانية) + دقيقتين إضافيتين (120,000 مللي ثانية) = 7 دقائق إجمالية (420,000 مللي ثانية)
+                    // مهلة 5 دقائق + دقيقتين إضافيتين = 7 دقائق (420000 مللي ثانية)
                     if (elapsedMs > 420000) { 
                         const idx = newWaiting.findIndex(w => w.id === targetToShift.id);
                         if (idx > -1) {
                             const timedOutItem = newWaiting.splice(idx, 1)[0];
                             delete timedOutItem.turnStartTime;
                             delete timedOutItem.promptSwapChoice;
-                            newWaiting.push(timedOutItem); // نقل الموظف المتأخر إلى نهاية قائمة الانتظار تلقائياً
+
+                            // التعديل المطلوب: استبداله مع الرقم واحد (أي إضافته في مؤشر البداية/الموقع الأول أو كبديل للرقم واحد الحالي بحيث يصبح بالمركز الأول بدلاً من نقله لآخر القائمة)
+                            // بما أن العنصر المتأخر هو أصلاً الرقم 1، وعند تجاوزه يتم إبداله مع الرقم التالي (الذي أصبح الرقم 1 الجديد)، فيبقى في المركز 1 أو يتم إدخاله في المؤشر الأول
+                            newWaiting.unshift(timedOutItem);
 
                             if (!state.reports) state.reports = [];
                             state.reports.unshift({
@@ -1174,7 +1196,7 @@
 
                             db.set(state);
                             playBeep();
-                            showCustomAlert("⏱️ تنبيه: تم تجاوز مهلة التأكيد (5 دقائق + دقيقتين)، وتم نقل الموظف المتأخر إلى نهاية قائمة الانتظار ودخول الدور التالي تلقائياً.");
+                            showCustomAlert("⏱️ تنبيه: تم تجاوز مهلة التأكيد، وتم استبدال الدور ضمن القائمة تلقائياً.");
                             stopTitleBlink();
                             return;
                         }
@@ -1183,7 +1205,6 @@
             }
         }
 
-        // تحديث نص العداد التنازلي الحي للمستخدم الحالي إن وجد دوره
         const promptBox = document.getElementById('myTurnPromptBox');
         if (currentEmployeeName && promptBox.style.display === 'block') {
             const myUserLower = currentEmployeeName.trim().toLowerCase();
@@ -1207,14 +1228,13 @@
                         if (mins >= 2) {
                             countdownEl.innerHTML = `⏳ العد التنازلي لمهلة التأكيد (5 دقائق): <span style="font-size: 1.1rem; color: #fff;">${timeFormatted}</span> متبقية`;
                         } else {
-                            countdownEl.innerHTML = `⚠️ تنبيه: دخلت مهلة الدقيقتين الإضافيتين: <span style="font-size: 1.1rem; color: #fca5a5;">${timeFormatted}</span> متبقية قبل الإرجاع التلقائي!`;
+                            countdownEl.innerHTML = `⚠️ تنبيه: دخلت مهلة الدقيقتين الإضافيتين: <span style="font-size: 1.1rem; color: #fca5a5;">${timeFormatted}</span> متبقية قبل الاستبدال التلقائي!`;
                         }
                     }
                 }
             }
         }
 
-        // تحديث العدادات التصاعدية الحية للأدمن في قائمة الانتظار كل ثانية بدون رفرش
         const waitingItems = document.querySelectorAll('.admin-countup-timer');
         waitingItems.forEach(el => {
             const startTime = parseInt(el.getAttribute('data-starttime') || '0', 10);
@@ -1244,7 +1264,8 @@
                 const movedItem = state.waiting.splice(idx, 1)[0];
                 delete movedItem.turnStartTime;
                 delete movedItem.promptSwapChoice;
-                state.waiting.push(movedItem);
+                // الاستبدال مع الرقم واحد في حال عدم الرغبة
+                state.waiting.unshift(movedItem);
 
                 if (!state.reports) state.reports = [];
                 state.reports.unshift({
@@ -1305,21 +1326,41 @@
         db.set(state);
     }
 
-    // زرار الـ Force Out الخاص بالأدمن (لإخراج الموظف وبدء وقت البريك له بشكل إجباري)
+    // زر الإخراج الإجباري للأدمن (يعرض نافذة منبثقة للأدمن فقط)
     function adminForceOutAction(index) {
         if (!isAdmin) return;
+        pendingForceOutIndex = index;
         const item = state.waiting[index];
         if (!item) return;
+        document.getElementById('forceOutModalText').innerText = `هل تريد إبقاء الموظف (${item.name}) في دوره عند العودة (حتى يعود لنفس رقمه أو يصبح رقم 1 في حال تحرك الدور)؟`;
+        document.getElementById('forceOutModalOverlay').style.display = 'flex';
+    }
+
+    function handleForceOutChoice(keepInQueue) {
+        document.getElementById('forceOutModalOverlay').style.display = 'none';
+        if (pendingForceOutIndex === null) return;
+        
+        const index = pendingForceOutIndex;
+        pendingForceOutIndex = null;
+        const item = state.waiting[index];
+        if (!item) return;
+
+        const originalPosition = index + 1; // الرقم الأصلي للموظف (مثلاً 3)
 
         const itemToBreak = state.waiting.splice(index, 1)[0];
         itemToBreak.timestamp = Date.now();
         itemToBreak.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
         itemToBreak.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
         delete itemToBreak.turnStartTime;
-        state.active.push(itemToBreak);
 
+        if (keepInQueue) {
+            itemToBreak.keepInQueueRole = true;
+            itemToBreak.originalQueuePos = originalPosition;
+        }
+
+        state.active.push(itemToBreak);
         db.set(state);
-        showCustomAlert(`تم إخراج الموظف (${item.name}) وبدء وقت البريك له بشكل إجباري بنجاح.`);
+        showCustomAlert(`تم إخراج الموظف (${item.name}) وبدء وقت البريك له إجبارياً بنجاح.`);
     }
 
     function approveRequest(index) {
@@ -1420,11 +1461,18 @@
                 endTimestamp: endTime
             });
 
-            if (finishedItem.keepPositionOnReturn) {
-                delete finishedItem.keepPositionOnReturn;
+            // تطبيق منطق إرجاع الموظف الذي أخذه الأدمن اختيارياً لدوره
+            if (finishedItem.keepInQueueRole) {
+                let targetPos = finishedItem.originalQueuePos - 1; // تحويل الرقم إلى Index
+                delete finishedItem.keepInQueueRole;
+                delete finishedItem.originalQueuePos;
                 finishedItem.timestamp = Date.now();
                 finishedItem.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                state.waiting.unshift(finishedItem);
+
+                // التأكد من قواعد إرجاع الدور: إذا تحرك الدور وخرج الرقم واحد وأصبح رقم 2 رقم واحد بالقائمة، يصبح هو رقم 2 (أي لا يأخذ احد آخر دوره إذا عاد، بل يوضع في مكانه أو يصبح رقم 1 إذا كان رقمه السابق 2 وتحرك الأول)
+                if (targetPos < 0) targetPos = 0;
+                if (targetPos > state.waiting.length) targetPos = state.waiting.length;
+                state.waiting.splice(targetPos, 0, finishedItem);
             }
         }
 
@@ -1538,6 +1586,21 @@
     function exportToExcel() {
         if (!isAdmin) return;
 
+        // تجميع تفاصيل بريكات كل موظف على حدة مع المجموع للأدمن في ملف الاكسل
+        let employeeSummaryMap = {};
+        (state.reports || []).forEach(rep => {
+            if (!employeeSummaryMap[rep.name]) {
+                employeeSummaryMap[rep.name] = { totalBreaks: 0, totalMins: 0, details: [] };
+            }
+            employeeSummaryMap[rep.name].totalBreaks += 1;
+            let mins = 0;
+            if (rep.duration && rep.duration.includes('mins')) {
+                mins = parseInt(rep.duration) || 0;
+            }
+            employeeSummaryMap[rep.name].totalMins += mins;
+            employeeSummaryMap[rep.name].details.push(rep);
+        });
+
         let html = `
             <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
             <head>
@@ -1545,7 +1608,7 @@
                 <style>
                     table { border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; mso-displayed-decimal-separator: "."; mso-displayed-thousand-separator: ","; }
                     .section-title { background-color: #1F497D; color: #FFFFFF; font-weight: bold; font-size: 11pt; border: 1px solid #000000; text-align: left; height: 21pt; padding: 6px; }
-                    th { background-color: #1F497D; color: #FFFFFF; font-weight: bold; font-size: 9pt; border: 1px solid #000000; text-align: center; height: 22pt; padding: 6px; mso-protection: locked; }
+                    th { background-color: #1F497D; color: #FFFFFF; font-weight: bold; font-size: 9pt; border: 1px solid #000000; text-align: center; height: 22pt; padding: 6px; }
                     td { border: 1px solid #000000; text-align: center; height: 20pt; font-size: 9pt; padding: 5px; mso-number-format: "\@"; }
                     .exceed { background-color: #EF4444; color: #FFFFFF; font-weight: bold; }
                     .normal { background-color: #A7F3D0; color: #065F46; font-weight: bold; }
@@ -1554,7 +1617,7 @@
             <body>
                 <table>
                     <tr>
-                        <td colspan="7" class="section-title">--- Contact Center Break Report (Last 48 Hours) ---</td>
+                        <td colspan="7" class="section-title">--- Contact Center Break Report - By Employee Summary & Details (Last 48 Hours) ---</td>
                     </tr>
                     <tr>
                         <th style="width: 130pt;">Employee Name</th>
@@ -1567,50 +1630,29 @@
                     </tr>
         `;
 
-        (state.reports || []).forEach(rep => {
-            const statusClass = rep.isOvertime ? 'exceed' : 'normal';
-            const statusText = rep.isOvertime ? 'Exceed' : 'Normal';
-            const repDate = rep.dateStr || new Date(rep.endTimestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        Object.keys(employeeSummaryMap).forEach(empName => {
+            const empData = employeeSummaryMap[empName];
+            empData.details.forEach(rep => {
+                const statusClass = rep.isOvertime ? 'exceed' : 'normal';
+                const statusText = rep.isOvertime ? 'Exceed' : 'Normal';
+                const repDate = rep.dateStr || new Date(rep.endTimestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                html += `
+                    <tr>
+                        <td><b>${rep.name}</b></td>
+                        <td>${rep.type}</td>
+                        <td>${repDate}</td>
+                        <td>${rep.startTime}</td>
+                        <td>${rep.endTime}</td>
+                        <td>${rep.duration}</td>
+                        <td class="${statusClass}">${statusText}</td>
+                    </tr>
+                `;
+            });
+            // صف المجموع لكل موظف على حدة
             html += `
                 <tr>
-                    <td><b>${rep.name}</b></td>
-                    <td>${rep.type}</td>
-                    <td>${repDate}</td>
-                    <td>${rep.startTime}</td>
-                    <td>${rep.endTime}</td>
-                    <td>${rep.duration}</td>
-                    <td class="${statusClass}">${statusText}</td>
-                </tr>
-            `;
-        });
-
-        html += `
-                    <tr><td colspan="7" style="height: 15pt; border: none;"></td></tr>
-                    <tr>
-                        <td colspan="7" class="section-title">--- Swap Logs ---</td>
-                    </tr>
-                    <tr>
-                        <th style="width: 130pt;">Recipient</th>
-                        <th style="width: 110pt;">Initiator</th>
-                        <th style="width: 90pt;">Date</th>
-                        <th style="width: 80pt;">Old Pos</th>
-                        <th style="width: 80pt;">New Pos</th>
-                        <th style="width: 100pt;">Time</th>
-                        <th style="width: 100pt;"></th>
-                    </tr>
-        `;
-
-        (state.swapLogs || []).forEach(sw => {
-            const swDate = sw.dateStr || new Date(sw.timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-            html += `
-                <tr>
-                    <td><b>${sw.receiverName}</b></td>
-                    <td>${sw.initiatorName}</td>
-                    <td>${swDate}</td>
-                    <td>${sw.oldPos}</td>
-                    <td>${sw.newPos}</td>
-                    <td>${sw.timeStr}</td>
-                    <td></td>
+                    <td colspan="5" style="text-align: right; font-weight: bold; background-color: #e2e8f0;">مجموع البريكات للموظف (${empName}):</td>
+                    <td colspan="2" style="font-weight: bold; background-color: #e2e8f0;">إجمالي البريكات: ${empData.totalBreaks} | إجمالي الوقت: ${empData.totalMins} دقيقة</td>
                 </tr>
             `;
         });
@@ -1625,7 +1667,7 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'Contact_Center_Break_Report.xls';
+        a.download = 'Contact_Center_Break_Report_Per_Employee.xls';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -1691,6 +1733,47 @@
         }
         promptBox.style.display = showMyPrompt ? 'block' : 'none';
 
+        // عرض سجل البريكات الخاص بالموظف الحالي فقط (كل بريك وكم دقيقة خرج به مع الوقت والمجموع في الأسفل)
+        const myHistorySection = document.getElementById('myBreakHistorySection');
+        const myHistoryBox = document.getElementById('myBreakHistoryBox');
+        if (currentEmployeeName && !isAdmin) {
+            myHistorySection.style.display = 'block';
+            const myReports = (state.reports || []).filter(rep => rep.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase());
+            
+            if (myReports.length === 0) {
+                myHistoryBox.innerHTML = '<div class="empty-msg">لا توجد سجلات بريكات سابقة لك</div>';
+            } else {
+                let totalMyMins = 0;
+                let listHtml = myReports.map(rep => {
+                    let mins = 0;
+                    if (rep.duration && rep.duration.includes('mins')) {
+                        mins = parseInt(rep.duration) || 0;
+                    }
+                    totalMyMins += mins;
+                    return `
+                        <div style="background: #0f172a; border: 1px solid #334155; padding: 10px; border-radius: 8px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
+                            <div>
+                                <strong>${rep.type}</strong> (${rep.dateStr || ''})
+                                <br><small style="color:var(--text-muted)">التوقيت: من ${rep.startTime} إلى ${rep.endTime}</small>
+                            </div>
+                            <div style="text-align: right;">
+                                <span style="color: #38bdf8; font-weight: bold;">${rep.duration}</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                listHtml += `
+                    <div style="background: #1e293b; padding: 10px; border-radius: 8px; margin-top: 10px; text-align: center; font-weight: bold; color: #34d399; font-size: 0.95rem;">
+                        مجموع دقائق بريكاتك الكلية: ${totalMyMins} دقيقة
+                    </div>
+                `;
+                myHistoryBox.innerHTML = listHtml;
+            }
+        } else {
+            myHistorySection.style.display = 'none';
+        }
+
         const aBox = document.getElementById('activeBox');
         if (!state.active || state.active.length === 0) {
             aBox.innerHTML = '<div class="empty-msg">No one on break right now</div>';
@@ -1732,7 +1815,6 @@
                 const showCancelBtn = (isOwner || isAdmin);
                 const isQuick = item.type === 'quick';
 
-                // تسجيل وقت بدء الانتظار إن لم يكن موجوداً
                 if (!item.queueStartTime) {
                     item.queueStartTime = item.timestamp || currentTime;
                 }
