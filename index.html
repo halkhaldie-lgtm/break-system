@@ -444,6 +444,9 @@
             font-size: 0.9rem;
             color: #475569;
             margin-bottom: 10px;
+            line-height: 1.5;
+            text-align: right;
+            direction: rtl;
         }
         .custom-modal-box input, .custom-modal-box select {
             background: #ffffff !important;
@@ -632,14 +635,14 @@
     </div>
 </div>
 
-<!-- نافذة خيار إبقاء الموظف في دوره عند الإخراج الإجباري بواسطة الأدمن -->
+<!-- نافذة خيار إبقاء الموظف في دوره أو إلغائه عند الإخراج الإجباري بواسطة الأدمن -->
 <div class="custom-modal-overlay" id="forceOutModalOverlay">
     <div class="custom-modal-box">
-        <div class="custom-modal-title">⚠️ خيار إخراج الموظف إجبارياً</div>
-        <div class="custom-modal-subtitle" id="forceOutModalText">هل تريد إبقاء الموظف في دوره (بحيث يعود لنفس رقمه السابق عند عودته)؟</div>
-        <div class="custom-modal-buttons" style="display: flex; gap: 10px; margin-top: 20px;">
-            <button type="button" class="btn btn-green" style="flex: 1;" onclick="handleForceOutChoice(true)">نعم، ابقه في دوره</button>
-            <button type="button" class="btn btn-red" style="flex: 1;" onclick="handleForceOutChoice(false)">لا</button>
+        <div class="custom-modal-title" style="text-align: right; direction: rtl;">⚠️ خيار إخراج الموظف إجبارياً</div>
+        <div class="custom-modal-subtitle" id="forceOutModalText">هل ترغب في إبقاء دور الموظف محجوزاً في قائمة الانتظار ، أم إلغاء دوره تماماً؟</div>
+        <div class="custom-modal-buttons" style="display: flex; gap: 10px; margin-top: 20px; direction: rtl;">
+            <button type="button" class="btn btn-green" style="flex: 1;" onclick="handleForceOutChoice(true)">إبقاء دور الموظف محجوزاً</button>
+            <button type="button" class="btn btn-red" style="flex: 1;" onclick="handleForceOutChoice(false)">إلغاء دوره تماماً</button>
         </div>
     </div>
 </div>
@@ -1170,7 +1173,6 @@
                     db.set(state);
                 } else {
                     const elapsedMs = currentTime - targetToShift.turnStartTime;
-                    // مهلة 5 دقائق + دقيقتين إضافيتين = 7 دقائق (420000 مللي ثانية)
                     if (elapsedMs > 420000) { 
                         const idx = newWaiting.findIndex(w => w.id === targetToShift.id);
                         if (idx > -1) {
@@ -1178,8 +1180,6 @@
                             delete timedOutItem.turnStartTime;
                             delete timedOutItem.promptSwapChoice;
 
-                            // التعديل المطلوب: استبداله مع الرقم واحد (أي إضافته في مؤشر البداية/الموقع الأول أو كبديل للرقم واحد الحالي بحيث يصبح بالمركز الأول بدلاً من نقله لآخر القائمة)
-                            // بما أن العنصر المتأخر هو أصلاً الرقم 1، وعند تجاوزه يتم إبداله مع الرقم التالي (الذي أصبح الرقم 1 الجديد)، فيبقى في المركز 1 أو يتم إدخاله في المؤشر الأول
                             newWaiting.unshift(timedOutItem);
 
                             if (!state.reports) state.reports = [];
@@ -1264,7 +1264,6 @@
                 const movedItem = state.waiting.splice(idx, 1)[0];
                 delete movedItem.turnStartTime;
                 delete movedItem.promptSwapChoice;
-                // الاستبدال مع الرقم واحد في حال عدم الرغبة
                 state.waiting.unshift(movedItem);
 
                 if (!state.reports) state.reports = [];
@@ -1326,13 +1325,11 @@
         db.set(state);
     }
 
-    // زر الإخراج الإجباري للأدمن (يعرض نافذة منبثقة للأدمن فقط)
     function adminForceOutAction(index) {
         if (!isAdmin) return;
         pendingForceOutIndex = index;
         const item = state.waiting[index];
         if (!item) return;
-        document.getElementById('forceOutModalText').innerText = `هل تريد إبقاء الموظف (${item.name}) في دوره عند العودة (حتى يعود لنفس رقمه أو يصبح رقم 1 في حال تحرك الدور)؟`;
         document.getElementById('forceOutModalOverlay').style.display = 'flex';
     }
 
@@ -1345,7 +1342,7 @@
         const item = state.waiting[index];
         if (!item) return;
 
-        const originalPosition = index + 1; // الرقم الأصلي للموظف (مثلاً 3)
+        const originalPosition = index + 1;
 
         const itemToBreak = state.waiting.splice(index, 1)[0];
         itemToBreak.timestamp = Date.now();
@@ -1354,8 +1351,12 @@
         delete itemToBreak.turnStartTime;
 
         if (keepInQueue) {
+            // الخيار الأول: إبقاء دوره محجوزاً مع تحديث موقعه تلقائياً إذا تقدم الدور
             itemToBreak.keepInQueueRole = true;
             itemToBreak.originalQueuePos = originalPosition;
+        } else {
+            // الخيار الثاني: إلغاء دوره تماماً (لا نقوم بتعيين خاصية الحجز)
+            itemToBreak.keepInQueueRole = false;
         }
 
         state.active.push(itemToBreak);
@@ -1461,19 +1462,20 @@
                 endTimestamp: endTime
             });
 
-            // تطبيق منطق إرجاع الموظف الذي أخذه الأدمن اختيارياً لدوره
-            if (finishedItem.keepInQueueRole) {
-                let targetPos = finishedItem.originalQueuePos - 1; // تحويل الرقم إلى Index
+            // منطق عودة الموظف حسب اختيار الأدمن عند إخراجه إجبارياً
+            if (finishedItem.keepInQueueRole === true) {
+                let targetPos = finishedItem.originalQueuePos - 1; 
                 delete finishedItem.keepInQueueRole;
                 delete finishedItem.originalQueuePos;
                 finishedItem.timestamp = Date.now();
                 finishedItem.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-                // التأكد من قواعد إرجاع الدور: إذا تحرك الدور وخرج الرقم واحد وأصبح رقم 2 رقم واحد بالقائمة، يصبح هو رقم 2 (أي لا يأخذ احد آخر دوره إذا عاد، بل يوضع في مكانه أو يصبح رقم 1 إذا كان رقمه السابق 2 وتحرك الأول)
+                // إذا تقدم الدور في غيابه وأصبح عدد الموجودين أقل من موضعه السابق، يتم وضعه في نهاية القائمة لضمان عدم حدوث خطأ في الترتيب
                 if (targetPos < 0) targetPos = 0;
                 if (targetPos > state.waiting.length) targetPos = state.waiting.length;
                 state.waiting.splice(targetPos, 0, finishedItem);
             }
+            // إذا كان الخيار False (إلغاء دوره تماماً)، فلن يتم إضافته لقائمة الانتظار وسيعتبر منتهياً من القائمة وعليه التسجيل لاحقاً كبريك جديد عند الرغبة.
         }
 
         db.set(state);
@@ -1586,7 +1588,6 @@
     function exportToExcel() {
         if (!isAdmin) return;
 
-        // تجميع تفاصيل بريكات كل موظف على حدة مع المجموع للأدمن في ملف الاكسل
         let employeeSummaryMap = {};
         (state.reports || []).forEach(rep => {
             if (!employeeSummaryMap[rep.name]) {
@@ -1648,7 +1649,6 @@
                     </tr>
                 `;
             });
-            // صف المجموع لكل موظف على حدة
             html += `
                 <tr>
                     <td colspan="5" style="text-align: right; font-weight: bold; background-color: #e2e8f0;">مجموع البريكات للموظف (${empName}):</td>
@@ -1733,7 +1733,6 @@
         }
         promptBox.style.display = showMyPrompt ? 'block' : 'none';
 
-        // عرض سجل البريكات الخاص بالموظف الحالي فقط (كل بريك وكم دقيقة خرج به مع الوقت والمجموع في الأسفل)
         const myHistorySection = document.getElementById('myBreakHistorySection');
         const myHistoryBox = document.getElementById('myBreakHistoryBox');
         if (currentEmployeeName && !isAdmin) {
