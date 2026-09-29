@@ -1,0 +1,1956 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact Center Break - Al Salam Hospitals</title>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #172554 0%, #0f172a 50%, #090d16 100%);
+            --card-bg: #1e293b;
+            --card-border: #334155;
+            --accent-green: #14b8a6;
+            --accent-amber: #f59e0b;
+            --accent-purple: #8b5cf6;
+            --accent-blue: #3b82f6;
+            --accent-red: #ef4444;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+
+        body {
+            background: var(--bg-gradient);
+            color: var(--text-main);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            background-attachment: fixed;
+        }
+
+        .container { width: 100%; max-width: 700px; }
+
+        header {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            padding: 15px;
+            text-align: center;
+            margin-bottom: 20px;
+            position: relative;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+
+        .top-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            position: relative;
+        }
+
+        .admin-active-badge {
+            background: #065f46;
+            color: #34d399;
+            border: 1px solid #10b981;
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            display: none;
+            cursor: default;
+        }
+
+        .logout-badge {
+            background: #0f172a;
+            color: #f87171;
+            border: 1px solid #ef4444;
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s;
+            display: none;
+        }
+        .logout-badge:hover { background: #1e293b; }
+
+        .top-admin-option-btn {
+            background: #1e293b;
+            color: #38bdf8;
+            border: 1px solid #0284c7;
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            transition: all 0.2s;
+            display: none; 
+        }
+        .top-admin-option-btn:hover { background: #0369a1; color: #fff; }
+
+        .notif-badge {
+            background: #0f172a;
+            color: var(--accent-green);
+            border: 1px solid #14b8a6;
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .hospital-logo-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            padding: 10px 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            margin-bottom: 10px;
+            width: 100%;
+        }
+        .logo-top-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            direction: rtl;
+            width: 100%;
+        }
+
+        .logo-crescent {
+            width: 34px;
+            height: 34px;
+            position: relative;
+            display: inline-block;
+            flex-shrink: 0;
+            top: -3px;
+        }
+        .logo-crescent::before {
+            content: '';
+            position: absolute;
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: transparent;
+            box-shadow: -4px 2px 0 0 #0d9488;
+            top: -2px;
+            left: 2px;
+        }
+        .logo-crescent::after {
+            content: '';
+            position: absolute;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: transparent;
+            box-shadow: -4px 2px 0 0 #1e3a8a;
+            top: 2px;
+            left: 6px;
+        }
+
+        .logo-text-col {
+            display: flex;
+            flex-direction: column;
+            text-align: right;
+        }
+
+        .logo-arabic-title {
+            font-size: 1.35rem;
+            font-weight: 800;
+            color: #0d9488;
+            letter-spacing: -0.5px;
+            line-height: 1.1;
+        }
+        .logo-english-title {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #1e3a8a;
+            margin-top: 2px;
+            letter-spacing: 0.5px;
+            line-height: 1;
+            text-align: center;
+        }
+        .logo-divider {
+            width: 100%;
+            height: 2px;
+            background: #0d9488;
+            margin: 5px 0;
+        }
+        .logo-footer-row {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            font-size: 0.72rem;
+            font-weight: bold;
+        }
+        .logo-trust-text { color: #0d9488; }
+        .logo-trust-word { color: #1e3a8a; letter-spacing: 2px; }
+
+        .center-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: var(--text-main);
+            text-align: center;
+            letter-spacing: 0.5px;
+        }
+
+        .login-box {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+            text-align: center;
+        }
+        .login-box h3 { margin-bottom: 15px; color: var(--accent-blue); font-size: 1.2rem; }
+        .login-box input { margin-bottom: 12px; }
+
+        .action-box {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+        }
+
+        .action-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+        .action-buttons button { flex: 1; min-width: 110px; }
+
+        input[type="text"], input[type="password"], select {
+            width: 100%;
+            background: #0f172a;
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 12px 14px;
+            color: var(--text-main);
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        input[type="text"]:focus, input[type="password"]:focus, select:focus { border-color: var(--accent-blue); background: #1e293b; }
+
+        .btn {
+            background: var(--accent-blue);
+            color: white;
+            border: none;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+        .btn:hover { opacity: 0.9; }
+        .btn:active { transform: scale(0.98); }
+        .btn-green { background: #0d9488; }
+        .btn-amber { background: #d97706; color: white; }
+        .btn-purple { background: #7c3aed; }
+        .btn-red { background: #451a03; color: #f87171; border: 1px solid #7f1d1d; padding: 6px 12px; font-size: 0.85rem; border-radius: 8px; }
+        .btn-gray { background: #334155; color: #cbd5e1; border: 1px solid #475569; font-size: 0.8rem; padding: 6px 12px; border-radius: 8px; }
+        .btn-excel { background: #065f46; font-size: 0.8rem; padding: 6px 12px; color: white; border-radius: 8px; font-weight: bold; display: inline-block; cursor: pointer; }
+
+        .section-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            padding: 18px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+        }
+
+        .section-header-title {
+            font-size: 1.05rem;
+            font-weight: bold;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-item {
+            background: #0f172a;
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 14px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .card-item.overtime {
+            background: #450a0a;
+            border-color: #991b1b;
+        }
+
+        .waiting-badge-num {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #3b82f6;
+            color: white;
+            font-weight: bold;
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            font-size: 0.85rem;
+            margin-right: 8px;
+            box-shadow: 0 2px 5px rgba(59, 130, 246, 0.4);
+        }
+
+        .my-turn-prompt {
+            background: linear-gradient(135deg, #0d9488, #0f766e);
+            color: white;
+            border-radius: 16px;
+            padding: 18px;
+            margin-bottom: 20px;
+            text-align: center;
+            box-shadow: 0 8px 20px rgba(13, 148, 136, 0.3);
+            display: none;
+        }
+        .my-turn-prompt h3 { margin-bottom: 6px; font-size: 1.2rem; }
+        .my-turn-prompt p { color: #ccfbf1; margin-bottom: 12px; font-size: 0.95rem; }
+
+        .swap-box {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+        }
+        .swap-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+
+        .report-box {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 14px;
+            margin-top: 15px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+            display: none;
+        }
+        .report-content-wrapper {
+            display: none;
+            margin-top: 10px;
+            border-top: 1px solid #475569;
+            padding-top: 10px;
+            overflow-x: auto;
+        }
+        .report-table-title {
+            background-color: #bae6fd;
+            color: #0369a1;
+            padding: 4px 8px;
+            font-weight: bold;
+            font-size: 0.78rem;
+            border-radius: 4px;
+            margin-bottom: 6px;
+            display: inline-block;
+        }
+        .report-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.72rem;
+            text-align: left;
+            background: #0f172a;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .report-table th {
+            background: #1e293b;
+            color: var(--text-main);
+            padding: 4px 6px;
+            border: 1px solid #334155;
+            font-weight: 600;
+        }
+        .report-table td {
+            padding: 4px 6px;
+            border: 1px solid #334155;
+            color: var(--text-main);
+        }
+        .report-table td.exceed-cell {
+            background-color: #ef4444 !important;
+            color: #ffffff !important;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .empty-msg { color: var(--text-muted); font-size: 0.85rem; padding: 8px 0; text-align: center; }
+        
+        .toggle-arrow-btn {
+            background: #0f172a;
+            border: 1px solid var(--card-border);
+            color: var(--text-main);
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            transition: all 0.2s;
+        }
+        .toggle-arrow-btn:hover { background: #334155; }
+
+        .custom-modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        .custom-modal-box {
+            background: #ffffff;
+            color: #0f172a;
+            width: 100%;
+            max-width: 440px;
+            border-radius: 14px;
+            padding: 24px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+            text-align: left;
+            direction: ltr;
+        }
+        .custom-modal-title {
+            font-size: 1.05rem;
+            font-weight: bold;
+            color: #1e293b;
+            margin-bottom: 12px;
+        }
+        .custom-modal-subtitle {
+            font-size: 0.9rem;
+            color: #475569;
+            margin-bottom: 10px;
+            line-height: 1.5;
+            text-align: right;
+            direction: rtl;
+        }
+        .custom-modal-box input, .custom-modal-box select {
+            background: #ffffff !important;
+            border: 1px solid #cbd5e1 !important;
+            color: #0f172a !important;
+            margin-bottom: 10px;
+            font-size: 0.95rem;
+            padding: 10px 12px;
+            width: 100%;
+            border-radius: 8px;
+            outline: none;
+        }
+        .custom-modal-box input:focus, .custom-modal-box select:focus {
+            border-color: #3b82f6 !important;
+        }
+        .custom-modal-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <div class="top-header-row">
+            <div style="display: flex; gap: 6px; align-items: center;">
+                <div class="admin-active-badge" id="adminActiveBadge">🔒 Admin Active</div>
+                <button class="logout-badge" id="logoutBtn" onclick="logoutUser()">🚪 Logout</button>
+            </div>
+            
+            <button class="top-admin-option-btn" id="topAdminOptionBtn" onclick="openAdminModal()">Admin Access & Users</button>
+
+            <button class="notif-badge" id="notifBtn" onclick="requestNotificationPermission()">🔔 تفعيل الإشعارات والأصوات</button>
+        </div>
+
+        <div class="hospital-logo-box">
+            <div class="logo-top-row">
+                <div class="logo-text-col">
+                    <span class="logo-arabic-title">مستشفيات السلام</span>
+                    <span class="logo-english-title">Al Salam Hospital</span>
+                </div>
+                <span class="logo-crescent"></span>
+            </div>
+            <div class="logo-divider"></div>
+            <div class="logo-footer-row">
+                <span class="logo-trust-text">ثقتكم أمانة</span>
+                <span class="logo-trust-word">T R U S T</span>
+            </div>
+        </div>
+
+        <div class="center-title">Contact Center Break System</div>
+    </header>
+
+    <div id="loginSection" class="login-box">
+        <h3>🔑 Employee Login</h3>
+        <input type="text" id="loginUsername" placeholder="Username..." autocomplete="off" />
+        <input type="password" id="loginPassword" placeholder="Password..." />
+        <button type="button" class="btn btn-green" style="width: 100%; padding: 12px; margin-bottom: 8px;" onclick="handleLogin()">Login to System</button>
+        <button type="button" class="btn btn-purple" style="width: 100%; padding: 8px; font-size: 0.85rem; margin-bottom: 8px;" onclick="openRegisterModal()">✨ Register New Account</button>
+        <button type="button" class="btn" style="background: #0f172a; color: #38bdf8; border: 1px solid #0284c7; width: 100%; padding: 8px; font-size: 0.85rem;" onclick="openAdminPortalPrompt()">🔒 Admin Portal Access</button>
+    </div>
+
+    <div id="mainSystemContent" style="display: none;">
+        <!-- شاشة تأكيد الدور للموظف مع العداد التنازلي الحي -->
+        <div id="myTurnPromptBox" class="my-turn-prompt">
+            <h3 id="myTurnTitle">🚨 حان دورك للبريك!</h3>
+            <p id="myTurnDesc">يرجى الضغط على زر التأكيد أدناه للدخول الفعلي للبريك.</p>
+            <div id="turnActionButtonsContainer">
+                <div id="liveCountdownDisplay" style="font-size: 0.95rem; font-weight: bold; color: #ffedd5; margin-bottom: 8px;">⏳ جاري حساب الوقت...</div>
+                <button type="button" class="btn" style="background: #ffffff; color: #0d9488; font-size: 1.05rem; width: 100%; border-radius: 10px; margin-bottom: 6px;" onclick="confirmMyTurn()">✅ تأكيد والدخول للبريك</button>
+                <div style="display: flex; gap: 6px; justify-content: center; margin-top: 6px;">
+                    <span style="font-size: 0.85rem; align-self: center;">هل تريد استبدال دورك؟</span>
+                    <button type="button" class="btn btn-red" style="padding: 4px 10px;" onclick="promptSwapChoiceAction('no')">لا أريد</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="action-box">
+            <div style="font-weight: bold; color: var(--accent-blue); font-size: 0.95rem;" id="welcomeEmpLabel">Welcome: -</div>
+            <div class="action-buttons">
+                <button type="button" class="btn btn-green" onclick="submitBreak('normal')">Normal Break 🏃</button>
+                <button type="button" class="btn btn-amber" onclick="submitBreak('quick')">⚡ Quick Break (5m)</button>
+                <button type="button" class="btn btn-purple" onclick="submitBreak('request')">(Request Break From The Leader)</button>
+            </div>
+        </div>
+
+        <div class="section-card" id="requestsSectionContainer" style="display: none; border-color: #5b21b6;">
+            <div class="section-header-title" style="color: #a78bfa;">
+                <span>⏳ Pending Break Requests (Admin Approval)</span>
+            </div>
+            <div id="requestsBox"></div>
+        </div>
+
+        <div class="section-card" style="border-color: #115e59;">
+            <div class="section-header-title" style="color: #2dd4bf;">
+                <span>🏃 Currently on Break</span>
+            </div>
+            <div id="activeBox"></div>
+        </div>
+
+        <div class="section-card" style="border-color: #78350f;">
+            <div class="section-header-title" style="color: #fbbf24;">
+                <span>📋 Waiting Queue</span>
+            </div>
+            <div id="waitingBox"></div>
+        </div>
+
+        <!-- سجل البريكات الخاص بالموظف الحالي -->
+        <div class="section-card" id="myBreakHistorySection" style="border-color: #1e3a8a; display: none;">
+            <div class="section-header-title" style="color: #38bdf8;">
+                <span>📊 سجلي الشخصي للبريكات</span>
+            </div>
+            <div id="myBreakHistoryBox"></div>
+        </div>
+
+        <div class="swap-box" id="swapSection" style="display: none;">
+            <div style="font-weight: bold; color: var(--accent-amber);" id="swapSectionTitle">🔄 Swap your position in queue:</div>
+            <div class="swap-controls" id="swapControlsContainer"></div>
+        </div>
+
+        <div class="report-box" id="adminReportContainer">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="font-size: 0.85rem; font-weight: bold; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
+                    <span>📊 Contact Center Break Report (Last 48 Hours)</span>
+                </div>
+                <div style="display: flex; gap: 6px; align-items: center;">
+                    <button type="button" class="btn btn-excel" id="excelBtn" onclick="exportToExcel()">📥 Excel</button>
+                    <button type="button" class="btn btn-gray" id="clearBtn" style="padding: 4px 10px; font-size: 0.75rem;" onclick="clearReports()">Clear</button>
+                    <button type="button" class="toggle-arrow-btn" id="toggleReportsBtn" onclick="toggleReportsExpand()" title="Toggle Log" style="width: 26px; height: 26px; font-size: 0.8rem;">▼</button>
+                </div>
+            </div>
+            <div id="reportsContainerWrapper" class="report-content-wrapper">
+                <div id="reportsBox"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="custom-modal-overlay" id="adminModalOverlay">
+    <div class="custom-modal-box">
+        <div class="custom-modal-title" id="adminModalTitle">Admin Access & Users</div>
+        
+        <div id="adminPasswordPromptBox">
+            <div class="custom-modal-subtitle">Please enter admin password:</div>
+            <input type="password" id="adminPassInput" placeholder="Password..." />
+            <button type="button" class="btn" style="background: #3b82f6; width: 100%; margin-top: 6px;" onclick="verifyAdminPassword()">Login as Admin</button>
+        </div>
+
+        <div id="selfRegisterBox" style="display: none;">
+            <div class="custom-modal-subtitle">Create your own account username & password:</div>
+            <input type="text" id="regEmpName" placeholder="Your Full Name..." />
+            <input type="text" id="regEmpUser" placeholder="Choose Username..." />
+            <input type="password" id="regEmpPass" placeholder="Choose Password..." />
+            <button type="button" class="btn btn-green" style="width: 100%; margin-top: 6px;" onclick="selfRegisterAccount()">Register Account</button>
+        </div>
+
+        <div id="adminDashboardBox" style="display: none;">
+            <div style="font-size: 0.9rem; font-weight: bold; color: #1e293b; margin-bottom: 10px;">👥 Manage Employee Accounts</div>
+            <div style="background: #f1f5f9; padding: 10px; border-radius: 8px; margin-bottom: 12px;">
+                <div style="font-size: 0.8rem; font-weight: bold; color: #334155; margin-bottom: 6px;">Add / Update User Credentials:</div>
+                <input type="text" id="admEmpName" placeholder="Employee Display Name..." />
+                <input type="text" id="admEmpUser" placeholder="Username..." />
+                <input type="password" id="admEmpPass" placeholder="New Password..." />
+                <div style="font-size: 0.8rem; font-weight: bold; color: #334155; margin-top: 6px; margin-bottom: 4px;">Account Role Type:</div>
+                <select id="admEmpRole">
+                    <option value="normal">Normal Employee (موظف عادي)</option>
+                    <option value="admin">Admin (أدمن)</option>
+                </select>
+                <button type="button" class="btn btn-green" style="width: 100%; margin-top: 8px;" onclick="saveEmployeeAccount()">Save / Update Account</button>
+            </div>
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; background: #e2e8f0; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; cursor: pointer;" onclick="toggleUsersListExpand()">
+                <span style="font-size: 0.85rem; font-weight: bold; color: #334155;">Registered Users List</span>
+                <span id="usersToggleArrow" style="font-weight: bold; color: #334155;">▼</span>
+            </div>
+            <div style="max-height: 150px; overflow-y: auto; display: none;" id="empAccountsListContainer"></div>
+        </div>
+
+        <div class="custom-modal-buttons" style="margin-top: 15px;">
+            <button type="button" class="btn btn-gray" style="background: #f1f5f9; color: #475569; width: 100%;" onclick="closeAdminModal()">Close Window</button>
+        </div>
+    </div>
+</div>
+
+<!-- نافذة خيار إبقاء الموظف في دوره أو إلغائه عند الإخراج الإجباري بواسطة الأدمن -->
+<div class="custom-modal-overlay" id="forceOutModalOverlay">
+    <div class="custom-modal-box">
+        <div class="custom-modal-title" style="text-align: right; direction: rtl;">⚠️ خيار إخراج الموظف إجبارياً</div>
+        <div class="custom-modal-subtitle" id="forceOutModalText">هل ترغب في إبقاء دور الموظف محجوزاً في قائمة الانتظار ، أم إلغاء دوره تماماً؟</div>
+        <div class="custom-modal-buttons" style="display: flex; gap: 10px; margin-top: 20px; direction: rtl;">
+            <button type="button" class="btn btn-green" style="flex: 1;" onclick="handleForceOutChoice(true)">إبقاء دور الموظف محجوزاً</button>
+            <button type="button" class="btn btn-red" style="flex: 1;" onclick="handleForceOutChoice(false)">إلغاء دوره تماماً</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function showCustomAlert(message) {
+        var existingAlert = document.getElementById('custom-alert-box');
+        if (existingAlert) existingAlert.remove();
+        
+        var alertBox = document.createElement('div');
+        alertBox.id = 'custom-alert-box';
+        alertBox.style.position = 'fixed';
+        alertBox.style.top = '20px';
+        alertBox.style.left = '50%';
+        alertBox.style.transform = 'translateX(-50%)';
+        alertBox.style.backgroundColor = '#fff';
+        alertBox.style.border = '2px solid #ff4d4d';
+        alertBox.style.boxShadow = '0 4px 15px rgba(0, 0, 0, 0.2)';
+        alertBox.style.padding = '20px 25px';
+        alertBox.style.zIndex = '10000';
+        alertBox.style.borderRadius = '8px';
+        alertBox.style.textAlign = 'center';
+        alertBox.style.maxWidth = '400px';
+        alertBox.style.width = '90%';
+        alertBox.style.fontFamily = 'Arial, sans-serif';
+
+        var titleDiv = document.createElement('div');
+        titleDiv.style.color = '#ff4d4d';
+        titleDiv.style.fontSize = '20px';
+        titleDiv.style.fontWeight = 'bold';
+        titleDiv.style.marginBottom = '10px';
+        titleDiv.innerHTML = '⚠️ تنبيه النظام';
+
+        var msgDiv = document.createElement('div');
+        msgDiv.style.color = '#333';
+        msgDiv.style.fontSize = '15px';
+        msgDiv.style.lineHeight = '1.5';
+        msgDiv.style.marginBottom = '15px';
+        msgDiv.textContent = message;
+
+        var btn = document.createElement('button');
+        btn.style.backgroundColor = '#ff4d4d';
+        btn.style.color = 'white';
+        btn.style.border = 'none';
+        btn.style.padding = '8px 20px';
+        btn.style.fontSize = '14px';
+        btn.style.fontWeight = 'bold';
+        btn.style.borderRadius = '4px';
+        btn.style.cursor = 'pointer';
+        btn.textContent = 'حسناً';
+
+        alertBox.appendChild(titleDiv);
+        alertBox.appendChild(msgDiv);
+        alertBox.appendChild(btn);
+
+        document.body.appendChild(alertBox);
+        btn.onclick = function() { alertBox.remove(); };
+    }
+
+    const firebaseConfig = {
+        databaseURL: "https://break-system-4a453-default-rtdb.firebaseio.com/"
+    };
+    
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+    }
+    
+    const db = firebase.database().ref('alsalam_hospital_breaks_v47');
+    const usersDb = firebase.database().ref('alsalam_hospital_users');
+
+    let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
+    let usersState = {};
+    let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
+    let currentLoggedInUser = localStorage.getItem('logged_in_username') || '';
+    let currentEmployeeName = localStorage.getItem('logged_in_empname') || '';
+    let isReportsExpanded = false;
+    let isUsersListExpanded = false;
+    let pendingForceOutIndex = null;
+
+    let audioCtx = null;
+    function initAudioContext() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+    }
+
+    document.addEventListener('click', function() {
+        initAudioContext();
+    }, { once: true });
+
+    function getAdminPassword() {
+        return localStorage.getItem('admin_secret_pass') || '1234';
+    }
+
+    function toggleUsersListExpand() {
+        isUsersListExpanded = !isUsersListExpanded;
+        const container = document.getElementById('empAccountsListContainer');
+        const arrow = document.getElementById('usersToggleArrow');
+        if (isUsersListExpanded) {
+            container.style.display = 'block';
+            arrow.innerText = '▲';
+        } else {
+            container.style.display = 'none';
+            arrow.innerText = '▼';
+        }
+    }
+
+    function handleLogin() {
+        initAudioContext();
+        const u = document.getElementById('loginUsername').value.trim();
+        const p = document.getElementById('loginPassword').value.trim();
+
+        if (!u || !p) {
+            showCustomAlert('Please enter both username and password!');
+            return;
+        }
+
+        if (u === 'admin' && p === getAdminPassword()) {
+            isAdmin = true;
+            localStorage.setItem('is_admin_mode', 'true');
+            currentLoggedInUser = 'admin';
+            currentEmployeeName = 'Administrator';
+            localStorage.setItem('logged_in_username', 'admin');
+            localStorage.setItem('logged_in_empname', 'Administrator');
+            checkSession();
+            return;
+        }
+
+        const users = usersState || {};
+        if (users[u] && users[u].password === p) {
+            const isUserAdmin = (users[u].role === 'admin');
+            isAdmin = isUserAdmin;
+            localStorage.setItem('is_admin_mode', isUserAdmin ? 'true' : 'false');
+            currentLoggedInUser = u;
+            currentEmployeeName = users[u].name;
+            localStorage.setItem('logged_in_username', u);
+            localStorage.setItem('logged_in_empname', users[u].name);
+            checkSession();
+        } else {
+            showCustomAlert('Invalid username or password!');
+        }
+    }
+
+    function logoutUser() {
+        localStorage.removeItem('logged_in_username');
+        localStorage.removeItem('logged_in_empname');
+        localStorage.setItem('is_admin_mode', 'false');
+        currentLoggedInUser = '';
+        currentEmployeeName = '';
+        isAdmin = false;
+        checkSession();
+    }
+
+    function checkSession() {
+        const loginSec = document.getElementById('loginSection');
+        const mainSec = document.getElementById('mainSystemContent');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const adminActiveBadge = document.getElementById('adminActiveBadge');
+        const topAdminBtn = document.getElementById('topAdminOptionBtn');
+        const reportBox = document.getElementById('adminReportContainer');
+
+        if (currentLoggedInUser) {
+            loginSec.style.display = 'none';
+            mainSec.style.display = 'block';
+            document.getElementById('welcomeEmpLabel').innerText = `Welcome, ${currentEmployeeName} (${currentLoggedInUser})`;
+            
+            if (isAdmin) {
+                logoutBtn.style.display = 'inline-block';
+                adminActiveBadge.style.display = 'inline-block';
+                topAdminBtn.style.display = 'inline-block';
+                reportBox.style.display = 'block';
+            } else {
+                logoutBtn.style.display = 'inline-block';
+                adminActiveBadge.style.display = 'none';
+                topAdminBtn.style.display = 'none';
+                reportBox.style.display = 'none';
+            }
+        } else {
+            loginSec.style.display = 'block';
+            mainSec.style.display = 'none';
+            logoutBtn.style.display = 'none';
+            adminActiveBadge.style.display = 'none';
+            topAdminBtn.style.display = 'none';
+            reportBox.style.display = 'none';
+        }
+        renderUI();
+    }
+
+    function openRegisterModal() {
+        document.getElementById('adminModalTitle').innerText = 'Employee Registration';
+        document.getElementById('adminPasswordPromptBox').style.display = 'none';
+        document.getElementById('selfRegisterBox').style.display = 'block';
+        document.getElementById('adminDashboardBox').style.display = 'none';
+        document.getElementById('regEmpName').value = '';
+        document.getElementById('regEmpUser').value = '';
+        document.getElementById('regEmpPass').value = '';
+        document.getElementById('adminModalOverlay').style.display = 'flex';
+    }
+
+    function selfRegisterAccount() {
+        const name = document.getElementById('regEmpName').value.trim();
+        const user = document.getElementById('regEmpUser').value.trim();
+        const pass = document.getElementById('regEmpPass').value.trim();
+
+        if (!name || !user || !pass) {
+            showCustomAlert('Please fill in all fields!');
+            return;
+        }
+
+        if (usersState[user]) {
+            showCustomAlert('Username already exists! Please choose another one.');
+            return;
+        }
+
+        usersState[user] = { name: name, password: pass, role: 'normal' };
+        usersDb.set(usersState).then(() => {
+            closeAdminModal();
+            showCustomAlert('Account created successfully! You can now login.');
+        });
+    }
+
+    function openAdminModal() {
+        document.getElementById('adminModalTitle').innerText = 'Admin Access & Users';
+        if (isAdmin) {
+            document.getElementById('adminPasswordPromptBox').style.display = 'none';
+            document.getElementById('selfRegisterBox').style.display = 'none';
+            document.getElementById('adminDashboardBox').style.display = 'block';
+            isUsersListExpanded = false;
+            document.getElementById('empAccountsListContainer').style.display = 'none';
+            document.getElementById('usersToggleArrow').innerText = '▼';
+            renderAdminUsersList();
+            document.getElementById('adminModalOverlay').style.display = 'flex';
+        } else {
+            document.getElementById('adminPassInput').value = '';
+            document.getElementById('adminPasswordPromptBox').style.display = 'block';
+            document.getElementById('selfRegisterBox').style.display = 'none';
+            document.getElementById('adminDashboardBox').style.display = 'none';
+            document.getElementById('adminModalOverlay').style.display = 'flex';
+            document.getElementById('adminPassInput').focus();
+        }
+    }
+
+    function openAdminPortalPrompt() {
+        isAdmin = false;
+        document.getElementById('adminModalTitle').innerText = 'Admin Access & Users';
+        document.getElementById('adminPassInput').value = '';
+        document.getElementById('adminPasswordPromptBox').style.display = 'block';
+        document.getElementById('selfRegisterBox').style.display = 'none';
+        document.getElementById('adminDashboardBox').style.display = 'none';
+        document.getElementById('adminModalOverlay').style.display = 'flex';
+        document.getElementById('adminPassInput').focus();
+    }
+
+    function closeAdminModal() {
+        document.getElementById('adminModalOverlay').style.display = 'none';
+    }
+
+    function verifyAdminPassword() {
+        const pass = document.getElementById('adminPassInput').value;
+        if (pass === getAdminPassword()) {
+            isAdmin = true;
+            localStorage.setItem('is_admin_mode', 'true');
+            currentLoggedInUser = 'admin';
+            currentEmployeeName = 'Administrator';
+            localStorage.setItem('logged_in_username', 'admin');
+            localStorage.setItem('logged_in_empname', 'Administrator');
+            closeAdminModal();
+            checkSession();
+        } else {
+            showCustomAlert('Incorrect admin password!');
+        }
+    }
+
+    function saveEmployeeAccount() {
+        const name = document.getElementById('admEmpName').value.trim();
+        const user = document.getElementById('admEmpUser').value.trim();
+        const pass = document.getElementById('admEmpPass').value.trim();
+        const role = document.getElementById('admEmpRole').value;
+
+        if (!name || !user || !pass) {
+            showCustomAlert('Please fill all user details!');
+            return;
+        }
+
+        usersState[user] = { name: name, password: pass, role: role };
+        
+        usersDb.set(usersState).then(() => {
+            document.getElementById('admEmpName').value = '';
+            document.getElementById('admEmpUser').value = '';
+            document.getElementById('admEmpPass').value = '';
+            document.getElementById('admEmpRole').value = 'normal';
+            renderAdminUsersList();
+            showCustomAlert('Account saved successfully!');
+        });
+    }
+
+    function deleteEmployeeAccount(username) {
+        if (confirm(`Are you sure you want to delete account (${username})?`)) {
+            if (usersState[username]) {
+                delete usersState[username];
+                usersDb.set(usersState).then(() => {
+                    renderAdminUsersList();
+                });
+            }
+        }
+    }
+
+    function renderAdminUsersList() {
+        const container = document.getElementById('empAccountsListContainer');
+        const users = usersState || {};
+        const keys = Object.keys(users);
+
+        if (keys.length === 0) {
+            container.innerHTML = '<div class="empty-msg" style="color:#0f172a;">No custom user accounts yet</div>';
+            return;
+        }
+
+        container.innerHTML = keys.map(uname => {
+            const u = users[uname];
+            const roleBadge = (u.role === 'admin') ? ' <span style="color:#b91c1c; font-weight:bold;">[Admin]</span>' : ' <span style="color:#047857;">[Normal]</span>';
+            return `
+                <div style="display: flex; justify-content: space-between; align-items: center; background: #ffffff; padding: 6px 10px; border-radius: 6px; margin-bottom: 6px; border: 1px solid #cbd5e1;">
+                    <div style="font-size: 0.82rem; color: #0f172a;">
+                        <strong>${u.name}</strong> (${uname}) ${roleBadge}
+                    </div>
+                    <button type="button" class="btn btn-red" style="padding: 2px 6px; font-size: 0.7rem;" onclick="deleteEmployeeAccount('${uname}')">Delete</button>
+                </div>
+            `;
+        }).join('');
+    }
+
+    usersDb.on('value', (snapshot) => {
+        usersState = snapshot.val() || {};
+    });
+
+    db.on('value', (snapshot) => {
+        const val = snapshot.val();
+        if (val) {
+            const fortyEightHoursAgo = Date.now() - (48 * 60 * 60 * 1000);
+            let filteredReports = (val.reports || []).filter(rep => rep.endTimestamp > fortyEightHoursAgo);
+            let filteredSwaps = (val.swapLogs || []).filter(sw => sw.timestamp > fortyEightHoursAgo);
+
+            state = {
+                active: val.active || [],
+                waiting: val.waiting || [],
+                requests: val.requests || [],
+                reports: filteredReports,
+                swapLogs: filteredSwaps
+            };
+        } else {
+            state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
+        }
+
+        checkTurnLogicAndNotifications();
+        renderUI();
+    });
+
+    setInterval(() => {
+        runLiveTimerCheck();
+    }, 1000);
+
+    document.addEventListener('DOMContentLoaded', () => {
+        checkSession();
+        if ("Notification" in window && Notification.permission !== "granted") {
+            Notification.requestPermission();
+        }
+        
+        document.getElementById('adminPassInput').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') verifyAdminPassword();
+        });
+    });
+
+    function toggleReportsExpand() {
+        isReportsExpanded = !isReportsExpanded;
+        const wrapper = document.getElementById('reportsContainerWrapper');
+        const btn = document.getElementById('toggleReportsBtn');
+        if (isReportsExpanded) {
+            wrapper.style.display = 'block';
+            btn.innerText = '▲';
+            btn.title = 'Hide Log';
+        } else {
+            wrapper.style.display = 'none';
+            btn.innerText = '▼';
+            btn.title = 'Show Log';
+        }
+    }
+
+    function requestNotificationPermission() {
+        initAudioContext();
+        if ("Notification" in window) {
+            Notification.requestPermission().then(permission => {
+                if (permission === "granted") {
+                    playBeep();
+                    showCustomAlert('تم تفعيل إشعارات المتصفح والأصوات بنجاح!');
+                    new Notification("مستشفيات السلام", { body: "تم تفعيل الإشعارات بنجاح ليعلمك النظام بأي تحديث حتى لو كنت بصفحة أخرى." });
+                } else {
+                    showCustomAlert('يرجى السماح للإشعارات من إعدادات المتصفح.');
+                }
+            });
+        } else {
+            playBeep();
+            showCustomAlert('متصفحك لا يدعم الإشعارات المنبثقة.');
+        }
+    }
+
+    function playBeep() {
+        try {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.6);
+        } catch(e) {
+            console.error("Audio playback error:", e);
+        }
+    }
+
+    function sendBrowserNotification(title, bodyText) {
+        try {
+            if ("Notification" in window && Notification.permission === "granted") {
+                new Notification(title, {
+                    body: bodyText,
+                    icon: "https://www.gstatic.com/images/icons/material/system/2/svg/ic_notifications_active.svg",
+                    requireInteraction: true
+                });
+            }
+        } catch(e) {
+            console.log("Notification error:", e);
+        }
+    }
+
+    let titleBlinkInterval = null;
+    function startTitleBlink(alertMessage) {
+        if (titleBlinkInterval) return;
+        let isAlt = false;
+        titleBlinkInterval = setInterval(() => {
+            document.title = isAlt ? "🚨 " + alertMessage + " 🚨" : "🔔 تنبيه دورك للبريك!";
+            isAlt = !isAlt;
+        }, 1000);
+    }
+
+    function stopTitleBlink() {
+        if (titleBlinkInterval) {
+            clearInterval(titleBlinkInterval);
+            titleBlinkInterval = null;
+            document.title = "Contact Center Break - Al Salam Hospitals";
+        }
+    }
+
+    let lastNotifiedTurnState = "";
+    let lastNotifiedAheadState = "";
+
+    function checkTurnLogicAndNotifications() {
+        const newWaiting = state.waiting || [];
+
+        if (currentEmployeeName) {
+            const myUserLower = currentEmployeeName.trim().toLowerCase();
+            const myIndex = newWaiting.findIndex(w => w.name.trim().toLowerCase() === myUserLower);
+
+            if (myIndex === 1) {
+                if (lastNotifiedAheadState !== myUserLower + "_ahead") {
+                    lastNotifiedAheadState = myUserLower + "_ahead";
+                    playBeep();
+                    showCustomAlert("⚠️ تنبيه: يوجد شخص واحد فقط أمامك في قائمة الانتظار، استعد لدورك.");
+                    sendBrowserNotification("تنبيه بريك مستشفيات السلام", "يوجد شخص واحد فقط أمامك في قائمة الانتظار، استعد لدورك.");
+                    startTitleBlink("شخص واحد أمامك!");
+                }
+            } else if (myIndex !== 1) {
+                lastNotifiedAheadState = "";
+            }
+
+            const firstNormal = newWaiting.find(w => w.type === 'normal');
+            const firstQuick = newWaiting.find(w => w.type === 'quick');
+            const hasNormalSlot = !state.active.some(a => a.type === 'normal' || a.type === 'request');
+            const hasQuickSlot = !state.active.some(a => a.type === 'quick');
+
+            const isMyTurn = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) ||
+                             (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot);
+
+            if (isMyTurn) {
+                if (lastNotifiedTurnState !== "my_turn") {
+                    lastNotifiedTurnState = "my_turn";
+                    playBeep();
+                    showCustomAlert("🚨 حان دورك للبريك! يرجى الضغط على زر (تأكيد والدخول للبريك) في الشاشة الرئيسية.");
+                    sendBrowserNotification("🚨 حان دورك للبريك!", "دورك قد حان، يرجى فتح الصفحة وتأكيد الدخول للبريك فوراً.");
+                    startTitleBlink("🚨 حان دورك للبريك!");
+                }
+            } else {
+                if (myIndex > 0 || myIndex === -1) {
+                    lastNotifiedTurnState = "";
+                    stopTitleBlink();
+                }
+            }
+        }
+    }
+
+    function runLiveTimerCheck() {
+        const currentTime = Date.now();
+        const newWaiting = state.waiting || [];
+
+        if (newWaiting.length > 0) {
+            const hasNormalSlot = !state.active.some(a => a.type === 'normal' || a.type === 'request');
+            const hasQuickSlot = !state.active.some(a => a.type === 'quick');
+            
+            const firstNormal = newWaiting.find(w => w.type === 'normal');
+            const firstQuick = newWaiting.find(w => w.type === 'quick');
+
+            let targetToShift = null;
+            if (firstNormal && hasNormalSlot) targetToShift = firstNormal;
+            else if (firstQuick && hasQuickSlot) targetToShift = firstQuick;
+
+            if (targetToShift) {
+                if (!targetToShift.turnStartTime) {
+                    targetToShift.turnStartTime = currentTime;
+                    db.set(state);
+                } else {
+                    const elapsedMs = currentTime - targetToShift.turnStartTime;
+                    if (elapsedMs > 420000) { 
+                        const idx = newWaiting.findIndex(w => w.id === targetToShift.id);
+                        if (idx > -1) {
+                            const timedOutItem = newWaiting.splice(idx, 1)[0];
+                            delete timedOutItem.turnStartTime;
+                            delete timedOutItem.promptSwapChoice;
+
+                            newWaiting.unshift(timedOutItem);
+
+                            if (!state.reports) state.reports = [];
+                            state.reports.unshift({
+                                name: timedOutItem.name,
+                                type: 'Auto-Delayed (Timeout)',
+                                dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                                startTime: '-',
+                                endTime: '-',
+                                duration: '0 mins',
+                                isOvertime: true,
+                                endTimestamp: Date.now()
+                            });
+
+                            db.set(state);
+                            playBeep();
+                            showCustomAlert("⏱️ تنبيه: تم تجاوز مهلة التأكيد، وتم استبدال الدور ضمن القائمة تلقائياً.");
+                            stopTitleBlink();
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
+        const promptBox = document.getElementById('myTurnPromptBox');
+        if (currentEmployeeName && promptBox.style.display === 'block') {
+            const myUserLower = currentEmployeeName.trim().toLowerCase();
+            const firstNormal = newWaiting.find(w => w.type === 'normal');
+            const firstQuick = newWaiting.find(w => w.type === 'quick');
+            const targetItem = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower) ? firstNormal : 
+                             ((firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower) ? firstQuick : null);
+
+            if (targetItem && targetItem.turnStartTime) {
+                const elapsed = currentTime - targetItem.turnStartTime;
+                const remainingMs = 420000 - elapsed;
+                
+                if (remainingMs > 0) {
+                    const totalSecs = Math.floor(remainingMs / 1000);
+                    const mins = Math.floor(totalSecs / 60);
+                    const secs = totalSecs % 60;
+                    const timeFormatted = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+
+                    const countdownEl = document.getElementById('liveCountdownDisplay');
+                    if (countdownEl) {
+                        if (mins >= 2) {
+                            countdownEl.innerHTML = `⏳ العد التنازلي لمهلة التأكيد (5 دقائق): <span style="font-size: 1.1rem; color: #fff;">${timeFormatted}</span> متبقية`;
+                        } else {
+                            countdownEl.innerHTML = `⚠️ تنبيه: دخلت مهلة الدقيقتين الإضافيتين: <span style="font-size: 1.1rem; color: #fca5a5;">${timeFormatted}</span> متبقية قبل الاستبدال التلقائي!`;
+                        }
+                    }
+                }
+            }
+        }
+
+        const waitingItems = document.querySelectorAll('.admin-countup-timer');
+        waitingItems.forEach(el => {
+            const startTime = parseInt(el.getAttribute('data-starttime') || '0', 10);
+            if (startTime) {
+                const elapsedSecs = Math.floor((currentTime - startTime) / 1000);
+                const mins = Math.floor(elapsedSecs / 60);
+                const secs = elapsedSecs % 60;
+                el.innerText = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+            }
+        });
+    }
+
+    function promptSwapChoiceAction(choice) {
+        if (!currentEmployeeName) return;
+        const myUserLower = currentEmployeeName.trim().toLowerCase();
+        const firstNormal = state.waiting.find(w => w.type === 'normal');
+        const firstQuick = state.waiting.find(w => w.type === 'quick');
+        
+        let targetItem = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower) ? firstNormal : 
+                         ((firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower) ? firstQuick : null);
+
+        if (!targetItem) return;
+
+        if (choice === 'no') {
+            const idx = state.waiting.findIndex(w => w.id === targetItem.id);
+            if (idx > -1) {
+                const movedItem = state.waiting.splice(idx, 1)[0];
+                delete movedItem.turnStartTime;
+                delete movedItem.promptSwapChoice;
+                state.waiting.unshift(movedItem);
+
+                if (!state.reports) state.reports = [];
+                state.reports.unshift({
+                    name: movedItem.name,
+                    type: 'Delayed by choice (No Swap)',
+                    dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                    startTime: '-',
+                    endTime: '-',
+                    duration: '0 mins',
+                    isOvertime: false,
+                    endTimestamp: Date.now()
+                });
+
+                db.set(state);
+                showCustomAlert("⏱️ تم تبديل وتأخير دورك بناءً على اختيارك.");
+                stopTitleBlink();
+            }
+        }
+    }
+
+    function submitBreak(type) {
+        initAudioContext();
+        if (!currentEmployeeName) {
+            showCustomAlert('Please login first!');
+            return;
+        }
+
+        const name = currentEmployeeName;
+        const nameLower = name.toLowerCase();
+        const isInActive = state.active.some(item => item.name.trim().toLowerCase() === nameLower);
+        const isInWaiting = state.waiting.some(item => item.name.trim().toLowerCase() === nameLower);
+        const isInRequests = state.requests.some(item => item.name.trim().toLowerCase() === nameLower);
+
+        if (isInActive || isInWaiting || isInRequests) {
+            showCustomAlert('عذراً، أنت في فترة البريك حالياً أو لديك طلب مسجل مسبقاً، لا يمكنك طلب بريك جديد حتى تنتهي!');
+            return;
+        }
+
+        lastNotifiedTurnState = "";
+        stopTitleBlink();
+
+        const now = Date.now();
+        const newItem = {
+            id: String(now),
+            name: name,
+            type: type,
+            timestamp: now,
+            dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+            timeStr: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+        };
+
+        if (type === 'request') {
+            state.requests.push(newItem);
+        } else {
+            state.waiting.push(newItem);
+        }
+
+        db.set(state);
+    }
+
+    function adminForceOutAction(index) {
+        if (!isAdmin) return;
+        pendingForceOutIndex = index;
+        const item = state.waiting[index];
+        if (!item) return;
+        document.getElementById('forceOutModalOverlay').style.display = 'flex';
+    }
+
+    function handleForceOutChoice(keepInQueue) {
+        document.getElementById('forceOutModalOverlay').style.display = 'none';
+        if (pendingForceOutIndex === null) return;
+        
+        const index = pendingForceOutIndex;
+        pendingForceOutIndex = null;
+        const item = state.waiting[index];
+        if (!item) return;
+
+        const originalPosition = index + 1;
+
+        const itemToBreak = state.waiting.splice(index, 1)[0];
+        itemToBreak.timestamp = Date.now();
+        itemToBreak.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        itemToBreak.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        delete itemToBreak.turnStartTime;
+
+        if (keepInQueue) {
+            itemToBreak.keepInQueueRole = true;
+            itemToBreak.originalQueuePos = originalPosition;
+        } else {
+            itemToBreak.keepInQueueRole = false;
+        }
+
+        state.active.push(itemToBreak);
+        db.set(state);
+        showCustomAlert(`تم إخراج الموظف (${item.name}) وبدء وقت البريك له إجبارياً بنجاح.`);
+    }
+
+    function approveRequest(index) {
+        if (!isAdmin) return;
+        const reqItem = state.requests.splice(index, 1)[0];
+        if (reqItem) {
+            state.waiting.push(reqItem);
+            db.set(state);
+        }
+    }
+
+    function cancelRequest(index) {
+        const item = state.requests[index];
+        const isOwner = currentEmployeeName && item.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase();
+        if (!isOwner && !isAdmin) {
+            showCustomAlert('You can only cancel your own request!');
+            return;
+        }
+        if (confirm(`Are you sure you want to cancel request for (${item.name})?`)) {
+            state.requests.splice(index, 1);
+            db.set(state);
+        }
+    }
+
+    function confirmMyTurn() {
+        initAudioContext();
+        if (!currentEmployeeName) return;
+        const myUserLower = currentEmployeeName.trim().toLowerCase();
+        
+        const index = state.waiting.findIndex(item => item.name.trim().toLowerCase() === myUserLower);
+        if (index === -1) {
+            showCustomAlert('You are not currently in the waiting queue!');
+            return;
+        }
+
+        const userItem = state.waiting[index];
+        const firstOfThisType = state.waiting.find(w => w.type === userItem.type);
+        if (!firstOfThisType || firstOfThisType.id !== userItem.id) {
+            showCustomAlert('Sorry, there is someone ahead of you in the queue who must take their turn first!');
+            return;
+        }
+
+        const hasNormal = state.active.some(item => item.type === 'normal' || item.type === 'request');
+        const hasQuick = state.active.some(item => item.type === 'quick');
+
+        let canEnter = false;
+        if (userItem.type === 'quick' && !hasQuick) canEnter = true;
+        else if ((userItem.type === 'normal' || userItem.type === 'request') && !hasNormal) canEnter = true;
+
+        if (!canEnter) {
+            showCustomAlert(`The (${userItem.type}) break slot is still occupied.`);
+            return;
+        }
+
+        state.waiting.splice(index, 1);
+        userItem.timestamp = Date.now();
+        userItem.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        userItem.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        delete userItem.turnStartTime;
+        state.active.push(userItem);
+
+        stopTitleBlink();
+        db.set(state);
+    }
+
+    function endBreak(index) {
+        initAudioContext();
+        const finishedItem = state.active.splice(index, 1)[0];
+        
+        if (finishedItem) {
+            const endTime = Date.now();
+            const durationMs = endTime - finishedItem.timestamp;
+            const durationMins = Math.floor(durationMs / 60000);
+            const durationText = durationMins === 0 ? 'Less than a minute' : `${durationMins} mins`;
+            const endTimeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            
+            const breakDateStr = finishedItem.dateStr || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            
+            let typeText = 'Normal Break';
+            if (finishedItem.type === 'quick') typeText = 'Quick Break (5m)';
+            else if (finishedItem.type === 'request') typeText = 'Requested Break';
+
+            let isOvertime = false;
+            if (finishedItem.type === 'quick' && durationMins > 5) {
+                isOvertime = true;
+            } else if ((finishedItem.type === 'normal' || finishedItem.type === 'request') && durationMins > 20) {
+                isOvertime = true;
+            }
+
+            state.reports.unshift({
+                name: finishedItem.name,
+                type: typeText,
+                dateStr: breakDateStr,
+                startTime: finishedItem.timeStr,
+                endTime: endTimeStr,
+                duration: durationText,
+                isOvertime: isOvertime,
+                endTimestamp: endTime
+            });
+
+            if (finishedItem.keepInQueueRole === true) {
+                let targetPos = finishedItem.originalQueuePos - 1; 
+                delete finishedItem.keepInQueueRole;
+                delete finishedItem.originalQueuePos;
+                finishedItem.timestamp = Date.now();
+                finishedItem.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+                if (targetPos < 0) targetPos = 0;
+                if (targetPos > state.waiting.length) targetPos = state.waiting.length;
+                state.waiting.splice(targetPos, 0, finishedItem);
+            }
+        }
+
+        db.set(state);
+    }
+
+    function cancelWaiting(index) {
+        const item = state.waiting[index];
+        const isOwner = currentEmployeeName && item.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase();
+
+        if (!isOwner && !isAdmin) {
+            showCustomAlert('You can only cancel your own turn!');
+            return;
+        }
+
+        if (confirm(`Are you sure you want to cancel (${item.name})?`)) {
+            state.waiting.splice(index, 1);
+            stopTitleBlink();
+            db.set(state);
+        }
+    }
+
+    function executeSwap() {
+        initAudioContext();
+        let id1, id2;
+
+        if (isAdmin) {
+            id1 = document.getElementById('swap1').value;
+            id2 = document.getElementById('swap2').value;
+        } else {
+            if (!currentEmployeeName) {
+                showCustomAlert('Please login first!');
+                return;
+            }
+            const myUserLower = currentEmployeeName.trim().toLowerCase();
+            const myItem = state.waiting.find(w => w.name.trim().toLowerCase() === myUserLower);
+            if (!myItem) {
+                showCustomAlert('You are not in the waiting queue to swap!');
+                return;
+            }
+            id1 = myItem.id;
+            id2 = document.getElementById('swapTarget').value;
+        }
+
+        if (!id1 || !id2 || id1 === id2) {
+            showCustomAlert('Please select a person to swap with!');
+            return;
+        }
+
+        const idx1 = state.waiting.findIndex(x => x.id === id1);
+        const idx2 = state.waiting.findIndex(x => x.id === id2);
+
+        if (idx1 > -1 && idx2 > -1) {
+            if (!isAdmin) {
+                if (Math.abs(idx1 - idx2) !== 1) {
+                    showCustomAlert('Sorry, you can only swap with the person directly above or below you!');
+                    return;
+                }
+            }
+
+            const oldPos1 = idx1 + 1;
+            const oldPos2 = idx2 + 1;
+
+            const temp = state.waiting[idx1];
+            state.waiting[idx1] = state.waiting[idx2];
+            state.waiting[idx2] = temp;
+
+            const name1 = state.waiting[idx1].name;
+            const name2 = state.waiting[idx2].name;
+            const newPos1 = idx1 + 1;
+            const newPos2 = idx2 + 1;
+
+            if (!state.swapLogs) state.swapLogs = [];
+
+            state.swapLogs.unshift({
+                id: String(Date.now() + 1),
+                receiverName: name1,
+                initiatorName: isAdmin ? 'Admin' : name2,
+                oldPos: oldPos2,
+                newPos: newPos1,
+                timestamp: Date.now(),
+                dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                timeStr: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+            });
+
+            state.swapLogs.unshift({
+                id: String(Date.now() + 2),
+                receiverName: name2,
+                initiatorName: isAdmin ? 'Admin' : name1,
+                oldPos: oldPos1,
+                newPos: newPos2,
+                timestamp: Date.now(),
+                dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                timeStr: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+            });
+
+            db.set(state);
+            showCustomAlert('Swapped successfully!');
+        }
+    }
+
+    function clearReports() {
+        if (!isAdmin) return;
+        if (confirm('Are you sure you want to clear reports and logs?')) {
+            state.reports = [];
+            state.swapLogs = [];
+            db.set(state);
+        }
+    }
+
+    function exportToExcel() {
+        if (!isAdmin) return;
+
+        let employeeSummaryMap = {};
+        (state.reports || []).forEach(rep => {
+            if (!employeeSummaryMap[rep.name]) {
+                employeeSummaryMap[rep.name] = { totalBreaks: 0, totalMins: 0, details: [] };
+            }
+            employeeSummaryMap[rep.name].totalBreaks += 1;
+            let mins = 0;
+            if (rep.duration && rep.duration.includes('mins')) {
+                mins = parseInt(rep.duration) || 0;
+            }
+            employeeSummaryMap[rep.name].totalMins += mins;
+            employeeSummaryMap[rep.name].details.push(rep);
+        });
+
+        let html = `
+            <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+            <head>
+                <meta charset="UTF-8">
+                <style>
+                    table { border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; mso-displayed-decimal-separator: "."; mso-displayed-thousand-separator: ","; }
+                    .section-title { background-color: #1F497D; color: #FFFFFF; font-weight: bold; font-size: 11pt; border: 1px solid #000000; text-align: left; height: 21pt; padding: 6px; }
+                    th { background-color: #1F497D; color: #FFFFFF; font-weight: bold; font-size: 9pt; border: 1px solid #000000; text-align: center; height: 22pt; padding: 6px; }
+                    td { border: 1px solid #000000; text-align: center; height: 20pt; font-size: 9pt; padding: 5px; mso-number-format: "\@"; }
+                    .exceed { background-color: #EF4444; color: #FFFFFF; font-weight: bold; }
+                    .normal { background-color: #A7F3D0; color: #065F46; font-weight: bold; }
+                </style>
+            </head>
+            <body>
+                <table>
+                    <tr>
+                        <td colspan="7" class="section-title">--- Contact Center Break Report - By Employee Summary & Details (Last 48 Hours) ---</td>
+                    </tr>
+                    <tr>
+                        <th style="width: 130pt;">Employee Name</th>
+                        <th style="width: 110pt;">Break Type</th>
+                        <th style="width: 90pt;">Date</th>
+                        <th style="width: 80pt;">Start Time</th>
+                        <th style="width: 80pt;">End Time</th>
+                        <th style="width: 100pt;">Duration</th>
+                        <th style="width: 100pt;">Overtime Status</th>
+                    </tr>
+        `;
+
+        Object.keys(employeeSummaryMap).forEach(empName => {
+            const empData = employeeSummaryMap[empName];
+            empData.details.forEach(rep => {
+                const statusClass = rep.isOvertime ? 'exceed' : 'normal';
+                const statusText = rep.isOvertime ? 'Exceed' : 'Normal';
+                const repDate = rep.dateStr || new Date(rep.endTimestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                html += `
+                    <tr>
+                        <td><b>${rep.name}</b></td>
+                        <td>${rep.type}</td>
+                        <td>${repDate}</td>
+                        <td>${rep.startTime}</td>
+                        <td>${rep.endTime}</td>
+                        <td>${rep.duration}</td>
+                        <td class="${statusClass}">${statusText}</td>
+                    </tr>
+                `;
+            });
+            html += `
+                <tr>
+                    <td colspan="5" style="text-align: right; font-weight: bold; background-color: #e2e8f0;">مجموع البريكات للموظف (${empName}):</td>
+                    <td colspan="2" style="font-weight: bold; background-color: #e2e8f0;">إجمالي البريكات: ${empData.totalBreaks} | إجمالي الوقت: ${empData.totalMins} دقيقة</td>
+                </tr>
+            `;
+        });
+
+        html += `
+                </table>
+            </body>
+            </html>
+        `;
+
+        const blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'Contact_Center_Break_Report_Per_Employee.xls';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    function renderUI() {
+        const currentTime = Date.now();
+        const adminActiveBadge = document.getElementById('adminActiveBadge');
+        const topAdminBtn = document.getElementById('topAdminOptionBtn');
+        const reportBox = document.getElementById('adminReportContainer');
+        
+        if (isAdmin) {
+            if (currentLoggedInUser) {
+                adminActiveBadge.style.display = 'inline-block';
+                topAdminBtn.style.display = 'inline-block';
+                reportBox.style.display = 'block';
+            }
+        } else {
+            adminActiveBadge.style.display = 'none';
+            topAdminBtn.style.display = 'none';
+            reportBox.style.display = 'none';
+        }
+
+        const requestsSection = document.getElementById('requestsSectionContainer');
+        const reqBox = document.getElementById('requestsBox');
+        if (state.requests && state.requests.length > 0 && (isAdmin || (currentEmployeeName && state.requests.some(r => r.name.toLowerCase() === currentEmployeeName.toLowerCase())))) {
+            requestsSection.style.display = 'block';
+            reqBox.innerHTML = state.requests.map((item, i) => {
+                const isOwner = currentEmployeeName && item.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase();
+                const showActions = (isAdmin || isOwner);
+                return `
+                    <div class="card-item">
+                        <div>
+                            <strong>${item.name}</strong> <span style="color:#a78bfa;">[Break Request]</span>
+                            <br><small style="color:var(--text-muted)">Requested at: ${item.timeStr}</small>
+                        </div>
+                        <div style="display: flex; gap: 6px;">
+                            ${isAdmin ? `<button type="button" class="btn btn-green" style="padding: 6px 12px; font-size: 0.85rem;" onclick="approveRequest(${i})">Approve</button>` : ``}
+                            ${showActions ? `<button type="button" class="btn btn-red" onclick="cancelRequest(${i})">Cancel</button>` : ``}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        } else {
+            requestsSection.style.display = 'none';
+        }
+
+        const promptBox = document.getElementById('myTurnPromptBox');
+        let showMyPrompt = false;
+
+        if (currentEmployeeName && state.waiting.length > 0) {
+            const myUserLower = currentEmployeeName.trim().toLowerCase();
+            const firstNormal = state.waiting.find(w => w.type === 'normal');
+            const firstQuick = state.waiting.find(w => w.type === 'quick');
+            const hasNormalSlot = !state.active.some(a => a.type === 'normal' || a.type === 'request');
+            const hasQuickSlot = !state.active.some(a => a.type === 'quick');
+
+            if ((firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) ||
+                (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot)) {
+                showMyPrompt = true;
+            }
+        }
+        promptBox.style.display = showMyPrompt ? 'block' : 'none';
+
+        const myHistorySection = document.getElementById('myBreakHistorySection');
+        const myHistoryBox = document.getElementById('myBreakHistoryBox');
+        if (currentEmployeeName && !isAdmin) {
+            myHistorySection.style.display = 'block';
+            const myReports = (state.reports || []).filter(rep => rep.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase());
+            
+            if (myReports.length === 0) {
+                myHistoryBox.innerHTML = '<div class="empty-msg">لا توجد سجلات بريكات سابقة لك</div>';
+            } else {
+                let totalMyMins = 0;
+                let listHtml = myReports.map(rep => {
+                    let mins = 0;
+                    if (rep.duration && rep.duration.includes('mins')) {
+                        mins = parseInt(rep.duration) || 0;
+                    }
+                    totalMyMins += mins;
+                    return `
+                        <div style="background: #0f172a; border: 1px solid #334155; padding: 10px; border-radius: 8px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
+                            <div>
+                                <strong>${rep.type}</strong> (${rep.dateStr || ''})
+                                <br><small style="color:var(--text-muted)">التوقيت: من ${rep.startTime} إلى ${rep.endTime}</small>
+                            </div>
+                            <div style="text-align: right;">
+                                <span style="color: #38bdf8; font-weight: bold;">${rep.duration}</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                listHtml += `
+                    <div style="background: #1e293b; padding: 10px; border-radius: 8px; margin-top: 10px; text-align: center; font-weight: bold; color: #34d399; font-size: 0.95rem;">
+                        مجموع دقائق بريكاتك الكلية: ${totalMyMins} دقيقة
+                    </div>
+                `;
+                myHistoryBox.innerHTML = listHtml;
+            }
+        } else {
+            myHistorySection.style.display = 'none';
+        }
+
+        const aBox = document.getElementById('activeBox');
+        if (!state.active || state.active.length === 0) {
+            aBox.innerHTML = '<div class="empty-msg">No one on break right now</div>';
+        } else {
+            aBox.innerHTML = state.active.map((item, i) => {
+                const minsInBreak = Math.floor((currentTime - item.timestamp) / 60000);
+                const activeDurationStr = minsInBreak === 0 ? 'Less than a minute ago' : `${minsInBreak} mins ago`;
+                const isOwner = currentEmployeeName && item.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase();
+                const showEndBtn = (isOwner || isAdmin);
+                
+                const isQuick = item.type === 'quick';
+                const isOvertime = (isQuick && minsInBreak > 5) || (!isQuick && minsInBreak > 20);
+
+                let typeLabel = '<span style="color:#fbbf24;">[Normal]</span>';
+                if (isQuick) typeLabel = '<span style="color:#3b82f6;">[Quick]</span>';
+                else if (item.type === 'request') typeLabel = '<span style="color:#a78bfa;">[Requested]</span>';
+
+                return `
+                    <div class="card-item ${isOvertime ? 'overtime' : ''}">
+                        <div>
+                            <strong>${item.name}</strong> 
+                            <span style="margin-left: 8px; font-size: 0.9rem;">⏱️ ${activeDurationStr}</span>
+                            ${typeLabel}
+                            <br><small style="color:var(--text-muted)">Out at: ${item.dateStr || ''} ${item.timeStr}</small>
+                            ${isOvertime ? `<br><span style="color: var(--accent-red); font-weight: bold; font-size: 0.85rem;">⚠️ Exceeded limit time (${isQuick ? '5m' : '20m'})!</span>` : ''}
+                        </div>
+                        ${showEndBtn ? `<button type="button" class="btn btn-red" onclick="endBreak(${i})">End</button>` : ``}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        const wBox = document.getElementById('waitingBox');
+        if (!state.waiting || state.waiting.length === 0) {
+            wBox.innerHTML = '<div class="empty-msg">Waiting queue is empty</div>';
+        } else {
+            wBox.innerHTML = state.waiting.map((item, i) => {
+                const isOwner = currentEmployeeName && item.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase();
+                const showCancelBtn = (isOwner || isAdmin);
+                const isQuick = item.type === 'quick';
+
+                if (!item.queueStartTime) {
+                    item.queueStartTime = item.timestamp || currentTime;
+                }
+                const elapsedSecs = Math.floor((currentTime - item.queueStartTime) / 1000);
+                const initMins = Math.floor(elapsedSecs / 60);
+                const initSecs = elapsedSecs % 60;
+                const countupText = initMins > 0 ? `${initMins}m ${initSecs}s` : `${initSecs}s`;
+
+                let typeLabel = '<span style="color:#fbbf24;">[Normal]</span>';
+                if (isQuick) typeLabel = '<span style="color:#3b82f6;">[Quick]</span>';
+
+                let adminStatusBadge = '';
+                if (isAdmin) {
+                    if (item.turnStartTime) {
+                        const elapsedWaiting = currentTime - item.turnStartTime;
+                        const waitingMins = Math.floor(elapsedWaiting / 60000);
+                        if (waitingMins >= 7) {
+                            adminStatusBadge = `<br><span style="background:#7f1d1d; color:#fca5a5; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:bold;">⚠️ متأخر بالتاكيد (${waitingMins} دقيقة)</span>`;
+                        } else {
+                            adminStatusBadge = `<br><span style="background:#065f46; color:#34d399; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:bold;">⏳ بانتظار التأكيد (${waitingMins} دقيقة)</span>`;
+                        }
+                    } else {
+                        adminStatusBadge = `<br><span style="color:var(--text-muted); font-size:0.75rem;">في قائمة الانتظار</span>`;
+                    }
+                }
+
+                let swapMessageHtml = '';
+                if (state.swapLogs && state.swapLogs.length > 0) {
+                    const itemNameLower = item.name.trim().toLowerCase();
+                    const recentLog = state.swapLogs.find(log => log.receiverName.trim().toLowerCase() === itemNameLower && (currentTime - log.timestamp < 600000));
+                    if (recentLog) {
+                        swapMessageHtml = `<br><span style="color: #60a5fa; font-size: 0.8rem; font-weight: bold;">💬 Swapped with ${recentLog.initiatorName}, old position #${recentLog.oldPos} -> new #${recentLog.newPos}</span>`;
+                    }
+                }
+
+                return `
+                    <div class="card-item">
+                        <div>
+                            <span class="waiting-badge-num">#${i + 1}</span>
+                            <strong>${item.name}</strong>
+                            <span style="margin-left: 8px; color:var(--text-muted); font-size: 0.85rem;">Waiting: <span class="admin-countup-timer" data-starttime="${item.queueStartTime}">${countupText}</span></span>
+                            ${typeLabel}
+                            ${adminStatusBadge}
+                            ${swapMessageHtml}
+                        </div>
+                        <div style="display: flex; gap: 6px; align-items: center;">
+                            ${isAdmin ? `
+                                <button type="button" class="btn btn-green" style="padding: 6px 10px; font-size: 0.75rem;" onclick="adminForceOutAction(${i})">Force Out</button>
+                            ` : ``}
+                            ${showCancelBtn ? `<button type="button" class="btn btn-red" onclick="cancelWaiting(${i})">Cancel</button>` : ``}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        const swapSection = document.getElementById('swapSection');
+        const swapTitle = document.getElementById('swapSectionTitle');
+        const swapControls = document.getElementById('swapControlsContainer');
+
+        if (state.waiting && state.waiting.length >= 2) {
+            swapSection.style.display = 'block';
+            if (isAdmin) {
+                swapTitle.innerText = '🔄 Swap Queue Positions (Admin Privilege):';
+                swapControls.innerHTML = `
+                    <select id="swap1"></select>
+                    <span>with</span>
+                    <select id="swap2"></select>
+                    <button type="button" class="btn btn-amber" onclick="executeSwap()">Swap</button>
+                `;
+                const s1 = document.getElementById('swap1');
+                const s2 = document.getElementById('swap2');
+                state.waiting.forEach((item, i) => {
+                    s1.add(new Option(`#${i + 1} - ${item.name}`, item.id));
+                    s2.add(new Option(`#${i + 1} - ${item.name}`, item.id));
+                });
+                if (s2.options.length > 1) s2.selectedIndex = 1;
+            } else {
+                swapTitle.innerText = '🔄 Swap your turn (Adjacent only):';
+                swapControls.innerHTML = `
+                    <select id="swapTarget"></select>
+                    <button type="button" class="btn btn-amber" onclick="executeSwap()">Swap Turn</button>
+                `;
+                const sTarget = document.getElementById('swapTarget');
+                const myUserLower = currentEmployeeName ? currentEmployeeName.trim().toLowerCase() : '';
+                const myIdx = state.waiting.findIndex(item => item.name.trim().toLowerCase() === myUserLower);
+
+                if (myIdx > -1) {
+                    if (myIdx > 0) {
+                        const aboveItem = state.waiting[myIdx - 1];
+                        sTarget.add(new Option(`#${myIdx} - ${aboveItem.name} [Directly Above]`, aboveItem.id));
+                    }
+                    if (myIdx < state.waiting.length - 1) {
+                        const belowItem = state.waiting[myIdx + 1];
+                        sTarget.add(new Option(`#${myIdx + 2} - ${belowItem.name} [Directly Below]`, belowItem.id));
+                    }
+                }
+            }
+        } else {
+            swapSection.style.display = 'none';
+        }
+
+        const rBox = document.getElementById('reportsBox');
+        if (isAdmin) {
+            if (!state.reports || state.reports.length === 0) {
+                rBox.innerHTML = '<div class="empty-msg">No reports logged in the last 48 hours</div>';
+            } else {
+                let tableHtml = `
+                    <div class="report-table-title">Contact Center Break Report (Last 48 Hours)</div>
+                    <table class="report-table">
+                        <thead>
+                            <tr>
+                                <th>Employee Name</th>
+                                <th>Break Type</th>
+                                <th>Date</th>
+                                <th>Start Time</th>
+                                <th>End Time</th>
+                                <th>Duration</th>
+                                <th>Overtime Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                state.reports.forEach(rep => {
+                    const repDate = rep.dateStr || new Date(rep.endTimestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                    tableHtml += `
+                        <tr>
+                            <td><strong>${rep.name}</strong></td>
+                            <td>${rep.type}</td>
+                            <td>${repDate}</td>
+                            <td>${rep.startTime}</td>
+                            <td>${rep.endTime}</td>
+                            <td class="${rep.isOvertime ? 'exceed-cell' : ''}">${rep.duration}</td>
+                            <td>${rep.isOvertime ? 'Exceed' : 'Normal'}</td>
+                        </tr>
+                    `;
+                });
+                tableHtml += `</tbody></table>`;
+                rBox.innerHTML = tableHtml;
+            }
+        }
+    }
+</script>
+</body>
+</html>
