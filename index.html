@@ -124,7 +124,7 @@
             align-items: center;
             justify-content: center;
             gap: 2px;
-            direction: rtl;
+            direction: ltr;
             width: 100%;
         }
 
@@ -162,11 +162,11 @@
         .logo-text-col {
             display: flex;
             flex-direction: column;
-            text-align: right;
+            text-align: left;
         }
 
         .logo-arabic-title {
-            font-size: 1.35rem;
+            font-size: 1.15rem;
             font-weight: 800;
             color: #0d9488;
             letter-spacing: -0.5px;
@@ -179,7 +179,7 @@
             margin-top: 2px;
             letter-spacing: 0.5px;
             line-height: 1;
-            text-align: center;
+            text-align: left;
         }
         .logo-divider {
             width: 100%;
@@ -445,8 +445,8 @@
             color: #475569;
             margin-bottom: 10px;
             line-height: 1.5;
-            text-align: right;
-            direction: rtl;
+            text-align: left;
+            direction: ltr;
         }
         .custom-modal-box input, .custom-modal-box select {
             background: #ffffff !important;
@@ -483,7 +483,7 @@
             
             <button class="top-admin-option-btn" id="topAdminOptionBtn" onclick="openAdminModal()">Admin Access & Users</button>
 
-            <button class="notif-badge" id="notifBtn" onclick="requestNotificationPermission()">🔔 تفعيل الإشعارات والأصوات</button>
+            <button class="notif-badge" id="notifBtn" onclick="requestNotificationPermission()">🔔 Enable Notifications & Audio</button>
         </div>
 
         <div class="hospital-logo-box">
@@ -514,16 +514,15 @@
     </div>
 
     <div id="mainSystemContent" style="display: none;">
-        <!-- شاشة تأكيد الدور للموظف مع العداد التنازلي الحي -->
         <div id="myTurnPromptBox" class="my-turn-prompt">
-            <h3 id="myTurnTitle">🚨 حان دورك للبريك!</h3>
-            <p id="myTurnDesc">يرجى الضغط على زر التأكيد أدناه للدخول الفعلي للبريك.</p>
+            <h3 id="myTurnTitle">🚨 It is your turn for break!</h3>
+            <p id="myTurnDesc">Please click the confirmation button below to officially enter your break.</p>
             <div id="turnActionButtonsContainer">
-                <div id="liveCountdownDisplay" style="font-size: 0.95rem; font-weight: bold; color: #ffedd5; margin-bottom: 8px;">⏳ جاري حساب الوقت...</div>
-                <button type="button" class="btn" style="background: #ffffff; color: #0d9488; font-size: 1.05rem; width: 100%; border-radius: 10px; margin-bottom: 6px;" onclick="confirmMyTurn()">✅ تأكيد والدخول للبريك</button>
+                <div id="liveCountdownDisplay" style="font-size: 0.95rem; font-weight: bold; color: #ffedd5; margin-bottom: 8px;">⏳ Calculating time...</div>
+                <button type="button" class="btn" style="background: #ffffff; color: #0d9488; font-size: 1.05rem; width: 100%; border-radius: 10px; margin-bottom: 6px;" onclick="confirmMyTurn()">✅ Confirm and Enter Break</button>
                 <div style="display: flex; gap: 6px; justify-content: center; margin-top: 6px;">
-                    <span style="font-size: 0.85rem; align-self: center;">هل تريد استبدال دورك؟</span>
-                    <button type="button" class="btn btn-red" style="padding: 4px 10px;" onclick="promptSwapChoiceAction('no')">لا أريد</button>
+                    <span style="font-size: 0.85rem; align-self: center;">Do you want to delay your turn?</span>
+                    <button type="button" class="btn btn-red" style="padding: 4px 10px;" onclick="promptSwapChoiceAction('no')">No, Delay</button>
                 </div>
             </div>
         </div>
@@ -558,10 +557,11 @@
             <div id="waitingBox"></div>
         </div>
 
-        <!-- سجل البريكات الخاص بالموظف الحالي -->
+        <!-- Personal Break History Section with Clear Break History Option -->
         <div class="section-card" id="myBreakHistorySection" style="border-color: #1e3a8a; display: none;">
-            <div class="section-header-title" style="color: #38bdf8;">
-                <span>📊 سجلي الشخصي للبريكات</span>
+            <div class="section-header-title" style="color: #38bdf8; display: flex; justify-content: space-between; align-items: center;">
+                <span>📊 My Personal Break History</span>
+                <button type="button" class="btn btn-red" style="padding: 4px 10px; font-size: 0.75rem;" onclick="clearMyBreakHistory()">Clear Break History</button>
             </div>
             <div id="myBreakHistoryBox"></div>
         </div>
@@ -574,11 +574,11 @@
         <div class="report-box" id="adminReportContainer">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div style="font-size: 0.85rem; font-weight: bold; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
-                    <span>📊 Contact Center Break Report (Last 48 Hours)</span>
+                    <span>📊 Contact Center Break Report (Auto-Clears Every 10 Hours)</span>
                 </div>
                 <div style="display: flex; gap: 6px; align-items: center;">
                     <button type="button" class="btn btn-excel" id="excelBtn" onclick="exportToExcel()">📥 Excel</button>
-                    <button type="button" class="btn btn-gray" id="clearBtn" style="padding: 4px 10px; font-size: 0.75rem;" onclick="clearReports()">Clear</button>
+                    <button type="button" class="btn btn-gray" id="clearBtn" style="padding: 4px 10px; font-size: 0.75rem;" onclick="clearReports()">Clear Reports</button>
                     <button type="button" class="toggle-arrow-btn" id="toggleReportsBtn" onclick="toggleReportsExpand()" title="Toggle Log" style="width: 26px; height: 26px; font-size: 0.8rem;">▼</button>
                 </div>
             </div>
@@ -616,8 +616,8 @@
                 <input type="password" id="admEmpPass" placeholder="New Password..." />
                 <div style="font-size: 0.8rem; font-weight: bold; color: #334155; margin-top: 6px; margin-bottom: 4px;">Account Role Type:</div>
                 <select id="admEmpRole">
-                    <option value="normal">Normal Employee (موظف عادي)</option>
-                    <option value="admin">Admin (أدمن)</option>
+                    <option value="normal">Normal Employee</option>
+                    <option value="admin">Admin</option>
                 </select>
                 <button type="button" class="btn btn-green" style="width: 100%; margin-top: 8px;" onclick="saveEmployeeAccount()">Save / Update Account</button>
             </div>
@@ -635,14 +635,13 @@
     </div>
 </div>
 
-<!-- نافذة خيار إبقاء الموظف في دوره أو إلغائه عند الإخراج الإجباري بواسطة الأدمن -->
 <div class="custom-modal-overlay" id="forceOutModalOverlay">
     <div class="custom-modal-box">
-        <div class="custom-modal-title" style="text-align: right; direction: rtl;">⚠️ خيار إخراج الموظف إجبارياً</div>
-        <div class="custom-modal-subtitle" id="forceOutModalText">هل ترغب في إبقاء دور الموظف محجوزاً في قائمة الانتظار ، أم إلغاء دوره تماماً؟</div>
-        <div class="custom-modal-buttons" style="display: flex; gap: 10px; margin-top: 20px; direction: rtl;">
-            <button type="button" class="btn btn-green" style="flex: 1;" onclick="handleForceOutChoice(true)">إبقاء دور الموظف محجوزاً</button>
-            <button type="button" class="btn btn-red" style="flex: 1;" onclick="handleForceOutChoice(false)">إلغاء دوره تماماً</button>
+        <div class="custom-modal-title">⚠️ Force Out Employee Option</div>
+        <div class="custom-modal-subtitle" id="forceOutModalText">Would you like to keep the employee's position reserved in the waiting queue, or cancel their turn completely?</div>
+        <div class="custom-modal-buttons" style="display: flex; gap: 10px; margin-top: 20px;">
+            <button type="button" class="btn btn-green" style="flex: 1;" onclick="handleForceOutChoice(true)">Keep Position Reserved</button>
+            <button type="button" class="btn btn-red" style="flex: 1;" onclick="handleForceOutChoice(false)">Cancel Turn Completely</button>
         </div>
     </div>
 </div>
@@ -674,7 +673,7 @@
         titleDiv.style.fontSize = '20px';
         titleDiv.style.fontWeight = 'bold';
         titleDiv.style.marginBottom = '10px';
-        titleDiv.innerHTML = '⚠️ تنبيه النظام';
+        titleDiv.innerHTML = '⚠️ System Alert';
 
         var msgDiv = document.createElement('div');
         msgDiv.style.color = '#333';
@@ -692,7 +691,7 @@
         btn.style.fontWeight = 'bold';
         btn.style.borderRadius = '4px';
         btn.style.cursor = 'pointer';
-        btn.textContent = 'حسناً';
+        btn.textContent = 'OK';
 
         alertBox.appendChild(titleDiv);
         alertBox.appendChild(msgDiv);
@@ -710,7 +709,7 @@
         firebase.initializeApp(firebaseConfig);
     }
     
-    const db = firebase.database().ref('alsalam_hospital_breaks_v47');
+    const db = firebase.database().ref('alsalam_hospital_breaks_v48');
     const usersDb = firebase.database().ref('alsalam_hospital_users');
 
     let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
@@ -810,7 +809,7 @@
         if (currentLoggedInUser) {
             loginSec.style.display = 'none';
             mainSec.style.display = 'block';
-            document.getElementById('welcomeEmpLabel').innerText = `Welcome, ${currentEmployeeName} (${currentLoggedInUser})`;
+            document.getElementById('welcomeEmpLabel').innerText = `Welcome: ${currentEmployeeName} (${currentLoggedInUser})`;
             
             if (isAdmin) {
                 logoutBtn.style.display = 'inline-block';
@@ -984,9 +983,10 @@
     db.on('value', (snapshot) => {
         const val = snapshot.val();
         if (val) {
-            const fortyEightHoursAgo = Date.now() - (48 * 60 * 60 * 1000);
-            let filteredReports = (val.reports || []).filter(rep => rep.endTimestamp > fortyEightHoursAgo);
-            let filteredSwaps = (val.swapLogs || []).filter(sw => sw.timestamp > fortyEightHoursAgo);
+            // Auto-clear history every 10 hours (10 hours = 36,000,000 ms)
+            const tenHoursAgo = Date.now() - (10 * 60 * 60 * 1000);
+            let filteredReports = (val.reports || []).filter(rep => rep.endTimestamp > tenHoursAgo);
+            let filteredSwaps = (val.swapLogs || []).filter(sw => sw.timestamp > tenHoursAgo);
 
             state = {
                 active: val.active || [],
@@ -1039,15 +1039,15 @@
             Notification.requestPermission().then(permission => {
                 if (permission === "granted") {
                     playBeep();
-                    showCustomAlert('تم تفعيل إشعارات المتصفح والأصوات بنجاح!');
-                    new Notification("مستشفيات السلام", { body: "تم تفعيل الإشعارات بنجاح ليعلمك النظام بأي تحديث حتى لو كنت بصفحة أخرى." });
+                    showCustomAlert('Notifications and sounds enabled successfully!');
+                    new Notification("Al Salam Hospitals", { body: "Notifications enabled successfully." });
                 } else {
-                    showCustomAlert('يرجى السماح للإشعارات من إعدادات المتصفح.');
+                    showCustomAlert('Please allow notifications from your browser settings.');
                 }
             });
         } else {
             playBeep();
-            showCustomAlert('متصفحك لا يدعم الإشعارات المنبثقة.');
+            showCustomAlert('Your browser does not support pop-up notifications.');
         }
     }
 
@@ -1092,7 +1092,7 @@
         if (titleBlinkInterval) return;
         let isAlt = false;
         titleBlinkInterval = setInterval(() => {
-            document.title = isAlt ? "🚨 " + alertMessage + " 🚨" : "🔔 تنبيه دورك للبريك!";
+            document.title = isAlt ? "🚨 " + alertMessage + " 🚨" : "🔔 Break Turn Alert!";
             isAlt = !isAlt;
         }, 1000);
     }
@@ -1119,9 +1119,9 @@
                 if (lastNotifiedAheadState !== myUserLower + "_ahead") {
                     lastNotifiedAheadState = myUserLower + "_ahead";
                     playBeep();
-                    showCustomAlert("⚠️ تنبيه: يوجد شخص واحد فقط أمامك في قائمة الانتظار، استعد لدورك.");
-                    sendBrowserNotification("تنبيه بريك مستشفيات السلام", "يوجد شخص واحد فقط أمامك في قائمة الانتظار، استعد لدورك.");
-                    startTitleBlink("شخص واحد أمامك!");
+                    showCustomAlert("⚠️ Alert: There is only one person ahead of you in the waiting queue, get ready.");
+                    sendBrowserNotification("Al Salam Break Alert", "There is only one person ahead of you in the waiting queue, get ready.");
+                    startTitleBlink("One person ahead!");
                 }
             } else if (myIndex !== 1) {
                 lastNotifiedAheadState = "";
@@ -1139,9 +1139,9 @@
                 if (lastNotifiedTurnState !== "my_turn") {
                     lastNotifiedTurnState = "my_turn";
                     playBeep();
-                    showCustomAlert("🚨 حان دورك للبريك! يرجى الضغط على زر (تأكيد والدخول للبريك) في الشاشة الرئيسية.");
-                    sendBrowserNotification("🚨 حان دورك للبريك!", "دورك قد حان، يرجى فتح الصفحة وتأكيد الدخول للبريك فوراً.");
-                    startTitleBlink("🚨 حان دورك للبريك!");
+                    showCustomAlert("🚨 It is your turn for break! Please click the confirmation button on the main screen.");
+                    sendBrowserNotification("🚨 It is your turn for break!", "Your turn has arrived, please open the page and confirm.");
+                    startTitleBlink("🚨 It is your turn!");
                 }
             } else {
                 if (myIndex > 0 || myIndex === -1) {
@@ -1155,6 +1155,49 @@
     function runLiveTimerCheck() {
         const currentTime = Date.now();
         const newWaiting = state.waiting || [];
+
+        // Check active breaks for 45-minute maximum limit enforcement
+        if (state.active && state.active.length > 0) {
+            for (let i = state.active.length - 1; i >= 0; i--) {
+                const activeItem = state.active[i];
+                const elapsedMs = currentTime - activeItem.timestamp;
+                const maxLimitMs = 45 * 60 * 1000; // 45 minutes
+
+                if (elapsedMs >= maxLimitMs) {
+                    // Auto-end break and log overtime/forced exit due to exceeding 45 minutes
+                    const finishedItem = state.active.splice(i, 1)[0];
+                    const endTime = Date.now();
+                    const durationMs = endTime - finishedItem.timestamp;
+                    const durationSecs = Math.floor(durationMs / 1000);
+                    const durationMins = Math.floor(durationSecs / 60);
+                    const durationSecsRem = durationSecs % 60;
+                    const durationText = `${durationMins}m ${durationSecsRem}s`;
+                    const endTimeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    const breakDateStr = finishedItem.dateStr || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                    
+                    let typeText = 'Normal Break';
+                    if (finishedItem.type === 'quick') typeText = 'Quick Break (5m)';
+                    else if (finishedItem.type === 'request') typeText = 'Requested Break';
+
+                    if (!state.reports) state.reports = [];
+                    state.reports.unshift({
+                        name: finishedItem.name,
+                        type: typeText + ' (Exceeded 45m Limit - Auto Ended)',
+                        dateStr: breakDateStr,
+                        startTime: finishedItem.timeStr,
+                        endTime: endTimeStr,
+                        duration: durationText,
+                        isOvertime: true,
+                        endTimestamp: endTime
+                    });
+
+                    db.set(state);
+                    playBeep();
+                    showCustomAlert(`⚠️ Maximum break limit of 45 minutes exceeded for (${finishedItem.name}). Automatically removed from system.`);
+                    return;
+                }
+            }
+        }
 
         if (newWaiting.length > 0) {
             const hasNormalSlot = !state.active.some(a => a.type === 'normal' || a.type === 'request');
@@ -1189,14 +1232,14 @@
                                 dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
                                 startTime: '-',
                                 endTime: '-',
-                                duration: '0 mins',
+                                duration: '0m 0s',
                                 isOvertime: true,
                                 endTimestamp: Date.now()
                             });
 
                             db.set(state);
                             playBeep();
-                            showCustomAlert("⏱️ تنبيه: تم تجاوز مهلة التأكيد، وتم استبدال الدور ضمن القائمة تلقائياً.");
+                            showCustomAlert("⏱️ Alert: Confirmation timeout exceeded, turn automatically delayed.");
                             stopTitleBlink();
                             return;
                         }
@@ -1226,9 +1269,9 @@
                     const countdownEl = document.getElementById('liveCountdownDisplay');
                     if (countdownEl) {
                         if (mins >= 2) {
-                            countdownEl.innerHTML = `⏳ العد التنازلي لمهلة التأكيد (5 دقائق): <span style="font-size: 1.1rem; color: #fff;">${timeFormatted}</span> متبقية`;
+                            countdownEl.innerHTML = `⏳ Confirmation deadline countdown: <span style="font-size: 1.1rem; color: #fff;">${timeFormatted}</span> remaining`;
                         } else {
-                            countdownEl.innerHTML = `⚠️ تنبيه: دخلت مهلة الدقيقتين الإضافيتين: <span style="font-size: 1.1rem; color: #fca5a5;">${timeFormatted}</span> متبقية قبل الاستبدال التلقائي!`;
+                            countdownEl.innerHTML = `⚠️ Alert: Last 2 grace minutes entered: <span style="font-size: 1.1rem; color: #fca5a5;">${timeFormatted}</span> remaining!`;
                         }
                     }
                 }
@@ -1242,7 +1285,19 @@
                 const elapsedSecs = Math.floor((currentTime - startTime) / 1000);
                 const mins = Math.floor(elapsedSecs / 60);
                 const secs = elapsedSecs % 60;
-                el.innerText = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+                el.innerText = `${mins}m ${secs}s`;
+            }
+        });
+
+        // Update live active break timers with seconds
+        const activeItems = document.querySelectorAll('.active-countup-timer');
+        activeItems.forEach(el => {
+            const startTime = parseInt(el.getAttribute('data-starttime') || '0', 10);
+            if (startTime) {
+                const elapsedSecs = Math.floor((currentTime - startTime) / 1000);
+                const mins = Math.floor(elapsedSecs / 60);
+                const secs = elapsedSecs % 60;
+                el.innerText = `${mins}m ${secs}s`;
             }
         });
     }
@@ -1273,13 +1328,13 @@
                     dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
                     startTime: '-',
                     endTime: '-',
-                    duration: '0 mins',
+                    duration: '0m 0s',
                     isOvertime: false,
                     endTimestamp: Date.now()
                 });
 
                 db.set(state);
-                showCustomAlert("⏱️ تم تبديل وتأخير دورك بناءً على اختيارك.");
+                showCustomAlert("⏱️ Your turn has been delayed based on your choice.");
                 stopTitleBlink();
             }
         }
@@ -1299,7 +1354,7 @@
         const isInRequests = state.requests.some(item => item.name.trim().toLowerCase() === nameLower);
 
         if (isInActive || isInWaiting || isInRequests) {
-            showCustomAlert('عذراً، أنت في فترة البريك حالياً أو لديك طلب مسجل مسبقاً، لا يمكنك طلب بريك جديد حتى تنتهي!');
+            showCustomAlert('Sorry, you are currently on break or have a pending request!');
             return;
         }
 
@@ -1313,7 +1368,7 @@
             type: type,
             timestamp: now,
             dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-            timeStr: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+            timeStr: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
         };
 
         if (type === 'request') {
@@ -1347,7 +1402,7 @@
         const itemToBreak = state.waiting.splice(index, 1)[0];
         itemToBreak.timestamp = Date.now();
         itemToBreak.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        itemToBreak.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        itemToBreak.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         delete itemToBreak.turnStartTime;
 
         if (keepInQueue) {
@@ -1359,7 +1414,7 @@
 
         state.active.push(itemToBreak);
         db.set(state);
-        showCustomAlert(`تم إخراج الموظف (${item.name}) وبدء وقت البريك له إجبارياً بنجاح.`);
+        showCustomAlert(`Employee (${item.name}) forced out to break successfully.`);
     }
 
     function approveRequest(index) {
@@ -1417,7 +1472,7 @@
         state.waiting.splice(index, 1);
         userItem.timestamp = Date.now();
         userItem.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        userItem.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        userItem.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         delete userItem.turnStartTime;
         state.active.push(userItem);
 
@@ -1432,9 +1487,11 @@
         if (finishedItem) {
             const endTime = Date.now();
             const durationMs = endTime - finishedItem.timestamp;
-            const durationMins = Math.floor(durationMs / 60000);
-            const durationText = durationMins === 0 ? 'Less than a minute' : `${durationMins} mins`;
-            const endTimeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            const durationSecs = Math.floor(durationMs / 1000);
+            const durationMins = Math.floor(durationSecs / 60);
+            const durationSecsRem = durationSecs % 60;
+            const durationText = `${durationMins}m ${durationSecsRem}s`;
+            const endTimeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
             
             const breakDateStr = finishedItem.dateStr || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
             
@@ -1443,9 +1500,9 @@
             else if (finishedItem.type === 'request') typeText = 'Requested Break';
 
             let isOvertime = false;
-            if (finishedItem.type === 'quick' && durationMins > 5) {
+            if (finishedItem.type === 'quick' && durationMins >= 5 && durationSecsRem > 0) {
                 isOvertime = true;
-            } else if ((finishedItem.type === 'normal' || finishedItem.type === 'request') && durationMins > 20) {
+            } else if ((finishedItem.type === 'normal' || finishedItem.type === 'request') && durationMins >= 20 && durationSecsRem > 0) {
                 isOvertime = true;
             }
 
@@ -1552,7 +1609,7 @@
                 newPos: newPos1,
                 timestamp: Date.now(),
                 dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-                timeStr: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+                timeStr: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
             });
 
             state.swapLogs.unshift({
@@ -1563,7 +1620,7 @@
                 newPos: newPos2,
                 timestamp: Date.now(),
                 dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-                timeStr: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+                timeStr: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
             });
 
             db.set(state);
@@ -1580,20 +1637,35 @@
         }
     }
 
+    function clearMyBreakHistory() {
+        if (!currentEmployeeName) return;
+        if (confirm('Are you sure you want to clear your personal break history?')) {
+            const empNameLower = currentEmployeeName.trim().toLowerCase();
+            state.reports = (state.reports || []).filter(rep => rep.name.trim().toLowerCase() !== empNameLower);
+            db.set(state);
+            showCustomAlert('Your personal break history has been cleared successfully.');
+        }
+    }
+
     function exportToExcel() {
         if (!isAdmin) return;
 
         let employeeSummaryMap = {};
         (state.reports || []).forEach(rep => {
             if (!employeeSummaryMap[rep.name]) {
-                employeeSummaryMap[rep.name] = { totalBreaks: 0, totalMins: 0, details: [] };
+                employeeSummaryMap[rep.name] = { totalBreaks: 0, totalSecs: 0, details: [] };
             }
             employeeSummaryMap[rep.name].totalBreaks += 1;
-            let mins = 0;
-            if (rep.duration && rep.duration.includes('mins')) {
-                mins = parseInt(rep.duration) || 0;
+            
+            // Parse duration string like "12m 30s" into total seconds
+            let totalSecs = 0;
+            if (rep.duration) {
+                let mMatch = rep.duration.match(/(\d+)m/);
+                let sMatch = rep.duration.match(/(\d+)s/);
+                if (mMatch) totalSecs += parseInt(mMatch[1]) * 60;
+                if (sMatch) totalSecs += parseInt(sMatch[1]);
             }
-            employeeSummaryMap[rep.name].totalMins += mins;
+            employeeSummaryMap[rep.name].totalSecs += totalSecs;
             employeeSummaryMap[rep.name].details.push(rep);
         });
 
@@ -1613,7 +1685,7 @@
             <body>
                 <table>
                     <tr>
-                        <td colspan="7" class="section-title">--- Contact Center Break Report - By Employee Summary & Details (Last 48 Hours) ---</td>
+                        <td colspan="7" class="section-title">--- Contact Center Break Report - By Employee Summary & Details ---</td>
                     </tr>
                     <tr>
                         <th style="width: 130pt;">Employee Name</th>
@@ -1644,10 +1716,12 @@
                     </tr>
                 `;
             });
+            const totMins = Math.floor(empData.totalSecs / 60);
+            const totSecsRem = empData.totalSecs % 60;
             html += `
                 <tr>
-                    <td colspan="5" style="text-align: right; font-weight: bold; background-color: #e2e8f0;">مجموع البريكات للموظف (${empName}):</td>
-                    <td colspan="2" style="font-weight: bold; background-color: #e2e8f0;">إجمالي البريكات: ${empData.totalBreaks} | إجمالي الوقت: ${empData.totalMins} دقيقة</td>
+                    <td colspan="5" style="text-align: right; font-weight: bold; background-color: #e2e8f0;">Total Breaks for (${empName}):</td>
+                    <td colspan="2" style="font-weight: bold; background-color: #e2e8f0;">Total Breaks: ${empData.totalBreaks} | Total Duration: ${totMins}m ${totSecsRem}s</td>
                 </tr>
             `;
         });
@@ -1735,20 +1809,24 @@
             const myReports = (state.reports || []).filter(rep => rep.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase());
             
             if (myReports.length === 0) {
-                myHistoryBox.innerHTML = '<div class="empty-msg">لا توجد سجلات بريكات سابقة لك</div>';
+                myHistoryBox.innerHTML = '<div class="empty-msg">No past break records found</div>';
             } else {
-                let totalMyMins = 0;
+                let totalMySecs = 0;
                 let listHtml = myReports.map(rep => {
-                    let mins = 0;
-                    if (rep.duration && rep.duration.includes('mins')) {
-                        mins = parseInt(rep.duration) || 0;
+                    let totalSecs = 0;
+                    if (rep.duration) {
+                        let mMatch = rep.duration.match(/(\d+)m/);
+                        let sMatch = rep.duration.match(/(\d+)s/);
+                        if (mMatch) totalSecs += parseInt(mMatch[1]) * 60;
+                        if (sMatch) totalSecs += parseInt(sMatch[1]);
                     }
-                    totalMyMins += mins;
+                    totalMySecs += totalSecs;
+
                     return `
                         <div style="background: #0f172a; border: 1px solid #334155; padding: 10px; border-radius: 8px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
                             <div>
                                 <strong>${rep.type}</strong> (${rep.dateStr || ''})
-                                <br><small style="color:var(--text-muted)">التوقيت: من ${rep.startTime} إلى ${rep.endTime}</small>
+                                <br><small style="color:var(--text-muted)">Time: from ${rep.startTime} to ${rep.endTime}</small>
                             </div>
                             <div style="text-align: right;">
                                 <span style="color: #38bdf8; font-weight: bold;">${rep.duration}</span>
@@ -1757,9 +1835,12 @@
                     `;
                 }).join('');
 
+                const totMins = Math.floor(totalMySecs / 60);
+                const totSecsRem = totalMySecs % 60;
+
                 listHtml += `
                     <div style="background: #1e293b; padding: 10px; border-radius: 8px; margin-top: 10px; text-align: center; font-weight: bold; color: #34d399; font-size: 0.95rem;">
-                        مجموع دقائق بريكاتك الكلية: ${totalMyMins} دقيقة
+                        Total Break Duration: ${totMins}m ${totSecsRem}s
                     </div>
                 `;
                 myHistoryBox.innerHTML = listHtml;
@@ -1773,13 +1854,17 @@
             aBox.innerHTML = '<div class="empty-msg">No one on break right now</div>';
         } else {
             aBox.innerHTML = state.active.map((item, i) => {
-                const minsInBreak = Math.floor((currentTime - item.timestamp) / 60000);
-                const activeDurationStr = minsInBreak === 0 ? 'Less than a minute ago' : `${minsInBreak} mins ago`;
+                const elapsedMs = currentTime - item.timestamp;
+                const elapsedSecs = Math.floor(elapsedMs / 1000);
+                const minsInBreak = Math.floor(elapsedSecs / 60);
+                const secsInBreak = elapsedSecs % 60;
+                const activeDurationStr = `${minsInBreak}m ${secsInBreak}s`;
+
                 const isOwner = currentEmployeeName && item.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase();
                 const showEndBtn = (isOwner || isAdmin);
                 
                 const isQuick = item.type === 'quick';
-                const isOvertime = (isQuick && minsInBreak > 5) || (!isQuick && minsInBreak > 20);
+                const isOvertime = (isQuick && (minsInBreak >= 5 && secsInBreak > 0)) || (!isQuick && (minsInBreak >= 20 && secsInBreak > 0));
 
                 let typeLabel = '<span style="color:#fbbf24;">[Normal]</span>';
                 if (isQuick) typeLabel = '<span style="color:#3b82f6;">[Quick]</span>';
@@ -1789,10 +1874,10 @@
                     <div class="card-item ${isOvertime ? 'overtime' : ''}">
                         <div>
                             <strong>${item.name}</strong> 
-                            <span style="margin-left: 8px; font-size: 0.9rem;">⏱️ ${activeDurationStr}</span>
+                            <span style="margin-left: 8px; font-size: 0.9rem;">⏱️ <span class="active-countup-timer" data-starttime="${item.timestamp}">${activeDurationStr}</span></span>
                             ${typeLabel}
                             <br><small style="color:var(--text-muted)">Out at: ${item.dateStr || ''} ${item.timeStr}</small>
-                            ${isOvertime ? `<br><span style="color: var(--accent-red); font-weight: bold; font-size: 0.85rem;">⚠️ Exceeded limit time (${isQuick ? '5m' : '20m'})!</span>` : ''}
+                            ${isOvertime ? `<br><span style="color: var(--accent-red); font-weight: bold; font-size: 0.85rem;">⚠️ Exceeded limit time (${isQuick ? '5m' : '20m'})! Max limit is 45m.</span>` : ''}
                         </div>
                         ${showEndBtn ? `<button type="button" class="btn btn-red" onclick="endBreak(${i})">End</button>` : ``}
                     </div>
@@ -1815,7 +1900,7 @@
                 const elapsedSecs = Math.floor((currentTime - item.queueStartTime) / 1000);
                 const initMins = Math.floor(elapsedSecs / 60);
                 const initSecs = elapsedSecs % 60;
-                const countupText = initMins > 0 ? `${initMins}m ${initSecs}s` : `${initSecs}s`;
+                const countupText = `${initMins}m ${initSecs}s`;
 
                 let typeLabel = '<span style="color:#fbbf24;">[Normal]</span>';
                 if (isQuick) typeLabel = '<span style="color:#3b82f6;">[Quick]</span>';
@@ -1826,12 +1911,12 @@
                         const elapsedWaiting = currentTime - item.turnStartTime;
                         const waitingMins = Math.floor(elapsedWaiting / 60000);
                         if (waitingMins >= 7) {
-                            adminStatusBadge = `<br><span style="background:#7f1d1d; color:#fca5a5; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:bold;">⚠️ متأخر بالتاكيد (${waitingMins} دقيقة)</span>`;
+                            adminStatusBadge = `<br><span style="background:#7f1d1d; color:#fca5a5; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:bold;">⚠️ Confirmation Timeout (${waitingMins}m)</span>`;
                         } else {
-                            adminStatusBadge = `<br><span style="background:#065f46; color:#34d399; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:bold;">⏳ بانتظار التأكيد (${waitingMins} دقيقة)</span>`;
+                            adminStatusBadge = `<br><span style="background:#065f46; color:#34d399; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:bold;">⏳ Waiting Confirmation (${waitingMins}m)</span>`;
                         }
                     } else {
-                        adminStatusBadge = `<br><span style="color:var(--text-muted); font-size:0.75rem;">في قائمة الانتظار</span>`;
+                        adminStatusBadge = `<br><span style="color:var(--text-muted); font-size:0.75rem;">In Waiting Queue</span>`;
                     }
                 }
 
@@ -1914,10 +1999,10 @@
         const rBox = document.getElementById('reportsBox');
         if (isAdmin) {
             if (!state.reports || state.reports.length === 0) {
-                rBox.innerHTML = '<div class="empty-msg">No reports logged in the last 48 hours</div>';
+                rBox.innerHTML = '<div class="empty-msg">No reports logged</div>';
             } else {
                 let tableHtml = `
-                    <div class="report-table-title">Contact Center Break Report (Last 48 Hours)</div>
+                    <div class="report-table-title">Contact Center Break Report (Auto-Clears Every 10 Hours)</div>
                     <table class="report-table">
                         <thead>
                             <tr>
