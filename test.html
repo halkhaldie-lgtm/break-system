@@ -280,7 +280,7 @@
             margin-bottom: 12px;
             display: flex;
             align-items: center;
-            gap: 8px;
+            justify-content: space-between;
         }
 
         .card-item {
@@ -561,7 +561,8 @@
         <!-- سجل البريكات الخاص بالموظف الحالي -->
         <div class="section-card" id="myBreakHistorySection" style="border-color: #1e3a8a; display: none;">
             <div class="section-header-title" style="color: #38bdf8;">
-                <span>📊 سجلي الشخصي للبريكات</span>
+                <span>📊 سجلي الشخصي للبريكات (يتحدث كل 10 ساعات)</span>
+                <button type="button" class="btn btn-red" style="padding: 4px 10px; font-size: 0.75rem;" onclick="clearMyPersonalHistory()">Clear My History</button>
             </div>
             <div id="myBreakHistoryBox"></div>
         </div>
@@ -574,7 +575,7 @@
         <div class="report-box" id="adminReportContainer">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div style="font-size: 0.85rem; font-weight: bold; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
-                    <span>📊 Contact Center Break Report (Last 48 Hours)</span>
+                    <span>📊 Contact Center Break Report</span>
                 </div>
                 <div style="display: flex; gap: 6px; align-items: center;">
                     <button type="button" class="btn btn-excel" id="excelBtn" onclick="exportToExcel()">📥 Excel</button>
@@ -635,7 +636,6 @@
     </div>
 </div>
 
-<!-- نافذة خيار إبقاء الموظف في دوره أو إلغائه عند الإخراج الإجباري بواسطة الأدمن -->
 <div class="custom-modal-overlay" id="forceOutModalOverlay">
     <div class="custom-modal-box">
         <div class="custom-modal-title" style="text-align: right; direction: rtl;">⚠️ خيار إخراج الموظف إجبارياً</div>
@@ -710,10 +710,10 @@
         firebase.initializeApp(firebaseConfig);
     }
     
-    const db = firebase.database().ref('alsalam_hospital_breaks_v48');
+    const db = firebase.database().ref('alsalam_hospital_breaks_v50');
     const usersDb = firebase.database().ref('alsalam_hospital_users');
 
-    let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
+    let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [], clearedHistory: {} };
     let usersState = {};
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
     let currentLoggedInUser = localStorage.getItem('logged_in_username') || '';
@@ -993,10 +993,11 @@
                 waiting: val.waiting || [],
                 requests: val.requests || [],
                 reports: filteredReports,
-                swapLogs: filteredSwaps
+                swapLogs: filteredSwaps,
+                clearedHistory: val.clearedHistory || {}
             };
         } else {
-            state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
+            state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [], clearedHistory: {} };
         }
 
         checkTurnLogicAndNotifications();
@@ -1156,16 +1157,14 @@
         const currentTime = Date.now();
         const newWaiting = state.waiting || [];
 
-        // فحص الحد الأقصى للموظفين النشطين في البريك (45 دقيقة كحد أقصى) وإخراجهم فوراً تلقائياً
         let activeListChanged = false;
         if (state.active && state.active.length > 0) {
             for (let i = state.active.length - 1; i >= 0; i--) {
                 const activeItem = state.active[i];
                 const elapsedBreakMs = currentTime - activeItem.timestamp;
-                const maxBreakLimitMs = 45 * 60 * 1000; // 45 دقيقة
+                const maxBreakLimitMs = 45 * 60 * 1000;
 
                 if (elapsedBreakMs >= maxBreakLimitMs) {
-                    // تجاوز الحد الأقصى (45 دقيقة) -> إخراج الموظف تلقائياً وتسجيله بالتقارير
                     const finishedItem = state.active.splice(i, 1)[0];
                     activeListChanged = true;
 
@@ -1188,6 +1187,7 @@
                         startTime: finishedItem.timeStr,
                         endTime: endTimeStr,
                         duration: durationText,
+                        durationMs: durationMs,
                         isOvertime: true,
                         endTimestamp: endTime
                     });
@@ -1236,6 +1236,7 @@
                                 startTime: '-',
                                 endTime: '-',
                                 duration: '0 mins',
+                                durationMs: 0,
                                 isOvertime: true,
                                 endTimestamp: Date.now()
                             });
@@ -1292,7 +1293,6 @@
             }
         });
 
-        // تحديث عدادات البريك الحية (Live Timers) لكل موظف على الشاشة بالثواني
         const activeLiveItems = document.querySelectorAll('.active-live-timer');
         activeLiveItems.forEach(el => {
             const startTime = parseInt(el.getAttribute('data-starttime') || '0', 10);
@@ -1333,6 +1333,7 @@
                     startTime: '-',
                     endTime: '-',
                     duration: '0 mins',
+                    durationMs: 0,
                     isOvertime: false,
                     endTimestamp: Date.now()
                 });
@@ -1501,7 +1502,6 @@
             if (finishedItem.type === 'quick') typeText = 'Quick Break (5m)';
             else if (finishedItem.type === 'request') typeText = 'Requested Break';
 
-            // تعديل شروط تجاوز وقت البريك (الحد الأقصى هو 45 دقيقة للجميع)
             let isOvertime = false;
             if (durationMins > 45) {
                 isOvertime = true;
@@ -1514,6 +1514,7 @@
                 startTime: finishedItem.timeStr,
                 endTime: endTimeStr,
                 duration: durationText,
+                durationMs: durationMs,
                 isOvertime: isOvertime,
                 endTimestamp: endTime
             });
@@ -1629,6 +1630,16 @@
         }
     }
 
+    function clearMyPersonalHistory() {
+        if (!currentEmployeeName) return;
+        if (confirm('هل أنت متأكد من رغبتك في مسح سجلك الشخصي للبريكات؟')) {
+            if (!state.clearedHistory) state.clearedHistory = {};
+            state.clearedHistory[currentEmployeeName.trim().toLowerCase()] = Date.now();
+            db.set(state);
+            showCustomAlert('تم مسح سجلك الشخصي بنجاح!');
+        }
+    }
+
     function clearReports() {
         if (!isAdmin) return;
         if (confirm('Are you sure you want to clear reports and logs?')) {
@@ -1644,14 +1655,11 @@
         let employeeSummaryMap = {};
         (state.reports || []).forEach(rep => {
             if (!employeeSummaryMap[rep.name]) {
-                employeeSummaryMap[rep.name] = { totalBreaks: 0, totalMins: 0, details: [] };
+                employeeSummaryMap[rep.name] = { totalBreaks: 0, totalSecs: 0, details: [] };
             }
             employeeSummaryMap[rep.name].totalBreaks += 1;
-            let mins = 0;
-            if (rep.duration && rep.duration.includes('mins')) {
-                mins = parseInt(rep.duration) || 0;
-            }
-            employeeSummaryMap[rep.name].totalMins += mins;
+            let secs = Math.floor((rep.durationMs || 0) / 1000);
+            employeeSummaryMap[rep.name].totalSecs += secs;
             employeeSummaryMap[rep.name].details.push(rep);
         });
 
@@ -1671,7 +1679,7 @@
             <body>
                 <table>
                     <tr>
-                        <td colspan="7" class="section-title">--- Contact Center Break Report - By Employee Summary & Details (Last 48 Hours) ---</td>
+                        <td colspan="7" class="section-title">--- Contact Center Break Report ---</td>
                     </tr>
                     <tr>
                         <th style="width: 130pt;">Employee Name</th>
@@ -1702,10 +1710,12 @@
                     </tr>
                 `;
             });
+            const totMins = Math.floor(empData.totalSecs / 60);
+            const totSecsRem = empData.totalSecs % 60;
             html += `
                 <tr>
                     <td colspan="5" style="text-align: right; font-weight: bold; background-color: #e2e8f0;">مجموع البريكات للموظف (${empName}):</td>
-                    <td colspan="2" style="font-weight: bold; background-color: #e2e8f0;">إجمالي البريكات: ${empData.totalBreaks} | إجمالي الوقت: ${empData.totalMins} دقيقة</td>
+                    <td colspan="2" style="font-weight: bold; background-color: #e2e8f0;">إجمالي البريكات: ${empData.totalBreaks} | الوقت الكلي: ${totMins} دقيقة و ${totSecsRem} ثانية</td>
                 </tr>
             `;
         });
@@ -1720,7 +1730,7 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'Contact_Center_Break_Report_Per_Employee.xls';
+        a.download = 'Contact_Center_Break_Report.xls';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -1790,18 +1800,24 @@
         const myHistoryBox = document.getElementById('myBreakHistoryBox');
         if (currentEmployeeName && !isAdmin) {
             myHistorySection.style.display = 'block';
-            const myReports = (state.reports || []).filter(rep => rep.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase());
+            
+            // فلترة السجل الشخصي لآخر 10 ساعات فقط بناءً على طلبك
+            const tenHoursAgo = currentTime - (10 * 60 * 60 * 1000);
+            const userLowerKey = currentEmployeeName.trim().toLowerCase();
+            const lastClearedTime = (state.clearedHistory && state.clearedHistory[userLowerKey]) ? state.clearedHistory[userLowerKey] : 0;
+            const effectiveStartTime = Math.max(tenHoursAgo, lastClearedTime);
+
+            const myReports = (state.reports || []).filter(rep => {
+                return rep.name.trim().toLowerCase() === userLowerKey && rep.endTimestamp >= effectiveStartTime;
+            });
             
             if (myReports.length === 0) {
-                myHistoryBox.innerHTML = '<div class="empty-msg">لا توجد سجلات بريكات سابقة لك</div>';
+                myHistoryBox.innerHTML = '<div class="empty-msg">لا توجد سجلات بريكات حديثة لك في آخر 10 ساعات</div>';
             } else {
-                let totalMyMins = 0;
+                let totalMySecs = 0;
                 let listHtml = myReports.map(rep => {
-                    let mins = 0;
-                    if (rep.duration && rep.duration.includes('mins')) {
-                        mins = parseInt(rep.duration) || 0;
-                    }
-                    totalMyMins += mins;
+                    let secs = Math.floor((rep.durationMs || 0) / 1000);
+                    totalMySecs += secs;
                     return `
                         <div style="background: #0f172a; border: 1px solid #334155; padding: 10px; border-radius: 8px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
                             <div>
@@ -1815,9 +1831,12 @@
                     `;
                 }).join('');
 
+                const finalMins = Math.floor(totalMySecs / 60);
+                const finalSecsRem = totalMySecs % 60;
+
                 listHtml += `
                     <div style="background: #1e293b; padding: 10px; border-radius: 8px; margin-top: 10px; text-align: center; font-weight: bold; color: #34d399; font-size: 0.95rem;">
-                        مجموع دقائق بريكاتك الكلية: ${totalMyMins} دقيقة
+                        مجموع وقت بريكاتك الكلي بدقة: ${finalMins} دقيقة و ${finalSecsRem} ثانية (${totalMySecs} ثانية)
                     </div>
                 `;
                 myHistoryBox.innerHTML = listHtml;
@@ -1839,7 +1858,6 @@
 
                 const isOwner = currentEmployeeName && item.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase();
                 const showEndBtn = (isOwner || isAdmin);
-                
                 const isOvertime = activeMins > 45;
 
                 let typeLabel = '<span style="color:#fbbf24;">[Normal]</span>';
@@ -1978,7 +1996,7 @@
                 rBox.innerHTML = '<div class="empty-msg">No reports logged in the last 48 hours</div>';
             } else {
                 let tableHtml = `
-                    <div class="report-table-title">Contact Center Break Report (Last 48 Hours)</div>
+                    <div class="report-table-title">Contact Center Break Report</div>
                     <table class="report-table">
                         <thead>
                             <tr>
@@ -2015,4 +2033,3 @@
 </script>
 </body>
 </html>
-```[cite: 7]
