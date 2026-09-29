@@ -124,7 +124,7 @@
             align-items: center;
             justify-content: center;
             gap: 2px;
-            direction: ltr;
+            direction: rtl;
             width: 100%;
         }
 
@@ -280,7 +280,7 @@
             margin-bottom: 12px;
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            gap: 8px;
         }
 
         .card-item {
@@ -357,6 +357,16 @@
             border-top: 1px solid #475569;
             padding-top: 10px;
             overflow-x: auto;
+        }
+        .report-table-title {
+            background-color: #bae6fd;
+            color: #0369a1;
+            padding: 4px 8px;
+            font-weight: bold;
+            font-size: 0.78rem;
+            border-radius: 4px;
+            margin-bottom: 6px;
+            display: inline-block;
         }
         .report-table {
             width: 100%;
@@ -435,7 +445,8 @@
             color: #475569;
             margin-bottom: 10px;
             line-height: 1.5;
-            text-align: left;
+            text-align: right;
+            direction: rtl;
         }
         .custom-modal-box input, .custom-modal-box select {
             background: #ffffff !important;
@@ -472,7 +483,7 @@
             
             <button class="top-admin-option-btn" id="topAdminOptionBtn" onclick="openAdminModal()">Admin Access & Users</button>
 
-            <button class="notif-badge" id="notifBtn" onclick="requestNotificationPermission()">🔔 Enable Notifications & Audio</button>
+            <button class="notif-badge" id="notifBtn" onclick="requestNotificationPermission()">🔔 تفعيل الإشعارات والأصوات</button>
         </div>
 
         <div class="hospital-logo-box">
@@ -505,14 +516,14 @@
     <div id="mainSystemContent" style="display: none;">
         <!-- شاشة تأكيد الدور للموظف مع العداد التنازلي الحي -->
         <div id="myTurnPromptBox" class="my-turn-prompt">
-            <h3 id="myTurnTitle">🚨 It is your turn for a break!</h3>
-            <p id="myTurnDesc">Please click the confirmation button below to start your break.</p>
+            <h3 id="myTurnTitle">🚨 حان دورك للبريك!</h3>
+            <p id="myTurnDesc">يرجى الضغط على زر التأكيد أدناه للدخول الفعلي للبريك.</p>
             <div id="turnActionButtonsContainer">
-                <div id="liveCountdownDisplay" style="font-size: 0.95rem; font-weight: bold; color: #ffedd5; margin-bottom: 8px;">⏳ Calculating time...</div>
-                <button type="button" class="btn" style="background: #ffffff; color: #0d9488; font-size: 1.05rem; width: 100%; border-radius: 10px; margin-bottom: 6px;" onclick="confirmMyTurn()">✅ Confirm and Start Break</button>
+                <div id="liveCountdownDisplay" style="font-size: 0.95rem; font-weight: bold; color: #ffedd5; margin-bottom: 8px;">⏳ جاري حساب الوقت...</div>
+                <button type="button" class="btn" style="background: #ffffff; color: #0d9488; font-size: 1.05rem; width: 100%; border-radius: 10px; margin-bottom: 6px;" onclick="confirmMyTurn()">✅ تأكيد والدخول للبريك</button>
                 <div style="display: flex; gap: 6px; justify-content: center; margin-top: 6px;">
-                    <span style="font-size: 0.85rem; align-self: center;">Do you want to swap your turn?</span>
-                    <button type="button" class="btn btn-red" style="padding: 4px 10px;" onclick="promptSwapChoiceAction('no')">No</button>
+                    <span style="font-size: 0.85rem; align-self: center;">هل تريد استبدال دورك؟</span>
+                    <button type="button" class="btn btn-red" style="padding: 4px 10px;" onclick="promptSwapChoiceAction('no')">لا أريد</button>
                 </div>
             </div>
         </div>
@@ -550,8 +561,7 @@
         <!-- سجل البريكات الخاص بالموظف الحالي -->
         <div class="section-card" id="myBreakHistorySection" style="border-color: #1e3a8a; display: none;">
             <div class="section-header-title" style="color: #38bdf8;">
-                <span>📊 My Personal Break History (Updates every 10 hours)</span>
-                <button type="button" class="btn btn-red" style="padding: 4px 10px; font-size: 0.75rem;" onclick="clearMyPersonalHistory()">Clear My History</button>
+                <span>📊 سجلي الشخصي للبريكات</span>
             </div>
             <div id="myBreakHistoryBox"></div>
         </div>
@@ -564,7 +574,7 @@
         <div class="report-box" id="adminReportContainer">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div style="font-size: 0.85rem; font-weight: bold; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
-                    <span>📊 Contact Center Break Report</span>
+                    <span>📊 Contact Center Break Report (Last 48 Hours)</span>
                 </div>
                 <div style="display: flex; gap: 6px; align-items: center;">
                     <button type="button" class="btn btn-excel" id="excelBtn" onclick="exportToExcel()">📥 Excel</button>
@@ -606,8 +616,8 @@
                 <input type="password" id="admEmpPass" placeholder="New Password..." />
                 <div style="font-size: 0.8rem; font-weight: bold; color: #334155; margin-top: 6px; margin-bottom: 4px;">Account Role Type:</div>
                 <select id="admEmpRole">
-                    <option value="normal">Normal Employee</option>
-                    <option value="admin">Admin</option>
+                    <option value="normal">Normal Employee (موظف عادي)</option>
+                    <option value="admin">Admin (أدمن)</option>
                 </select>
                 <button type="button" class="btn btn-green" style="width: 100%; margin-top: 8px;" onclick="saveEmployeeAccount()">Save / Update Account</button>
             </div>
@@ -627,33 +637,16 @@
 
 <div class="custom-modal-overlay" id="forceOutModalOverlay">
     <div class="custom-modal-box">
-        <div class="custom-modal-title" style="text-align: left;">⚠️ Force Employee Out Option</div>
-        <div class="custom-modal-subtitle" id="forceOutModalText">Do you want to keep the employee's turn reserved in the waiting queue, or cancel it entirely?</div>
-        <div class="custom-modal-buttons" style="display: flex; gap: 10px; margin-top: 20px;">
-            <button type="button" class="btn btn-green" style="flex: 1;" onclick="handleForceOutChoice(true)">Keep Turn Reserved</button>
-            <button type="button" class="btn btn-red" style="flex: 1;" onclick="handleForceOutChoice(false)">Cancel Turn Entirely</button>
+        <div class="custom-modal-title" style="text-align: right; direction: rtl;">⚠️ خيار إخراج الموظف إجبارياً</div>
+        <div class="custom-modal-subtitle" id="forceOutModalText">هل ترغب في إبقاء دور الموظف محجوزاً في قائمة الانتظار ، أم إلغاء دوره تماماً؟</div>
+        <div class="custom-modal-buttons" style="display: flex; gap: 10px; margin-top: 20px; direction: rtl;">
+            <button type="button" class="btn btn-green" style="flex: 1;" onclick="handleForceOutChoice(true)">إبقاء دور الموظف محجوزاً</button>
+            <button type="button" class="btn btn-red" style="flex: 1;" onclick="handleForceOutChoice(false)">إلغاء دوره تماماً</button>
         </div>
     </div>
 </div>
 
 <script>
-    // دالة تنسيق الوقت بدون كلمة "بدقة" وبدون تكرار الثواني
-    function formatBreakDuration(totalSeconds) {
-        if (!totalSeconds || totalSeconds < 0) totalSeconds = 0;
-        const minutes = Math.floor(totalSeconds / 60);
-        const seconds = totalSeconds % 60;
-
-        if (minutes === 0 && seconds === 0) {
-            return "0 seconds";
-        } else if (minutes === 0) {
-            return `${seconds} seconds`;
-        } else if (seconds === 0) {
-            return `${minutes} minutes`;
-        } else {
-            return `${minutes} minutes and ${seconds} seconds`;
-        }
-    }
-
     function showCustomAlert(message) {
         var existingAlert = document.getElementById('custom-alert-box');
         if (existingAlert) existingAlert.remove();
@@ -680,7 +673,7 @@
         titleDiv.style.fontSize = '20px';
         titleDiv.style.fontWeight = 'bold';
         titleDiv.style.marginBottom = '10px';
-        titleDiv.innerHTML = '⚠️ System Alert';
+        titleDiv.innerHTML = '⚠️ تنبيه النظام';
 
         var msgDiv = document.createElement('div');
         msgDiv.style.color = '#333';
@@ -698,7 +691,7 @@
         btn.style.fontWeight = 'bold';
         btn.style.borderRadius = '4px';
         btn.style.cursor = 'pointer';
-        btn.textContent = 'OK';
+        btn.textContent = 'حسناً';
 
         alertBox.appendChild(titleDiv);
         alertBox.appendChild(msgDiv);
@@ -716,10 +709,10 @@
         firebase.initializeApp(firebaseConfig);
     }
     
-    const db = firebase.database().ref('alsalam_hospital_breaks_v50');
+    const db = firebase.database().ref('alsalam_hospital_breaks_v47');
     const usersDb = firebase.database().ref('alsalam_hospital_users');
 
-    let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [], clearedHistory: {} };
+    let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
     let usersState = {};
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
     let currentLoggedInUser = localStorage.getItem('logged_in_username') || '';
@@ -812,28 +805,23 @@
         const adminActiveBadge = document.getElementById('adminActiveBadge');
         const topAdminBtn = document.getElementById('topAdminOptionBtn');
         const reportBox = document.getElementById('adminReportContainer');
-        const requestsSec = document.getElementById('requestsSectionContainer');
-        const historySec = document.getElementById('myBreakHistorySection');
 
         if (currentLoggedInUser) {
             loginSec.style.display = 'none';
             mainSec.style.display = 'block';
-            logoutBtn.style.display = 'inline-block';
             document.getElementById('welcomeEmpLabel').innerText = `Welcome: ${currentEmployeeName} (${currentLoggedInUser})`;
             
             if (isAdmin) {
+                logoutBtn.style.display = 'inline-block';
                 adminActiveBadge.style.display = 'inline-block';
                 topAdminBtn.style.display = 'inline-block';
                 reportBox.style.display = 'block';
-                requestsSec.style.display = 'block';
             } else {
+                logoutBtn.style.display = 'inline-block';
                 adminActiveBadge.style.display = 'none';
                 topAdminBtn.style.display = 'none';
                 reportBox.style.display = 'none';
-                requestsSec.style.display = 'none';
             }
-            historySec.style.display = 'block';
-            renderUI();
         } else {
             loginSec.style.display = 'block';
             mainSec.style.display = 'none';
@@ -842,39 +830,72 @@
             topAdminBtn.style.display = 'none';
             reportBox.style.display = 'none';
         }
+        renderUI();
     }
 
-    // دوال المودال والأدمن المساعدة
-    function openAdminModal() {
+    function openRegisterModal() {
+        document.getElementById('adminModalTitle').innerText = 'Employee Registration';
+        document.getElementById('adminPasswordPromptBox').style.display = 'none';
+        document.getElementById('selfRegisterBox').style.display = 'block';
+        document.getElementById('adminDashboardBox').style.display = 'none';
+        document.getElementById('regEmpName').value = '';
+        document.getElementById('regEmpUser').value = '';
+        document.getElementById('regEmpPass').value = '';
         document.getElementById('adminModalOverlay').style.display = 'flex';
+    }
+
+    function selfRegisterAccount() {
+        const name = document.getElementById('regEmpName').value.trim();
+        const user = document.getElementById('regEmpUser').value.trim();
+        const pass = document.getElementById('regEmpPass').value.trim();
+
+        if (!name || !user || !pass) {
+            showCustomAlert('Please fill in all fields!');
+            return;
+        }
+
+        if (usersState[user]) {
+            showCustomAlert('Username already exists! Please choose another one.');
+            return;
+        }
+
+        usersState[user] = { name: name, password: pass, role: 'normal' };
+        usersDb.set(usersState).then(() => {
+            closeAdminModal();
+            showCustomAlert('Account created successfully! You can now login.');
+        });
+    }
+
+    function openAdminModal() {
+        document.getElementById('adminModalTitle').innerText = 'Admin Access & Users';
         if (isAdmin) {
             document.getElementById('adminPasswordPromptBox').style.display = 'none';
             document.getElementById('selfRegisterBox').style.display = 'none';
             document.getElementById('adminDashboardBox').style.display = 'block';
-            document.getElementById('adminModalTitle').innerText = 'Admin Dashboard & Users Management';
+            isUsersListExpanded = false;
+            document.getElementById('empAccountsListContainer').style.display = 'none';
+            document.getElementById('usersToggleArrow').innerText = '▼';
             renderAdminUsersList();
+            document.getElementById('adminModalOverlay').style.display = 'flex';
         } else {
+            document.getElementById('adminPassInput').value = '';
             document.getElementById('adminPasswordPromptBox').style.display = 'block';
             document.getElementById('selfRegisterBox').style.display = 'none';
             document.getElementById('adminDashboardBox').style.display = 'none';
-            document.getElementById('adminModalTitle').innerText = 'Admin Access & Users';
+            document.getElementById('adminModalOverlay').style.display = 'flex';
+            document.getElementById('adminPassInput').focus();
         }
     }
 
-    function openRegisterModal() {
-        document.getElementById('adminModalOverlay').style.display = 'flex';
-        document.getElementById('adminPasswordPromptBox').style.display = 'none';
-        document.getElementById('adminDashboardBox').style.display = 'none';
-        document.getElementById('selfRegisterBox').style.display = 'block';
-        document.getElementById('adminModalTitle').innerText = 'Register New Account';
-    }
-
     function openAdminPortalPrompt() {
-        document.getElementById('adminModalOverlay').style.display = 'flex';
+        isAdmin = false;
+        document.getElementById('adminModalTitle').innerText = 'Admin Access & Users';
+        document.getElementById('adminPassInput').value = '';
         document.getElementById('adminPasswordPromptBox').style.display = 'block';
         document.getElementById('selfRegisterBox').style.display = 'none';
         document.getElementById('adminDashboardBox').style.display = 'none';
-        document.getElementById('adminModalTitle').innerText = 'Admin Portal Access';
+        document.getElementById('adminModalOverlay').style.display = 'flex';
+        document.getElementById('adminPassInput').focus();
     }
 
     function closeAdminModal() {
@@ -882,7 +903,7 @@
     }
 
     function verifyAdminPassword() {
-        const pass = document.getElementById('adminPassInput').value.trim();
+        const pass = document.getElementById('adminPassInput').value;
         if (pass === getAdminPassword()) {
             isAdmin = true;
             localStorage.setItem('is_admin_mode', 'true');
@@ -893,34 +914,8 @@
             closeAdminModal();
             checkSession();
         } else {
-            showCustomAlert('Incorrect Admin Password!');
+            showCustomAlert('Incorrect admin password!');
         }
-    }
-
-    function selfRegisterAccount() {
-        const name = document.getElementById('regEmpName').value.trim();
-        const user = document.getElementById('regEmpUser').value.trim();
-        const pass = document.getElementById('regEmpPass').value.trim();
-
-        if (!name || !user || !pass) {
-            showCustomAlert('Please fill in all registration fields!');
-            return;
-        }
-
-        usersDb.child(user).once('value').then(snapshot => {
-            if (snapshot.exists()) {
-                showCustomAlert('Username already exists! Please choose another.');
-            } else {
-                usersDb.child(user).set({
-                    name: name,
-                    password: pass,
-                    role: 'normal'
-                }).then(() => {
-                    showCustomAlert('Account registered successfully! You can now log in.');
-                    closeAdminModal();
-                });
-            }
-        });
     }
 
     function saveEmployeeAccount() {
@@ -930,62 +925,97 @@
         const role = document.getElementById('admEmpRole').value;
 
         if (!name || !user || !pass) {
-            showCustomAlert('Please fill in name, username, and password fields!');
+            showCustomAlert('Please fill all user details!');
             return;
         }
 
-        usersDb.child(user).set({
-            name: name,
-            password: pass,
-            role: role
-        }).then(() => {
-            showCustomAlert('User account saved successfully!');
+        usersState[user] = { name: name, password: pass, role: role };
+        
+        usersDb.set(usersState).then(() => {
             document.getElementById('admEmpName').value = '';
             document.getElementById('admEmpUser').value = '';
             document.getElementById('admEmpPass').value = '';
+            document.getElementById('admEmpRole').value = 'normal';
             renderAdminUsersList();
+            showCustomAlert('Account saved successfully!');
         });
+    }
+
+    function deleteEmployeeAccount(username) {
+        if (confirm(`Are you sure you want to delete account (${username})?`)) {
+            if (usersState[username]) {
+                delete usersState[username];
+                usersDb.set(usersState).then(() => {
+                    renderAdminUsersList();
+                });
+            }
+        }
     }
 
     function renderAdminUsersList() {
         const container = document.getElementById('empAccountsListContainer');
-        container.innerHTML = '';
         const users = usersState || {};
         const keys = Object.keys(users);
 
         if (keys.length === 0) {
-            container.innerHTML = '<div class="empty-msg">No registered users found.</div>';
+            container.innerHTML = '<div class="empty-msg" style="color:#0f172a;">No custom user accounts yet</div>';
             return;
         }
 
-        keys.forEach(k => {
-            const uData = users[k];
-            const div = document.createElement('div');
-            div.style.display = 'flex';
-            div.style.justifyContent = 'space-between';
-            div.style.alignItems = 'center';
-            div.style.background = '#ffffff';
-            div.style.padding = '6px 10px';
-            div.style.borderRadius = '6px';
-            div.style.marginBottom = '4px';
-            div.style.fontSize = '0.8rem';
-            div.style.border = '1px solid #cbd5e1';
-
-            div.innerHTML = `
-                <div><strong>${uData.name}</strong> (${k}) [${uData.role}]</div>
-                <button type="button" class="btn btn-red" style="padding: 2px 6px; font-size: 0.7rem;" onclick="deleteUserAccount('${k}')">Delete</button>
+        container.innerHTML = keys.map(uname => {
+            const u = users[uname];
+            const roleBadge = (u.role === 'admin') ? ' <span style="color:#b91c1c; font-weight:bold;">[Admin]</span>' : ' <span style="color:#047857;">[Normal]</span>';
+            return `
+                <div style="display: flex; justify-content: space-between; align-items: center; background: #ffffff; padding: 6px 10px; border-radius: 6px; margin-bottom: 6px; border: 1px solid #cbd5e1;">
+                    <div style="font-size: 0.82rem; color: #0f172a;">
+                        <strong>${u.name}</strong> (${uname}) ${roleBadge}
+                    </div>
+                    <button type="button" class="btn btn-red" style="padding: 2px 6px; font-size: 0.7rem;" onclick="deleteEmployeeAccount('${uname}')">Delete</button>
+                </div>
             `;
-            container.appendChild(div);
-        });
+        }).join('');
     }
 
-    function deleteUserAccount(username) {
-        if (confirm(`Are you sure you want to delete user account "${username}"?`)) {
-            usersDb.child(username).remove().then(() => {
-                renderAdminUsersList();
-            });
+    usersDb.on('value', (snapshot) => {
+        usersState = snapshot.val() || {};
+    });
+
+    db.on('value', (snapshot) => {
+        const val = snapshot.val();
+        if (val) {
+            const fortyEightHoursAgo = Date.now() - (48 * 60 * 60 * 1000);
+            let filteredReports = (val.reports || []).filter(rep => rep.endTimestamp > fortyEightHoursAgo);
+            let filteredSwaps = (val.swapLogs || []).filter(sw => sw.timestamp > fortyEightHoursAgo);
+
+            state = {
+                active: val.active || [],
+                waiting: val.waiting || [],
+                requests: val.requests || [],
+                reports: filteredReports,
+                swapLogs: filteredSwaps
+            };
+        } else {
+            state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
         }
-    }
+
+        checkTurnLogicAndNotifications();
+        renderUI();
+    });
+
+    setInterval(() => {
+        runLiveTimerCheck();
+    }, 1000);
+
+    document.addEventListener('DOMContentLoaded', () => {
+        checkSession();
+        if ("Notification" in window && Notification.permission !== "granted") {
+            Notification.requestPermission();
+        }
+        
+        document.getElementById('adminPassInput').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') verifyAdminPassword();
+        });
+    });
 
     function toggleReportsExpand() {
         isReportsExpanded = !isReportsExpanded;
@@ -994,87 +1024,843 @@
         if (isReportsExpanded) {
             wrapper.style.display = 'block';
             btn.innerText = '▲';
+            btn.title = 'Hide Log';
         } else {
             wrapper.style.display = 'none';
             btn.innerText = '▼';
+            btn.title = 'Show Log';
         }
     }
 
     function requestNotificationPermission() {
-        if ('Notification' in window) {
+        initAudioContext();
+        if ("Notification" in window) {
             Notification.requestPermission().then(permission => {
-                if (permission === 'granted') {
-                    showCustomAlert('Notifications enabled successfully!');
+                if (permission === "granted") {
+                    playBeep();
+                    showCustomAlert('تم تفعيل إشعارات المتصفح والأصوات بنجاح!');
+                    new Notification("مستشفيات السلام", { body: "تم تفعيل الإشعارات بنجاح ليعلمك النظام بأي تحديث حتى لو كنت بصفحة أخرى." });
                 } else {
-                    showCustomAlert('Notification permission denied.');
+                    showCustomAlert('يرجى السماح للإشعارات من إعدادات المتصفح.');
                 }
             });
         } else {
-            showCustomAlert('This browser does not support desktop notifications.');
+            playBeep();
+            showCustomAlert('متصفحك لا يدعم الإشعارات المنبثقة.');
         }
     }
 
-    // دوال النظام الأساسية الوهمية لاستكمال تدفق الصفحة
-    function submitBreak(type) {
-        showCustomAlert('Break request submitted: ' + type);
+    function playBeep() {
+        try {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.6);
+        } catch(e) {
+            console.error("Audio playback error:", e);
+        }
     }
 
-    function confirmMyTurn() {
-        showCustomAlert('Break confirmed!');
+    function sendBrowserNotification(title, bodyText) {
+        try {
+            if ("Notification" in window && Notification.permission === "granted") {
+                new Notification(title, {
+                    body: bodyText,
+                    icon: "https://www.gstatic.com/images/icons/material/system/2/svg/ic_notifications_active.svg",
+                    requireInteraction: true
+                });
+            }
+        } catch(e) {
+            console.log("Notification error:", e);
+        }
+    }
+
+    let titleBlinkInterval = null;
+    function startTitleBlink(alertMessage) {
+        if (titleBlinkInterval) return;
+        let isAlt = false;
+        titleBlinkInterval = setInterval(() => {
+            document.title = isAlt ? "🚨 " + alertMessage + " 🚨" : "🔔 تنبيه دورك للبريك!";
+            isAlt = !isAlt;
+        }, 1000);
+    }
+
+    function stopTitleBlink() {
+        if (titleBlinkInterval) {
+            clearInterval(titleBlinkInterval);
+            titleBlinkInterval = null;
+            document.title = "Contact Center Break - Al Salam Hospitals";
+        }
+    }
+
+    let lastNotifiedTurnState = "";
+    let lastNotifiedAheadState = "";
+
+    function checkTurnLogicAndNotifications() {
+        const newWaiting = state.waiting || [];
+
+        if (currentEmployeeName) {
+            const myUserLower = currentEmployeeName.trim().toLowerCase();
+            const myIndex = newWaiting.findIndex(w => w.name.trim().toLowerCase() === myUserLower);
+
+            if (myIndex === 1) {
+                if (lastNotifiedAheadState !== myUserLower + "_ahead") {
+                    lastNotifiedAheadState = myUserLower + "_ahead";
+                    playBeep();
+                    showCustomAlert("⚠️ تنبيه: يوجد شخص واحد فقط أمامك في قائمة الانتظار، استعد لدورك.");
+                    sendBrowserNotification("تنبيه بريك مستشفيات السلام", "يوجد شخص واحد فقط أمامك في قائمة الانتظار، استعد لدورك.");
+                    startTitleBlink("شخص واحد أمامك!");
+                }
+            } else if (myIndex !== 1) {
+                lastNotifiedAheadState = "";
+            }
+
+            const firstNormal = newWaiting.find(w => w.type === 'normal');
+            const firstQuick = newWaiting.find(w => w.type === 'quick');
+            const hasNormalSlot = !state.active.some(a => a.type === 'normal' || a.type === 'request');
+            const hasQuickSlot = !state.active.some(a => a.type === 'quick');
+
+            const isMyTurn = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) ||
+                             (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot);
+
+            if (isMyTurn) {
+                if (lastNotifiedTurnState !== "my_turn") {
+                    lastNotifiedTurnState = "my_turn";
+                    playBeep();
+                    showCustomAlert("🚨 حان دورك للبريك! يرجى الضغط على زر (تأكيد والدخول للبريك) في الشاشة الرئيسية.");
+                    sendBrowserNotification("🚨 حان دورك للبريك!", "دورك قد حان، يرجى فتح الصفحة وتأكيد الدخول للبريك فوراً.");
+                    startTitleBlink("🚨 حان دورك للبريك!");
+                }
+            } else {
+                if (myIndex > 0 || myIndex === -1) {
+                    lastNotifiedTurnState = "";
+                    stopTitleBlink();
+                }
+            }
+        }
+    }
+
+    function runLiveTimerCheck() {
+        const currentTime = Date.now();
+        const newWaiting = state.waiting || [];
+
+        if (newWaiting.length > 0) {
+            const hasNormalSlot = !state.active.some(a => a.type === 'normal' || a.type === 'request');
+            const hasQuickSlot = !state.active.some(a => a.type === 'quick');
+            
+            const firstNormal = newWaiting.find(w => w.type === 'normal');
+            const firstQuick = newWaiting.find(w => w.type === 'quick');
+
+            let targetToShift = null;
+            if (firstNormal && hasNormalSlot) targetToShift = firstNormal;
+            else if (firstQuick && hasQuickSlot) targetToShift = firstQuick;
+
+            if (targetToShift) {
+                if (!targetToShift.turnStartTime) {
+                    targetToShift.turnStartTime = currentTime;
+                    db.set(state);
+                } else {
+                    const elapsedMs = currentTime - targetToShift.turnStartTime;
+                    if (elapsedMs > 420000) { 
+                        const idx = newWaiting.findIndex(w => w.id === targetToShift.id);
+                        if (idx > -1) {
+                            const timedOutItem = newWaiting.splice(idx, 1)[0];
+                            delete timedOutItem.turnStartTime;
+                            delete timedOutItem.promptSwapChoice;
+
+                            newWaiting.unshift(timedOutItem);
+
+                            if (!state.reports) state.reports = [];
+                            state.reports.unshift({
+                                name: timedOutItem.name,
+                                type: 'Auto-Delayed (Timeout)',
+                                dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                                startTime: '-',
+                                endTime: '-',
+                                duration: '0 mins',
+                                isOvertime: true,
+                                endTimestamp: Date.now()
+                            });
+
+                            db.set(state);
+                            playBeep();
+                            showCustomAlert("⏱️ تنبيه: تم تجاوز مهلة التأكيد، وتم استبدال الدور ضمن القائمة تلقائياً.");
+                            stopTitleBlink();
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
+        const promptBox = document.getElementById('myTurnPromptBox');
+        if (currentEmployeeName && promptBox.style.display === 'block') {
+            const myUserLower = currentEmployeeName.trim().toLowerCase();
+            const firstNormal = newWaiting.find(w => w.type === 'normal');
+            const firstQuick = newWaiting.find(w => w.type === 'quick');
+            const targetItem = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower) ? firstNormal : 
+                             ((firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower) ? firstQuick : null);
+
+            if (targetItem && targetItem.turnStartTime) {
+                const elapsed = currentTime - targetItem.turnStartTime;
+                const remainingMs = 420000 - elapsed;
+                
+                if (remainingMs > 0) {
+                    const totalSecs = Math.floor(remainingMs / 1000);
+                    const mins = Math.floor(totalSecs / 60);
+                    const secs = totalSecs % 60;
+                    const timeFormatted = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+
+                    const countdownEl = document.getElementById('liveCountdownDisplay');
+                    if (countdownEl) {
+                        if (mins >= 2) {
+                            countdownEl.innerHTML = `⏳ العد التنازلي لمهلة التأكيد (5 دقائق): <span style="font-size: 1.1rem; color: #fff;">${timeFormatted}</span> متبقية`;
+                        } else {
+                            countdownEl.innerHTML = `⚠️ تنبيه: دخلت مهلة الدقيقتين الإضافيتين: <span style="font-size: 1.1rem; color: #fca5a5;">${timeFormatted}</span> متبقية قبل الاستبدال التلقائي!`;
+                        }
+                    }
+                }
+            }
+        }
+
+        const waitingItems = document.querySelectorAll('.admin-countup-timer');
+        waitingItems.forEach(el => {
+            const startTime = parseInt(el.getAttribute('data-starttime') || '0', 10);
+            if (startTime) {
+                const elapsedSecs = Math.floor((currentTime - startTime) / 1000);
+                const mins = Math.floor(elapsedSecs / 60);
+                const secs = elapsedSecs % 60;
+                el.innerText = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+            }
+        });
     }
 
     function promptSwapChoiceAction(choice) {
-        showCustomAlert('Swap choice: ' + choice);
+        if (!currentEmployeeName) return;
+        const myUserLower = currentEmployeeName.trim().toLowerCase();
+        const firstNormal = state.waiting.find(w => w.type === 'normal');
+        const firstQuick = state.waiting.find(w => w.type === 'quick');
+        
+        let targetItem = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower) ? firstNormal : 
+                         ((firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower) ? firstQuick : null);
+
+        if (!targetItem) return;
+
+        if (choice === 'no') {
+            const idx = state.waiting.findIndex(w => w.id === targetItem.id);
+            if (idx > -1) {
+                const movedItem = state.waiting.splice(idx, 1)[0];
+                delete movedItem.turnStartTime;
+                delete movedItem.promptSwapChoice;
+                state.waiting.unshift(movedItem);
+
+                if (!state.reports) state.reports = [];
+                state.reports.unshift({
+                    name: movedItem.name,
+                    type: 'Delayed by choice (No Swap)',
+                    dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                    startTime: '-',
+                    endTime: '-',
+                    duration: '0 mins',
+                    isOvertime: false,
+                    endTimestamp: Date.now()
+                });
+
+                db.set(state);
+                showCustomAlert("⏱️ تم تبديل وتأخير دورك بناءً على اختيارك.");
+                stopTitleBlink();
+            }
+        }
     }
 
-    function clearMyPersonalHistory() {
-        if (confirm('Are you sure you want to clear your personal history?')) {
-            showCustomAlert('Personal history cleared.');
+    function submitBreak(type) {
+        initAudioContext();
+        if (!currentEmployeeName) {
+            showCustomAlert('Please login first!');
+            return;
+        }
+
+        const name = currentEmployeeName;
+        const nameLower = name.toLowerCase();
+        const isInActive = state.active.some(item => item.name.trim().toLowerCase() === nameLower);
+        const isInWaiting = state.waiting.some(item => item.name.trim().toLowerCase() === nameLower);
+        const isInRequests = state.requests.some(item => item.name.trim().toLowerCase() === nameLower);
+
+        if (isInActive || isInWaiting || isInRequests) {
+            showCustomAlert('عذراً، أنت في فترة البريك حالياً أو لديك طلب مسجل مسبقاً، لا يمكنك طلب بريك جديد حتى تنتهي!');
+            return;
+        }
+
+        lastNotifiedTurnState = "";
+        stopTitleBlink();
+
+        const now = Date.now();
+        const newItem = {
+            id: String(now),
+            name: name,
+            type: type,
+            timestamp: now,
+            dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+            timeStr: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+        };
+
+        if (type === 'request') {
+            state.requests.push(newItem);
+        } else {
+            state.waiting.push(newItem);
+        }
+
+        // تحديث الواجهة محلياً فوراً لضمان سرعة الاستجابة
+        renderUI();
+
+        db.set(state).then(() => {
+            showCustomAlert('تم تقديم طلب البريك بنجاح!');
+        }).catch((error) => {
+            console.error("Firebase save error:", error);
+            showCustomAlert('حدث خطأ أثناء الحفظ في قاعدة البيانات، يرجى المحاولة لاحقاً.');
+        });
+    }
+
+    function adminForceOutAction(index) {
+        if (!isAdmin) return;
+        pendingForceOutIndex = index;
+        const item = state.waiting[index];
+        if (!item) return;
+        document.getElementById('forceOutModalOverlay').style.display = 'flex';
+    }
+
+    function handleForceOutChoice(keepInQueue) {
+        document.getElementById('forceOutModalOverlay').style.display = 'none';
+        if (pendingForceOutIndex === null) return;
+        
+        const index = pendingForceOutIndex;
+        pendingForceOutIndex = null;
+        const item = state.waiting[index];
+        if (!item) return;
+
+        const originalPosition = index + 1;
+
+        const itemToBreak = state.waiting.splice(index, 1)[0];
+        itemToBreak.timestamp = Date.now();
+        itemToBreak.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        itemToBreak.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        delete itemToBreak.turnStartTime;
+
+        if (keepInQueue) {
+            itemToBreak.keepInQueueRole = true;
+            itemToBreak.originalQueuePos = originalPosition;
+        } else {
+            itemToBreak.keepInQueueRole = false;
+        }
+
+        state.active.push(itemToBreak);
+        db.set(state);
+        showCustomAlert(`تم إخراج الموظف (${item.name}) وبدء وقت البريك له إجبارياً بنجاح.`);
+    }
+
+    function approveRequest(index) {
+        if (!isAdmin) return;
+        const reqItem = state.requests.splice(index, 1)[0];
+        if (reqItem) {
+            state.waiting.push(reqItem);
+            db.set(state);
+        }
+    }
+
+    function cancelRequest(index) {
+        const item = state.requests[index];
+        const isOwner = currentEmployeeName && item.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase();
+        if (!isOwner && !isAdmin) {
+            showCustomAlert('You can only cancel your own request!');
+            return;
+        }
+        if (confirm(`Are you sure you want to cancel request for (${item.name})?`)) {
+            state.requests.splice(index, 1);
+            db.set(state);
+        }
+    }
+
+    function confirmMyTurn() {
+        initAudioContext();
+        if (!currentEmployeeName) return;
+        const myUserLower = currentEmployeeName.trim().toLowerCase();
+        
+        const index = state.waiting.findIndex(item => item.name.trim().toLowerCase() === myUserLower);
+        if (index === -1) {
+            showCustomAlert('You are not currently in the waiting queue!');
+            return;
+        }
+
+        const userItem = state.waiting[index];
+        const firstOfThisType = state.waiting.find(w => w.type === userItem.type);
+        if (!firstOfThisType || firstOfThisType.id !== userItem.id) {
+            showCustomAlert('Sorry, there is someone ahead of you in the queue who must take their turn first!');
+            return;
+        }
+
+        const hasNormal = state.active.some(item => item.type === 'normal' || item.type === 'request');
+        const hasQuick = state.active.some(item => item.type === 'quick');
+
+        let canEnter = false;
+        if (userItem.type === 'quick' && !hasQuick) canEnter = true;
+        else if ((userItem.type === 'normal' || userItem.type === 'request') && !hasNormal) canEnter = true;
+
+        if (!canEnter) {
+            showCustomAlert(`The (${userItem.type}) break slot is still occupied.`);
+            return;
+        }
+
+        state.waiting.splice(index, 1);
+        userItem.timestamp = Date.now();
+        userItem.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        userItem.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        delete userItem.turnStartTime;
+        state.active.push(userItem);
+
+        stopTitleBlink();
+        db.set(state);
+    }
+
+    function endBreak(index) {
+        initAudioContext();
+        const finishedItem = state.active.splice(index, 1)[0];
+        
+        if (finishedItem) {
+            const endTime = Date.now();
+            const durationMs = endTime - finishedItem.timestamp;
+            const durationMins = Math.floor(durationMs / 60000);
+            const durationText = durationMins === 0 ? 'Less than a minute' : `${durationMins} mins`;
+            const endTimeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            
+            const breakDateStr = finishedItem.dateStr || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            
+            let typeText = 'Normal Break';
+            if (finishedItem.type === 'quick') typeText = 'Quick Break (5m)';
+            else if (finishedItem.type === 'request') typeText = 'Requested Break';
+
+            let isOvertime = false;
+            if (finishedItem.type === 'quick' && durationMins > 5) {
+                isOvertime = true;
+            } else if ((finishedItem.type === 'normal' || finishedItem.type === 'request') && durationMins > 20) {
+                isOvertime = true;
+            }
+
+            state.reports.unshift({
+                name: finishedItem.name,
+                type: typeText,
+                dateStr: breakDateStr,
+                startTime: finishedItem.timeStr,
+                endTime: endTimeStr,
+                duration: durationText,
+                isOvertime: isOvertime,
+                endTimestamp: endTime
+            });
+
+            if (finishedItem.keepInQueueRole === true) {
+                let targetPos = finishedItem.originalQueuePos - 1; 
+                delete finishedItem.keepInQueueRole;
+                delete finishedItem.originalQueuePos;
+                finishedItem.timestamp = Date.now();
+                finishedItem.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+                if (targetPos < 0) targetPos = 0;
+                if (targetPos > state.waiting.length) targetPos = state.waiting.length;
+                state.waiting.splice(targetPos, 0, finishedItem);
+            }
+        }
+
+        db.set(state);
+    }
+
+    function cancelWaiting(index) {
+        const item = state.waiting[index];
+        const isOwner = currentEmployeeName && item.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase();
+
+        if (!isOwner && !isAdmin) {
+            showCustomAlert('You can only cancel your own turn!');
+            return;
+        }
+
+        if (confirm(`Are you sure you want to cancel (${item.name})?`)) {
+            state.waiting.splice(index, 1);
+            stopTitleBlink();
+            db.set(state);
+        }
+    }
+
+    function executeSwap() {
+        initAudioContext();
+        let id1, id2;
+
+        if (isAdmin) {
+            id1 = document.getElementById('swap1').value;
+            id2 = document.getElementById('swap2').value;
+        } else {
+            if (!currentEmployeeName) {
+                showCustomAlert('Please login first!');
+                return;
+            }
+            const myUserLower = currentEmployeeName.trim().toLowerCase();
+            const myItem = state.waiting.find(w => w.name.trim().toLowerCase() === myUserLower);
+            if (!myItem) {
+                showCustomAlert('You are not in the waiting queue to swap!');
+                return;
+            }
+            id1 = myItem.id;
+            id2 = document.getElementById('swapTarget').value;
+        }
+
+        if (!id1 || !id2 || id1 === id2) {
+            showCustomAlert('Please select a person to swap with!');
+            return;
+        }
+
+        const idx1 = state.waiting.findIndex(x => x.id === id1);
+        const idx2 = state.waiting.findIndex(x => x.id === id2);
+
+        if (idx1 > -1 && idx2 > -1) {
+            if (!isAdmin) {
+                if (Math.abs(idx1 - idx2) !== 1) {
+                    showCustomAlert('Sorry, you can only swap with the person directly above or below you!');
+                    return;
+                }
+            }
+
+            const oldPos1 = idx1 + 1;
+            const oldPos2 = idx2 + 1;
+
+            const temp = state.waiting[idx1];
+            state.waiting[idx1] = state.waiting[idx2];
+            state.waiting[idx2] = temp;
+
+            const name1 = state.waiting[idx1].name;
+            const name2 = state.waiting[idx2].name;
+            const newPos1 = idx1 + 1;
+            const newPos2 = idx2 + 1;
+
+            if (!state.swapLogs) state.swapLogs = [];
+
+            state.swapLogs.unshift({
+                id: String(Date.now() + 1),
+                receiverName: name1,
+                initiatorName: isAdmin ? 'Admin' : name2,
+                oldPos: oldPos2,
+                newPos: newPos1,
+                timestamp: Date.now(),
+                dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                timeStr: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+            });
+
+            state.swapLogs.unshift({
+                id: String(Date.now() + 2),
+                receiverName: name2,
+                initiatorName: isAdmin ? 'Admin' : name1,
+                oldPos: oldPos1,
+                newPos: newPos2,
+                timestamp: Date.now(),
+                dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                timeStr: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+            });
+
+            db.set(state);
+            showCustomAlert('Swapped successfully!');
+        }
+    }
+
+    function clearReports() {
+        if (!isAdmin) return;
+        if (confirm('Are you sure you want to clear reports and logs?')) {
+            state.reports = [];
+            state.swapLogs = [];
+            db.set(state);
         }
     }
 
     function exportToExcel() {
-        showCustomAlert('Exporting report to Excel...');
-    }
+        if (!isAdmin) return;
 
-    function clearReports() {
-        if (confirm('Are you sure you want to clear reports?')) {
-            showCustomAlert('Reports cleared.');
-        }
-    }
+        let employeeSummaryMap = {};
+        (state.reports || []).forEach(rep => {
+            if (!employeeSummaryMap[rep.name]) {
+                employeeSummaryMap[rep.name] = { totalBreaks: 0, totalMins: 0, details: [] };
+            }
+            employeeSummaryMap[rep.name].totalBreaks += 1;
+            let mins = 0;
+            if (rep.duration && rep.duration.includes('mins')) {
+                mins = parseInt(rep.duration) || 0;
+            }
+            employeeSummaryMap[rep.name].totalMins += mins;
+            employeeSummaryMap[rep.name].details.push(rep);
+        });
 
-    function handleForceOutChoice(keepTurn) {
-        document.getElementById('forceOutModalOverlay').style.display = 'none';
-        showCustomAlert('Force out choice processed.');
+        let html = `
+            <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+            <head>
+                <meta charset="UTF-8">
+                <style>
+                    table { border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; mso-displayed-decimal-separator: "."; mso-displayed-thousand-separator: ","; }
+                    .section-title { background-color: #1F497D; color: #FFFFFF; font-weight: bold; font-size: 11pt; border: 1px solid #000000; text-align: left; height: 21pt; padding: 6px; }
+                    th { background-color: #1F497D; color: #FFFFFF; font-weight: bold; font-size: 9pt; border: 1px solid #000000; text-align: center; height: 22pt; padding: 6px; }
+                    td { border: 1px solid #000000; text-align: center; height: 20pt; font-size: 9pt; padding: 5px; mso-number-format: "\@"; }
+                    .exceed { background-color: #EF4444; color: #FFFFFF; font-weight: bold; }
+                    .normal { background-color: #A7F3D0; color: #065F46; font-weight: bold; }
+                </style>
+            </head>
+            <body>
+                <table>
+                    <tr>
+                        <td colspan="7" class="section-title">--- Contact Center Break Report - By Employee Summary & Details (Last 48 Hours) ---</td>
+                    </tr>
+                    <tr>
+                        <th style="width: 130pt;">Employee Name</th>
+                        <th style="width: 110pt;">Break Type</th>
+                        <th style="width: 90pt;">Date</th>
+                        <th style="width: 80pt;">Start Time</th>
+                        <th style="width: 80pt;">End Time</th>
+                        <th style="width: 100pt;">Duration</th>
+                        <th style="width: 100pt;">Overtime Status</th>
+                    </tr>
+        `;
+
+        Object.keys(employeeSummaryMap).forEach(empName => {
+            const empData = employeeSummaryMap[empName];
+            empData.details.forEach(rep => {
+                const statusClass = rep.isOvertime ? 'exceed' : 'normal';
+                const statusText = rep.isOvertime ? 'Exceed' : 'Normal';
+                const repDate = rep.dateStr || new Date(rep.endTimestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                html += `
+                    <tr>
+                        <td><b>${rep.name}</b></td>
+                        <td>${rep.type}</td>
+                        <td>${repDate}</td>
+                        <td>${rep.startTime}</td>
+                        <td>${rep.endTime}</td>
+                        <td>${rep.duration}</td>
+                        <td class="${statusClass}">${statusText}</td>
+                    </tr>
+                `;
+            });
+            html += `
+                <tr>
+                    <td colspan="5" style="text-align: right; font-weight: bold; background-color: #e2e8f0;">مجموع البريكات للموظف (${empName}):</td>
+                    <td colspan="2" style="font-weight: bold; background-color: #e2e8f0;">إجمالي البريكات: ${empData.totalBreaks} | إجمالي الوقت: ${empData.totalMins} دقيقة</td>
+                </tr>
+            `;
+        });
+
+        html += `
+                </table>
+            </body>
+            </html>
+        `;
+
+        const blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'Contact_Center_Break_Report_Per_Employee.xls';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     }
 
     function renderUI() {
-        // تحديث واجهة المستخدم العامة بناءً على البيانات
-    }
-
-    // استماع لبيانات الفايربيز
-    usersDb.on('value', snapshot => {
-        usersState = snapshot.val() || {};
-        if (isAdmin && document.getElementById('adminDashboardBox').style.display === 'block') {
-            renderAdminUsersList();
+        const currentTime = Date.now();
+        const adminActiveBadge = document.getElementById('adminActiveBadge');
+        const topAdminBtn = document.getElementById('topAdminOptionBtn');
+        const reportBox = document.getElementById('adminReportContainer');
+        
+        if (isAdmin) {
+            if (currentLoggedInUser) {
+                adminActiveBadge.style.display = 'inline-block';
+                topAdminBtn.style.display = 'inline-block';
+                reportBox.style.display = 'block';
+            }
+        } else {
+            adminActiveBadge.style.display = 'none';
+            topAdminBtn.style.display = 'none';
+            reportBox.style.display = 'none';
         }
-    });
 
-    db.on('value', snapshot => {
-        const val = snapshot.val() || {};
-        state.active = val.active || [];
-        state.waiting = val.waiting || [];
-        state.requests = val.requests || [];
-        state.reports = val.reports || [];
-        state.swapLogs = val.swapLogs || [];
-        state.clearedHistory = val.clearedHistory || {};
-        renderUI();
-    });
+        const requestsSection = document.getElementById('requestsSectionContainer');
+        const reqBox = document.getElementById('requestsBox');
+        if (state.requests && state.requests.length > 0 && (isAdmin || (currentEmployeeName && state.requests.some(r => r.name.toLowerCase() === currentEmployeeName.toLowerCase())))) {
+            requestsSection.style.display = 'block';
+            reqBox.innerHTML = state.requests.map((item, i) => {
+                const isOwner = currentEmployeeName && item.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase();
+                const showActions = (isAdmin || isOwner);
+                return `
+                    <div class="card-item">
+                        <div>
+                            <strong>${item.name}</strong> <span style="color:#a78bfa;">[Break Request]</span>
+                            <br><small style="color:var(--text-muted)">Requested at: ${item.timeStr}</small>
+                        </div>
+                        <div style="display: flex; gap: 6px;">
+                            ${isAdmin ? `<button type="button" class="btn btn-green" style="padding: 6px 12px; font-size: 0.85rem;" onclick="approveRequest(${i})">Approve</button>` : ``}
+                            ${showActions ? `<button type="button" class="btn btn-red" onclick="cancelRequest(${i})">Cancel</button>` : ``}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        } else {
+            requestsSection.style.display = 'none';
+        }
 
-    // تهيئة الجلسة عند التحميل
-    checkSession();
-</script>
+        const promptBox = document.getElementById('myTurnPromptBox');
+        let showMyPrompt = false;
 
-</body>
-</html>
-```[cite: 9]
+        if (currentEmployeeName && state.waiting.length > 0) {
+            const myUserLower = currentEmployeeName.trim().toLowerCase();
+            const firstNormal = state.waiting.find(w => w.type === 'normal');
+            const firstQuick = state.waiting.find(w => w.type === 'quick');
+            const hasNormalSlot = !state.active.some(a => a.type === 'normal' || a.type === 'request');
+            const hasQuickSlot = !state.active.some(a => a.type === 'quick');
+
+            if ((firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) ||
+                (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot)) {
+                showMyPrompt = true;
+            }
+        }
+        promptBox.style.display = showMyPrompt ? 'block' : 'none';
+
+        const myHistorySection = document.getElementById('myBreakHistorySection');
+        const myHistoryBox = document.getElementById('myBreakHistoryBox');
+        if (currentEmployeeName && !isAdmin) {
+            myHistorySection.style.display = 'block';
+            const myReports = (state.reports || []).filter(rep => rep.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase());
+            
+            if (myReports.length === 0) {
+                myHistoryBox.innerHTML = '<div class="empty-msg">لا توجد سجلات بريكات سابقة لك</div>';
+            } else {
+                let totalMyMins = 0;
+                let listHtml = myReports.map(rep => {
+                    let mins = 0;
+                    if (rep.duration && rep.duration.includes('mins')) {
+                        mins = parseInt(rep.duration) || 0;
+                    }
+                    totalMyMins += mins;
+                    return `
+                        <div style="background: #0f172a; border: 1px solid #334155; padding: 10px; border-radius: 8px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
+                            <div>
+                                <strong>${rep.type}</strong> (${rep.dateStr || ''})
+                                <br><small style="color:var(--text-muted)">التوقيت: من ${rep.startTime} إلى ${rep.endTime}</small>
+                            </div>
+                            <div style="text-align: right;">
+                                <span style="color: #38bdf8; font-weight: bold;">${rep.duration}</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                listHtml += `
+                    <div style="background: #1e293b; padding: 10px; border-radius: 8px; margin-top: 10px; text-align: center; font-weight: bold; color: #34d399; font-size: 0.95rem;">
+                        مجموع دقائق بريكاتك الكلية: ${totalMyMins} دقيقة
+                    </div>
+                `;
+                myHistoryBox.innerHTML = listHtml;
+            }
+        } else {
+            myHistorySection.style.display = 'none';
+        }
+
+        const aBox = document.getElementById('activeBox');
+        if (!state.active || state.active.length === 0) {
+            aBox.innerHTML = '<div class="empty-msg">No one on break right now</div>';
+        } else {
+            aBox.innerHTML = state.active.map((item, i) => {
+                const minsInBreak = Math.floor((currentTime - item.timestamp) / 60000);
+                const activeDurationStr = minsInBreak === 0 ? 'Less than a minute ago' : `${minsInBreak} mins ago`;
+                const isOwner = currentEmployeeName && item.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase();
+                const showEndBtn = (isOwner || isAdmin);
+                
+                const isQuick = item.type === 'quick';
+                const isOvertime = (isQuick && minsInBreak > 5) || (!isQuick && minsInBreak > 20);
+
+                let typeLabel = '<span style="color:#fbbf24;">[Normal]</span>';
+                if (isQuick) typeLabel = '<span style="color:#3b82f6;">[Quick]</span>';
+                else if (item.type === 'request') typeLabel = '<span style="color:#a78bfa;">[Requested]</span>';
+
+                return `
+                    <div class="card-item ${isOvertime ? 'overtime' : ''}">
+                        <div>
+                            <strong>${item.name}</strong> 
+                            <span style="margin-left: 8px; font-size: 0.9rem;">⏱️ ${activeDurationStr}</span>
+                            ${typeLabel}
+                            <br><small style="color:var(--text-muted)">Out at: ${item.dateStr || ''} ${item.timeStr}</small>
+                            ${isOvertime ? `<br><span style="color: var(--accent-red); font-weight: bold; font-size: 0.85rem;">⚠️ Exceeded limit time (${isQuick ? '5m' : '20m'})!</span>` : ''}
+                        </div>
+                        ${showEndBtn ? `<button type="button" class="btn btn-red" onclick="endBreak(${i})">End</button>` : ``}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        const wBox = document.getElementById('waitingBox');
+        if (!state.waiting || state.waiting.length === 0) {
+            wBox.innerHTML = '<div class="empty-msg">Waiting queue is empty</div>';
+        } else {
+            wBox.innerHTML = state.waiting.map((item, i) => {
+                const isOwner = currentEmployeeName && item.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase();
+                const showCancelBtn = (isOwner || isAdmin);
+                const isQuick = item.type === 'quick';
+
+                if (!item.queueStartTime) {
+                    item.queueStartTime = item.timestamp || currentTime;
+                }
+                const elapsedSecs = Math.floor((currentTime - item.queueStartTime) / 1000);
+                const initMins = Math.floor(elapsedSecs / 60);
+                const initSecs = elapsedSecs % 60;
+                const countupText = initMins > 0 ? `${initMins}m ${initSecs}s` : `${initSecs}s`;
+
+                let typeLabel = '<span style="color:#fbbf24;">[Normal]</span>';
+                if (isQuick) typeLabel = '<span style="color:#3b82f6;">[Quick]</span>';
+
+                let adminStatusBadge = '';
+                if (isAdmin) {
+                    if (item.turnStartTime) {
+                        const elapsedWaiting = currentTime - item.turnStartTime;
+                        const waitingMins = Math.floor(elapsedWaiting / 60000);
+                        if (waitingMins >= 7) {
+                            adminStatusBadge = `<br><span style="background:#7f1d1d; color:#fca5a5; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:bold;">⚠️ متأخر بالتاكيد (${waitingMins} دقيقة)</span>`;
+                        } else {
+                            adminStatusBadge = `<br><span style="background:#065f46; color:#34d399; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:bold;">⏳ بانتظار التأكيد (${waitingMins} دقيقة)</span>`;
+                        }
+                    } else {
+                        adminStatusBadge = `<br><span style="color:var(--text-muted); font-size:0.75rem;">في قائمة الانتظار</span>`;
+                    }
+                }
+
+                let swapMessageHtml = '';
+                if (state.swapLogs && state.swapLogs.length > 0) {
+                    const itemNameLower = item.name.trim().toLowerCase();
+                    const recentLog = state.swapLogs.find(log => log.receiverName.trim().toLowerCase() === itemNameLower && (currentTime - log.timestamp < 600000));
+                    if (recentLog) {
+                        swapMessageHtml = `<br><span style="color: #60a5fa; font-size: 0.8rem; font-weight: bold;">💬 Swapped with ${recentLog.initiatorName}, old position #${recentLog.oldPos} -> new #${recentLog.newPos}</span>`;
+                    }
+                }
+
+                return `
+                    <div class="card-item">
+                        <div>
+                            <span class="waiting-badge-num">#${i + 1}</span>
+                            <strong>${item.name}</strong>
+                            <span style="margin-left: 8px; color:var(--text-muted); font-size: 0.85rem;">Waiting: <span class="admin-countup-timer" data-starttime="${item.queueStartTime}">${countupText}</span></span>
+                            ${typeLabel}
+                            ${adminStatusBadge}
+                            ${swapMessageHtml}
+                        </div>
+                        <div style="display: flex; gap: 6px; align-items: center;">
+                            ${isAdmin ? `
+                                <button type="button" class="btn btn-green" style="padding: 6px 10px; font-size: 0.75rem;" onclick="adminForceOutAction(${i})">Force
