@@ -635,6 +635,7 @@
     </div>
 </div>
 
+<!-- نافذة خيار إبقاء الموظف في دوره أو إلغائه عند الإخراج الإجباري بواسطة الأدمن -->
 <div class="custom-modal-overlay" id="forceOutModalOverlay">
     <div class="custom-modal-box">
         <div class="custom-modal-title" style="text-align: right; direction: rtl;">⚠️ خيار إخراج الموظف إجبارياً</div>
@@ -809,7 +810,7 @@
         if (currentLoggedInUser) {
             loginSec.style.display = 'none';
             mainSec.style.display = 'block';
-            document.getElementById('welcomeEmpLabel').innerText = `Welcome: ${currentEmployeeName} (${currentLoggedInUser})`;
+            document.getElementById('welcomeEmpLabel').innerText = `Welcome, ${currentEmployeeName} (${currentLoggedInUser})`;
             
             if (isAdmin) {
                 logoutBtn.style.display = 'inline-block';
@@ -1321,15 +1322,7 @@
             state.waiting.push(newItem);
         }
 
-        // تحديث الواجهة محلياً فوراً لضمان سرعة الاستجابة
-        renderUI();
-
-        db.set(state).then(() => {
-            showCustomAlert('تم تقديم طلب البريك بنجاح!');
-        }).catch((error) => {
-            console.error("Firebase save error:", error);
-            showCustomAlert('حدث خطأ أثناء الحفظ في قاعدة البيانات، يرجى المحاولة لاحقاً.');
-        });
+        db.set(state);
     }
 
     function adminForceOutAction(index) {
@@ -1863,4 +1856,101 @@
                         </div>
                         <div style="display: flex; gap: 6px; align-items: center;">
                             ${isAdmin ? `
-                                <button type="button" class="btn btn-green" style="padding: 6px 10px; font-size: 0.75rem;" onclick="adminForceOutAction(${i})">Force
+                                <button type="button" class="btn btn-green" style="padding: 6px 10px; font-size: 0.75rem;" onclick="adminForceOutAction(${i})">Force Out</button>
+                            ` : ``}
+                            ${showCancelBtn ? `<button type="button" class="btn btn-red" onclick="cancelWaiting(${i})">Cancel</button>` : ``}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        const swapSection = document.getElementById('swapSection');
+        const swapTitle = document.getElementById('swapSectionTitle');
+        const swapControls = document.getElementById('swapControlsContainer');
+
+        if (state.waiting && state.waiting.length >= 2) {
+            swapSection.style.display = 'block';
+            if (isAdmin) {
+                swapTitle.innerText = '🔄 Swap Queue Positions (Admin Privilege):';
+                swapControls.innerHTML = `
+                    <select id="swap1"></select>
+                    <span>with</span>
+                    <select id="swap2"></select>
+                    <button type="button" class="btn btn-amber" onclick="executeSwap()">Swap</button>
+                `;
+                const s1 = document.getElementById('swap1');
+                const s2 = document.getElementById('swap2');
+                state.waiting.forEach((item, i) => {
+                    s1.add(new Option(`#${i + 1} - ${item.name}`, item.id));
+                    s2.add(new Option(`#${i + 1} - ${item.name}`, item.id));
+                });
+                if (s2.options.length > 1) s2.selectedIndex = 1;
+            } else {
+                swapTitle.innerText = '🔄 Swap your turn (Adjacent only):';
+                swapControls.innerHTML = `
+                    <select id="swapTarget"></select>
+                    <button type="button" class="btn btn-amber" onclick="executeSwap()">Swap Turn</button>
+                `;
+                const sTarget = document.getElementById('swapTarget');
+                const myUserLower = currentEmployeeName ? currentEmployeeName.trim().toLowerCase() : '';
+                const myIdx = state.waiting.findIndex(item => item.name.trim().toLowerCase() === myUserLower);
+
+                if (myIdx > -1) {
+                    if (myIdx > 0) {
+                        const aboveItem = state.waiting[myIdx - 1];
+                        sTarget.add(new Option(`#${myIdx} - ${aboveItem.name} [Directly Above]`, aboveItem.id));
+                    }
+                    if (myIdx < state.waiting.length - 1) {
+                        const belowItem = state.waiting[myIdx + 1];
+                        sTarget.add(new Option(`#${myIdx + 2} - ${belowItem.name} [Directly Below]`, belowItem.id));
+                    }
+                }
+            }
+        } else {
+            swapSection.style.display = 'none';
+        }
+
+        const rBox = document.getElementById('reportsBox');
+        if (isAdmin) {
+            if (!state.reports || state.reports.length === 0) {
+                rBox.innerHTML = '<div class="empty-msg">No reports logged in the last 48 hours</div>';
+            } else {
+                let tableHtml = `
+                    <div class="report-table-title">Contact Center Break Report (Last 48 Hours)</div>
+                    <table class="report-table">
+                        <thead>
+                            <tr>
+                                <th>Employee Name</th>
+                                <th>Break Type</th>
+                                <th>Date</th>
+                                <th>Start Time</th>
+                                <th>End Time</th>
+                                <th>Duration</th>
+                                <th>Overtime Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                state.reports.forEach(rep => {
+                    const repDate = rep.dateStr || new Date(rep.endTimestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                    tableHtml += `
+                        <tr>
+                            <td><strong>${rep.name}</strong></td>
+                            <td>${rep.type}</td>
+                            <td>${repDate}</td>
+                            <td>${rep.startTime}</td>
+                            <td>${rep.endTime}</td>
+                            <td class="${rep.isOvertime ? 'exceed-cell' : ''}">${rep.duration}</td>
+                            <td>${rep.isOvertime ? 'Exceed' : 'Normal'}</td>
+                        </tr>
+                    `;
+                });
+                tableHtml += `</tbody></table>`;
+                rBox.innerHTML = tableHtml;
+            }
+        }
+    }
+</script>
+</body>
+</html>
