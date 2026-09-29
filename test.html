@@ -557,7 +557,6 @@
             <div id="waitingBox"></div>
         </div>
 
-        <!-- Personal Break History Section with Clear Break History Option -->
         <div class="section-card" id="myBreakHistorySection" style="border-color: #1e3a8a; display: none;">
             <div class="section-header-title" style="color: #38bdf8; display: flex; justify-content: space-between; align-items: center;">
                 <span>📊 My Personal Break History</span>
@@ -983,7 +982,6 @@
     db.on('value', (snapshot) => {
         const val = snapshot.val();
         if (val) {
-            // Auto-clear history every 10 hours (10 hours = 36,000,000 ms)
             const tenHoursAgo = Date.now() - (10 * 60 * 60 * 1000);
             let filteredReports = (val.reports || []).filter(rep => rep.endTimestamp > tenHoursAgo);
             let filteredSwaps = (val.swapLogs || []).filter(sw => sw.timestamp > tenHoursAgo);
@@ -1156,15 +1154,13 @@
         const currentTime = Date.now();
         const newWaiting = state.waiting || [];
 
-        // Check active breaks for 45-minute maximum limit enforcement
         if (state.active && state.active.length > 0) {
             for (let i = state.active.length - 1; i >= 0; i--) {
                 const activeItem = state.active[i];
                 const elapsedMs = currentTime - activeItem.timestamp;
-                const maxLimitMs = 45 * 60 * 1000; // 45 minutes
+                const maxLimitMs = 45 * 60 * 1000;
 
                 if (elapsedMs >= maxLimitMs) {
-                    // Auto-end break and log overtime/forced exit due to exceeding 45 minutes
                     const finishedItem = state.active.splice(i, 1)[0];
                     const endTime = Date.now();
                     const durationMs = endTime - finishedItem.timestamp;
@@ -1289,7 +1285,6 @@
             }
         });
 
-        // Update live active break timers with seconds
         const activeItems = document.querySelectorAll('.active-countup-timer');
         activeItems.forEach(el => {
             const startTime = parseInt(el.getAttribute('data-starttime') || '0', 10);
@@ -1657,7 +1652,6 @@
             }
             employeeSummaryMap[rep.name].totalBreaks += 1;
             
-            // Parse duration string like "12m 30s" into total seconds
             let totalSecs = 0;
             if (rep.duration) {
                 let mMatch = rep.duration.match(/(\d+)m/);
@@ -2023,7 +2017,7 @@
                         <tr>
                             <td><strong>${rep.name}</strong></td>
                             <td>${rep.type}</td>
-                            <td>${repDate}</td>
+                            <td>${rep.dateStr || ''}</td>
                             <td>${rep.startTime}</td>
                             <td>${rep.endTime}</td>
                             <td class="${rep.isOvertime ? 'exceed-cell' : ''}">${rep.duration}</td>
