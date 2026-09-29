@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Contact Center Break - Al Salam Hospitals</title>
+    <title>Contact Center Break - Al Salam Hospitals (Test)</title>
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -501,11 +501,11 @@
             </div>
         </div>
 
-        <div class="center-title">Contact Center Break System</div>
+        <div class="center-title">Contact Center Break System (Test)</div>
     </header>
 
     <div id="loginSection" class="login-box">
-        <h3>🔑 Employee Login</h3>
+        <h3>🔑 Employee Login (Test)</h3>
         <input type="text" id="loginUsername" placeholder="Username..." autocomplete="off" />
         <input type="password" id="loginPassword" placeholder="Password..." />
         <button type="button" class="btn btn-green" style="width: 100%; padding: 12px; margin-bottom: 8px;" onclick="handleLogin()">Login to System</button>
@@ -514,7 +514,6 @@
     </div>
 
     <div id="mainSystemContent" style="display: none;">
-        <!-- شاشة تأكيد الدور للموظف مع العداد التنازلي الحي -->
         <div id="myTurnPromptBox" class="my-turn-prompt">
             <h3 id="myTurnTitle">🚨 حان دورك للبريك!</h3>
             <p id="myTurnDesc">يرجى الضغط على زر التأكيد أدناه للدخول الفعلي للبريك.</p>
@@ -558,7 +557,6 @@
             <div id="waitingBox"></div>
         </div>
 
-        <!-- سجل البريكات الخاص بالموظف الحالي -->
         <div class="section-card" id="myBreakHistorySection" style="border-color: #1e3a8a; display: none;">
             <div class="section-header-title" style="color: #38bdf8;">
                 <span>📊 سجلي الشخصي للبريكات</span>
@@ -635,7 +633,6 @@
     </div>
 </div>
 
-<!-- نافذة خيار إبقاء الموظف في دوره أو إلغائه عند الإخراج الإجباري بواسطة الأدمن -->
 <div class="custom-modal-overlay" id="forceOutModalOverlay">
     <div class="custom-modal-box">
         <div class="custom-modal-title" style="text-align: right; direction: rtl;">⚠️ خيار إخراج الموظف إجبارياً</div>
@@ -1101,7 +1098,7 @@
         if (titleBlinkInterval) {
             clearInterval(titleBlinkInterval);
             titleBlinkInterval = null;
-            document.title = "Contact Center Break - Al Salam Hospitals";
+            document.title = "Contact Center Break - Al Salam Hospitals (Test)";
         }
     }
 
@@ -1613,7 +1610,7 @@
             <body>
                 <table>
                     <tr>
-                        <td colspan="7" class="section-title">--- Contact Center Break Report - By Employee Summary & Details (Last 48 Hours) ---</td>
+                        <td colspan="7" class="section-title">--- Contact Center Break Report - Test (Last 48 Hours) ---</td>
                     </tr>
                     <tr>
                         <th style="width: 130pt;">Employee Name</th>
@@ -1662,7 +1659,7 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'Contact_Center_Break_Report_Per_Employee.xls';
+        a.download = 'Contact_Center_Break_Report_Test.xls';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
