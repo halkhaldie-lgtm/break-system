@@ -473,6 +473,8 @@
 </head>
 <body>
 
+<div id="testModeBanner" style="position:sticky;top:0;z-index:99999;width:100%;background:#7c2d12;color:#fff;padding:9px 12px;text-align:center;font-weight:800;font-size:0.9rem;border-bottom:2px solid #f59e0b;box-shadow:0 2px 8px rgba(0,0,0,.25);">🧪 TEST MODE — This page uses isolated TEST data only</div>
+
 <div class="container">
     <header>
         <div class="top-header-row">
@@ -701,6 +703,11 @@
         btn.onclick = function() { alertBox.remove(); };
     }
 
+    // ============================================================
+    // TEST ENVIRONMENT — DATA ISOLATION
+    // DO NOT CHANGE TEST_BREAKS_PATH / TEST_USERS_PATH.
+    // The Production paths are intentionally NOT used by this file.
+    // ============================================================
     const firebaseConfig = {
         databaseURL: "https://break-system-4a453-default-rtdb.firebaseio.com/"
     };
@@ -709,14 +716,25 @@
         firebase.initializeApp(firebaseConfig);
     }
     
-    const db = firebase.database().ref('alsalam_hospital_breaks_v48');
-    const usersDb = firebase.database().ref('alsalam_hospital_users');
+    const TEST_BREAKS_PATH = 'alsalam_hospital_breaks_TEST_v1';
+    const TEST_USERS_PATH = 'alsalam_hospital_users_TEST_v1';
+
+    // TEST ONLY: Never replace these paths with the Production paths.
+    const db = firebase.database().ref(TEST_BREAKS_PATH);
+    const usersDb = firebase.database().ref(TEST_USERS_PATH);
+
+    // Safety check: stop the TEST page if either path is accidentally changed.
+    if (TEST_BREAKS_PATH !== 'alsalam_hospital_breaks_TEST_v1' ||
+        TEST_USERS_PATH !== 'alsalam_hospital_users_TEST_v1') {
+        throw new Error('TEST SAFETY LOCK: Invalid TEST Firebase path. Page stopped.');
+    }
+    
 
     let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
     let usersState = {};
-    let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
-    let currentLoggedInUser = localStorage.getItem('logged_in_username') || '';
-    let currentEmployeeName = localStorage.getItem('logged_in_empname') || '';
+    let isAdmin = localStorage.getItem('test_is_admin_mode') === 'true';
+    let currentLoggedInUser = localStorage.getItem('test_logged_in_username') || '';
+    let currentEmployeeName = localStorage.getItem('test_logged_in_empname') || '';
     let isReportsExpanded = false;
     let isUsersListExpanded = false;
     let pendingForceOutIndex = null;
@@ -736,7 +754,7 @@
     }, { once: true });
 
     function getAdminPassword() {
-        return localStorage.getItem('admin_secret_pass') || '1234';
+        return localStorage.getItem('test_admin_secret_pass') || '1234';
     }
 
     function toggleUsersListExpand() {
@@ -764,11 +782,11 @@
 
         if (u === 'admin' && p === getAdminPassword()) {
             isAdmin = true;
-            localStorage.setItem('is_admin_mode', 'true');
+            localStorage.setItem('test_is_admin_mode', 'true');
             currentLoggedInUser = 'admin';
             currentEmployeeName = 'Administrator';
-            localStorage.setItem('logged_in_username', 'admin');
-            localStorage.setItem('logged_in_empname', 'Administrator');
+            localStorage.setItem('test_logged_in_username', 'admin');
+            localStorage.setItem('test_logged_in_empname', 'Administrator');
             checkSession();
             return;
         }
@@ -777,11 +795,11 @@
         if (users[u] && users[u].password === p) {
             const isUserAdmin = (users[u].role === 'admin');
             isAdmin = isUserAdmin;
-            localStorage.setItem('is_admin_mode', isUserAdmin ? 'true' : 'false');
+            localStorage.setItem('test_is_admin_mode', isUserAdmin ? 'true' : 'false');
             currentLoggedInUser = u;
             currentEmployeeName = users[u].name;
-            localStorage.setItem('logged_in_username', u);
-            localStorage.setItem('logged_in_empname', users[u].name);
+            localStorage.setItem('test_logged_in_username', u);
+            localStorage.setItem('test_logged_in_empname', users[u].name);
             checkSession();
         } else {
             showCustomAlert('Invalid username or password!');
@@ -789,9 +807,9 @@
     }
 
     function logoutUser() {
-        localStorage.removeItem('logged_in_username');
-        localStorage.removeItem('logged_in_empname');
-        localStorage.setItem('is_admin_mode', 'false');
+        localStorage.removeItem('test_logged_in_username');
+        localStorage.removeItem('test_logged_in_empname');
+        localStorage.setItem('test_is_admin_mode', 'false');
         currentLoggedInUser = '';
         currentEmployeeName = '';
         isAdmin = false;
@@ -906,11 +924,11 @@
         const pass = document.getElementById('adminPassInput').value;
         if (pass === getAdminPassword()) {
             isAdmin = true;
-            localStorage.setItem('is_admin_mode', 'true');
+            localStorage.setItem('test_is_admin_mode', 'true');
             currentLoggedInUser = 'admin';
             currentEmployeeName = 'Administrator';
-            localStorage.setItem('logged_in_username', 'admin');
-            localStorage.setItem('logged_in_empname', 'Administrator');
+            localStorage.setItem('test_logged_in_username', 'admin');
+            localStorage.setItem('test_logged_in_empname', 'Administrator');
             closeAdminModal();
             checkSession();
         } else {
