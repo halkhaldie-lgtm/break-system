@@ -358,16 +358,6 @@
             padding-top: 10px;
             overflow-x: auto;
         }
-        .report-table-title {
-            background-color: #bae6fd;
-            color: #0369a1;
-            padding: 4px 8px;
-            font-weight: bold;
-            font-size: 0.78rem;
-            border-radius: 4px;
-            margin-bottom: 6px;
-            display: inline-block;
-        }
         .report-table {
             width: 100%;
             border-collapse: collapse;
@@ -534,15 +524,7 @@
             <div class="action-buttons">
                 <button type="button" class="btn btn-green" onclick="submitBreak('normal')">Normal Break 🏃</button>
                 <button type="button" class="btn btn-amber" onclick="submitBreak('quick')">⚡ Quick Break (5m)</button>
-                <button type="button" class="btn btn-purple" onclick="submitBreak('request')">(Request Break From The Leader)</button>
             </div>
-        </div>
-
-        <div class="section-card" id="requestsSectionContainer" style="display: none; border-color: #5b21b6;">
-            <div class="section-header-title" style="color: #a78bfa;">
-                <span>⏳ Pending Break Requests (Admin Approval)</span>
-            </div>
-            <div id="requestsBox"></div>
         </div>
 
         <div class="section-card" style="border-color: #115e59;">
@@ -637,17 +619,6 @@
     </div>
 </div>
 
-<div class="custom-modal-overlay" id="forceOutModalOverlay">
-    <div class="custom-modal-box">
-        <div class="custom-modal-title">⚠️ Force Out Employee Option</div>
-        <div class="custom-modal-subtitle" id="forceOutModalText">Would you like to keep the employee's position reserved in the waiting queue, or cancel their turn completely?</div>
-        <div class="custom-modal-buttons" style="display: flex; gap: 10px; margin-top: 20px;">
-            <button type="button" class="btn btn-green" style="flex: 1;" onclick="handleForceOutChoice(true)">Keep Position Reserved</button>
-            <button type="button" class="btn btn-red" style="flex: 1;" onclick="handleForceOutChoice(false)">Cancel Turn Completely</button>
-        </div>
-    </div>
-</div>
-
 <script>
     function showCustomAlert(message) {
         var existingAlert = document.getElementById('custom-alert-box');
@@ -717,19 +688,13 @@
     const db = firebase.database().ref(TEST_BREAKS_PATH);
     const usersDb = firebase.database().ref(TEST_USERS_PATH);
 
-    if (TEST_BREAKS_PATH !== 'alsalam_hospital_breaks_TEST_v1' ||
-        TEST_USERS_PATH !== 'alsalam_hospital_users_TEST_v1') {
-        throw new Error('TEST SAFETY LOCK: Invalid TEST Firebase path. Page stopped.');
-    }
-
-    let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
+    let state = { active: [], waiting: [], reports: [], swapLogs: [] };
     let usersState = {};
     let isAdmin = localStorage.getItem('test_is_admin_mode') === 'true';
     let currentLoggedInUser = localStorage.getItem('test_logged_in_username') || '';
     let currentEmployeeName = localStorage.getItem('test_logged_in_empname') || '';
     let isReportsExpanded = false;
     let isUsersListExpanded = false;
-    let pendingForceOutIndex = null;
 
     let audioCtx = null;
     function initAudioContext() {
@@ -815,7 +780,6 @@
         const logoutBadge = document.getElementById('logoutBtn');
         const topAdminOpt = document.getElementById('topAdminOptionBtn');
         const reportBox = document.getElementById('adminReportContainer');
-        const requestsCont = document.getElementById('requestsSectionContainer');
         const myHistSec = document.getElementById('myBreakHistorySection');
 
         if (currentLoggedInUser) {
@@ -829,12 +793,10 @@
                 adminBadge.style.display = 'inline-block';
                 topAdminOpt.style.display = 'inline-block';
                 reportBox.style.display = 'block';
-                requestsCont.style.display = 'block';
             } else {
                 adminBadge.style.display = 'none';
                 topAdminOpt.style.display = 'none';
                 reportBox.style.display = 'none';
-                requestsCont.style.display = 'none';
             }
             renderUI();
         } else {
@@ -844,41 +806,28 @@
             logoutBadge.style.display = 'none';
             topAdminOpt.style.display = 'none';
             reportBox.style.display = 'none';
-            requestsCont.style.display = 'none';
             myHistSec.style.display = 'none';
         }
     }
 
-    // ==========================================
-    // دوال التحقق التلقائي (المهلة الزمنية دقيقتين)
-    // ==========================================
     function checkAutoTimeouts() {
         const now = Date.now();
-        let stateChanged = false;
-
-        // 1. فحص الموظفين في البريك (إذا تجاوزوا دقيقتين 120,000 مللي ثانية ولم ينهوه)
         if (state.active && state.active.length > 0) {
             state.active.forEach(emp => {
                 if (emp.startTime && (now - emp.startTime >= 120000)) {
-                    // إنهاء البريك تلقائياً وتحويله لتقرير
                     finishBreakByName(emp.name, true);
-                    stateChanged = true;
                 }
             });
         }
 
-        // 2. فحص الموظفين في الانتظار (إذا كان دوره نشطاً وبقي لمدة دقيقتين دون تأكيد)
         if (state.waiting && state.waiting.length > 0) {
             const firstWaiting = state.waiting[0];
             if (firstWaiting && firstWaiting.turnStartedAt && (now - firstWaiting.turnStartedAt >= 120000)) {
-                // إلغاء دوره نهائياً تلقائياً
                 cancelWaitingTurnDirectly(firstWaiting.name);
-                stateChanged = true;
             }
         }
     }
 
-    // إنهاء البريك تلقائياً عند انتهاء الدقيقتين
     function finishBreakByName(empName, isAuto) {
         const idx = state.active.findIndex(e => e.name === empName);
         if (idx !== -1) {
@@ -900,7 +849,6 @@
         }
     }
 
-    // إلغاء دور الانتظار تلقائياً عند انتهاء الدقيقتين
     function cancelWaitingTurnDirectly(empName) {
         const idx = state.waiting.findIndex(e => e.name === empName);
         if (idx !== -1) {
@@ -918,7 +866,6 @@
         }
     }
 
-    // تشغيل الـ Interval لفحص الوقت كل ثانية
     setInterval(() => {
         if (currentLoggedInUser) {
             checkAutoTimeouts();
@@ -926,19 +873,17 @@
         }
     }, 1000);
 
-    // ربط مزامنة Firebase
     db.on('value', (snapshot) => {
         const val = snapshot.val();
         if (val) {
             state = {
                 active: val.active || [],
                 waiting: val.waiting || [],
-                requests: val.requests || [],
                 reports: val.reports || [],
                 swapLogs: val.swapLogs || []
             };
         } else {
-            state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
+            state = { active: [], waiting: [], reports: [], swapLogs: [] };
         }
         renderUI();
     });
@@ -952,39 +897,26 @@
         db.set(state);
     }
 
-    // دالة طلب البريك العادي أو السريع أو الإداري
     function submitBreak(type) {
         if (!currentEmployeeName) return;
 
-        // التحقق إن كان الموظف مسجلاً مسبقاً في البريك أو الانتظار
         const inActive = state.active.some(e => e.name === currentEmployeeName);
         const inWaiting = state.waiting.some(e => e.name === currentEmployeeName);
-        const inReq = state.requests.some(e => e.name === currentEmployeeName);
 
-        if (inActive || inWaiting || inReq) {
-            showCustomAlert('You are already in active break, waiting queue, or have a pending request!');
+        if (inActive || inWaiting) {
+            showCustomAlert('You are already in active break or waiting queue!');
             return;
         }
 
-        if (type === 'request') {
-            state.requests.push({
-                name: currentEmployeeName,
-                timestamp: Date.now()
-            });
-            showCustomAlert('Break request submitted to the admin successfully.');
-        } else {
-            // إضافة الموظف لطابور الانتظار مع وقت بدء الدور لتفعيل المؤقت (دقيقتين)
-            state.waiting.push({
-                name: currentEmployeeName,
-                type: type,
-                turnStartedAt: Date.now()
-            });
-            showCustomAlert('Added to the waiting queue successfully.');
-        }
+        state.waiting.push({
+            name: currentEmployeeName,
+            type: type,
+            turnStartedAt: Date.now()
+        });
+        showCustomAlert('Added to the waiting queue successfully.');
         saveStateToFirebase();
     }
 
-    // تأكيد الدخول للبريك عندما يحين دور الموظف
     function confirmMyTurn() {
         const idx = state.waiting.findIndex(e => e.name === currentEmployeeName);
         if (idx !== -1) {
@@ -998,14 +930,11 @@
         }
     }
 
-    // رسم واجهة المستخدم وتحديث العدادات التنازلية
     function renderUI() {
-        // تحديث رسالة الدور الحالي إذا كان الموظف أول شخص في الانتظار
         const myTurnBox = document.getElementById('myTurnPromptBox');
         if (state.waiting.length > 0 && state.waiting[0].name === currentEmployeeName) {
             myTurnBox.style.display = 'block';
             
-            // حساب الوقت المتبقي (دقيقتين = 120 ثانية)
             const firstItem = state.waiting[0];
             if (!firstItem.turnStartedAt) firstItem.turnStartedAt = Date.now();
             const elapsed = Math.floor((Date.now() - firstItem.turnStartedAt) / 1000);
@@ -1023,7 +952,6 @@
             myTurnBox.style.display = 'none';
         }
 
-        // رسم قائمة النشطين في البريك
         const activeBox = document.getElementById('activeBox');
         if (state.active.length === 0) {
             activeBox.innerHTML = '<div class="empty-msg">No employees currently on break.</div>';
@@ -1032,7 +960,7 @@
                 const elapsedSec = Math.floor((Date.now() - emp.startTime) / 1000);
                 const mins = Math.floor(elapsedSec / 60);
                 const secs = elapsedSec % 60;
-                const isOver = elapsedSec > 120; // أكثر من دقيقتين
+                const isOver = elapsedSec > 120;
 
                 return `
                     <div class="card-item ${isOver ? 'overtime' : ''}">
@@ -1048,7 +976,6 @@
             }).join('');
         }
 
-        // رسم قائمة الانتظار
         const waitingBox = document.getElementById('waitingBox');
         if (state.waiting.length === 0) {
             waitingBox.innerHTML = '<div class="empty-msg">Waiting queue is empty.</div>';
@@ -1069,31 +996,10 @@
             }).join('');
         }
 
-        // رسم قسم الطلبات المعلقة للإداري
         if (isAdmin) {
-            const reqBox = document.getElementById('requestsBox');
-            if (!state.requests || state.requests.length === 0) {
-                reqBox.innerHTML = '<div class="empty-msg">No pending break requests.</div>';
-            } else {
-                reqBox.innerHTML = state.requests.map((req, idx) => `
-                    <div class="card-item">
-                        <div>
-                            <strong>${req.name}</strong>
-                            <div style="font-size: 0.75rem; color: var(--text-muted);">${new Date(req.timestamp).toLocaleTimeString()}</div>
-                        </div>
-                        <div style="display: flex; gap: 6px;">
-                            <button type="button" class="btn btn-green" style="padding: 4px 10px;" onclick="approveRequest(${idx})">Approve</button>
-                            <button type="button" class="btn btn-red" style="padding: 4px 10px;" onclick="rejectRequest(${idx})">Reject</button>
-                        </div>
-                    </div>
-                `).join('');
-            }
-
-            // رسم التقارير
             renderReports();
         }
 
-        // رسم سجل بريكات الموظف الشخصي
         renderMyBreakHistory();
     }
 
@@ -1107,23 +1013,6 @@
             state.waiting.splice(idx, 1);
             saveStateToFirebase();
         }
-    }
-
-    function approveRequest(idx) {
-        const req = state.requests.splice(idx, 1)[0];
-        if (req) {
-            state.waiting.push({
-                name: req.name,
-                type: 'request',
-                turnStartedAt: Date.now()
-            });
-            saveStateToFirebase();
-        }
-    }
-
-    function rejectRequest(idx) {
-        state.requests.splice(idx, 1);
-        saveStateToFirebase();
     }
 
     function renderMyBreakHistory() {
@@ -1214,7 +1103,6 @@
         link.click();
     }
 
-    // دوال لوحة التحكم والإدارة
     function openAdminModal() {
         document.getElementById('adminModalOverlay').style.display = 'flex';
         document.getElementById('adminPasswordPromptBox').style.display = 'none';
@@ -1343,7 +1231,6 @@
         }
     }
 
-    // بدء تشغيل الجلسة عند تحميل الصفحة
     window.onload = function() {
         checkSession();
     };
