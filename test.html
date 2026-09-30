@@ -1156,11 +1156,12 @@
         const currentTime = Date.now();
         const newWaiting = state.waiting || [];
 
+        // 1. فحص البريك النشط: إخراج الموظف إجبارياً بعد 45 دقيقة وتسجيله في التقارير
         if (state.active && state.active.length > 0) {
             for (let i = state.active.length - 1; i >= 0; i--) {
                 const activeItem = state.active[i];
                 const elapsedMs = currentTime - activeItem.timestamp;
-                const maxLimitMs = 45 * 60 * 1000;
+                const maxLimitMs = 45 * 60 * 1000; // 45 دقيقة
 
                 if (elapsedMs >= maxLimitMs) {
                     const finishedItem = state.active.splice(i, 1)[0];
@@ -1192,6 +1193,37 @@
                     db.set(state);
                     playBeep();
                     showCustomAlert(`⚠️ Maximum break limit of 45 minutes exceeded for (${finishedItem.name}). Automatically removed from system.`);
+                    return;
+                }
+            }
+        }
+
+        // 2. فحص قائمة الانتظار: إلغاء دور الموظف إن مكث في الانتظار لمدة 3 ساعات (10,800,000 ms) وتسجيله بالتقرير
+        if (newWaiting.length > 0) {
+            for (let i = newWaiting.length - 1; i >= 0; i--) {
+                const waitingItem = newWaiting[i];
+                const queueStartTime = waitingItem.queueStartTime || waitingItem.timestamp;
+                const waitingElapsedMs = currentTime - queueStartTime;
+                const threeHoursMs = 3 * 60 * 60 * 1000; // 3 ساعات
+
+                if (waitingElapsedMs >= threeHoursMs) {
+                    const cancelledItem = newWaiting.splice(i, 1)[0];
+                    
+                    if (!state.reports) state.reports = [];
+                    state.reports.unshift({
+                        name: cancelledItem.name,
+                        type: 'Waiting Cancelled (Exceeded 3 Hours Limit)',
+                        dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                        startTime: '-',
+                        endTime: '-',
+                        duration: '0m 0s',
+                        isOvertime: true,
+                        endTimestamp: Date.now()
+                    });
+
+                    db.set(state);
+                    playBeep();
+                    showCustomAlert(`⚠️ Waiting queue time limit of 3 hours exceeded for (${cancelledItem.name}). Turn cancelled automatically.`);
                     return;
                 }
             }
@@ -1364,6 +1396,7 @@
             name: name,
             type: type,
             timestamp: now,
+            queueStartTime: now,
             dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
             timeStr: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
         };
@@ -1647,7 +1680,6 @@
     function exportToExcel() {
         if (!isAdmin) return;
 
-        // فلترة التقارير لآخر 48 ساعة فقط عند التصدير للإكسل (حسب طلبك)
         const fortyEightHoursAgo = Date.now() - (48 * 60 * 60 * 1000);
         const validReports = (state.reports || []).filter(rep => rep.endTimestamp >= fortyEightHoursAgo);
 
@@ -1998,7 +2030,6 @@
 
         const rBox = document.getElementById('reportsBox');
         if (isAdmin) {
-            // عرض التقارير الخاصة بآخر 48 ساعة فقط للـ Admin
             const fortyEightHoursAgo = currentTime - (48 * 60 * 60 * 1000);
             const filteredReports = (state.reports || []).filter(rep => rep.endTimestamp >= fortyEightHoursAgo);
 
