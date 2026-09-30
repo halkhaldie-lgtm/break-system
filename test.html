@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>نظام إدارة الانتظار التجريبي - مستشفيات السلام</title>
+    <title>نظام إدارة الانتظار والبريكات التجريبي - مستشفيات السلام</title>
     <style>
         body {
             font-family: Tahoma, Arial, sans-serif;
@@ -12,7 +12,6 @@
             padding: 20px;
             color: #333;
         }
-        /* شريط وضع الاختبار العلوي */
         .test-mode-banner {
             background-color: #ff9800;
             color: #fff;
@@ -45,7 +44,7 @@
             margin-bottom: 15px;
         }
         .timer-box {
-            font-size: 24px;
+            font-size: 22px;
             font-weight: bold;
             color: #d9534f;
             text-align: center;
@@ -59,6 +58,7 @@
             border-radius: 4px;
             cursor: pointer;
             font-size: 16px;
+            margin: 5px;
         }
         button:hover {
             background-color: #004085;
@@ -68,6 +68,12 @@
         }
         button.stop-btn:hover {
             background-color: #c9302c;
+        }
+        button.break-btn {
+            background-color: #f0ad4e;
+        }
+        button.break-btn:hover {
+            background-color: #ec971f;
         }
         ul {
             padding-right: 20px;
@@ -90,25 +96,38 @@
 
     <!-- شريط وضع الاختبار العلوي المطلق -->
     <div class="test-mode-banner">
-        🧪 TEST MODE — This page uses isolated TEST data only (Firebase Path: alsalam_hospital_breaks_TEST_v1)
+        🧪 TEST MODE — Isolated Paths: alsalam_hospital_breaks_TEST_v1, alsalam_hospital_users_TEST_v1
     </div>
 
     <div class="container">
-        <h2>نظام إدارة الأدوار - عيادات مستشفيات السلام</h2>
+        <h2>نظام إدارة الأدوار والبريكات التجريبي</h2>
 
+        <!-- قسم البريك التجريبي -->
         <div class="card">
-            <h3>الدور الحالي</h3>
-            <p>المريض الحالي: <span id="current-patient-name" style="font-weight: bold; color: #0056b3;">أحمد محمد</span></p>
-            <div class="timer-box" id="timer-display">الوقت المتبقي: 07:00</div>
+            <h3>حالة البريك للموظف</h3>
+            <p>الحالة الحالية: <span id="employee-status" style="font-weight: bold; color: #28a745;">على رأس العمل</span></p>
+            <div class="timer-box" id="break-timer-display" style="display:none;">وقت البريك المتبقي: 02:00</div>
+            <div id="break-ui">
+                <button class="break-btn" onclick="startBreak()">الخروج في بريك (دقيقتين)</button>
+            </div>
+            <div id="end-break-ui" style="display:none;">
+                <button onclick="endBreakManual()">إنهاء البريك يدوياً</button>
+            </div>
+        </div>
+
+        <!-- قسم قائمة الانتظار والدور -->
+        <div class="card">
+            <h3>الدور الحالي وقائمة الانتظار</h3>
+            <p>الموظف/المراجع الحالي: <span id="current-patient-name" style="font-weight: bold; color: #0056b3;">أحمد محمد</span></p>
+            <div class="timer-box" id="queue-timer-display">مهلة تأكيد الدور: 02:00</div>
             <div id="confirmation-ui">
                 <button onclick="confirmTurn()">تأكيد الحضور</button>
             </div>
         </div>
 
         <div class="card">
-            <h3>قائمة الانتظار الحالية</h3>
+            <h3>قائمة الانتظار التابعة</h3>
             <ul id="queue-list-container">
-                <!-- قائمة الانتظار التجريبية -->
                 <li>1. خالد عبدالله</li>
                 <li>2. سارة أحمد</li>
                 <li>3. محمود حسن</li>
@@ -116,8 +135,8 @@
         </div>
 
         <div class="card">
-            <h3>لوحة التحكم الإدارية</h3>
-            <button onclick="simulateTimeoutManual()">محاكاة انتهاء الوقت (تجريبي)</button>
+            <h3>لوحة التحكم الإدارية والاختبار</h3>
+            <button onclick="simulateQueueTimeout()">محاكاة انتهاء مهلة الدور فوراً</button>
             <button class="stop-btn" onclick="stopQueueSystem('تم إيقاف النظام يدوياً من المشرف.')">إيقاف السستم طارئاً</button>
             <div id="admin-alert" class="alert-box"></div>
         </div>
@@ -129,57 +148,57 @@
         const TEST_USERS_PATH = 'alsalam_hospital_users_TEST_v1';
         console.log(`[TEST SAFETY LOCK ACTIVE]: Connected to isolated paths -> ${TEST_BREAKS_PATH}, ${TEST_USERS_PATH}`);
 
-        // محاكاة قائمة الانتظار (الـ 5 دقائق أساسي + 2 دقائق إضافية = 7 دقائق إجمالاً مثلاً أو العداد التجريبي)
+        // المتغيرات والبيانات التجريبية
         let queueList = [
             { id: 1, name: "خالد عبدالله" },
             { id: 2, name: "سارة أحمد" },
             { id: 3, name: "محمود حسن" }
         ];
 
-        let currentTimerSeconds = 420; // 7 دقائق (5 + 2)
+        // 1. عداد قائمة الانتظار (دقيقتان = 120 ثانية للتجربة)
+        let queueTimerSeconds = 120; 
         window.activeQueueTimer = null;
 
-        function startConfirmationTimer() {
+        // 2. عداد البريك (دقيقتان = 120 ثانية)
+        let breakTimerSeconds = 120;
+        window.activeBreakTimer = null;
+
+        // --- وظائف قائمة الانتظار والتأكيد ---
+        function startQueueTimer() {
             if (window.activeQueueTimer) clearInterval(window.activeQueueTimer);
 
             window.activeQueueTimer = setInterval(() => {
-                if (currentTimerSeconds > 0) {
-                    currentTimerSeconds--;
-                    updateTimerDisplay();
+                if (queueTimerSeconds > 0) {
+                    queueTimerSeconds--;
+                    updateQueueTimerDisplay();
                 } else {
                     clearInterval(window.activeQueueTimer);
-                    // عند انتهاء الوقت بالكامل دون تأكيد، نفذ آلية التحويل التسلسلي
-                    handleTurnTimeout();
+                    handleQueueTimeout(); // انتهاء الدقيقتين دون تأكيد
                 }
-            }, 1000); // للتجربة السريعة يمكن تقليل الفاصل الزمني أو تركيزه على الثواني
+            }, 1000);
         }
 
-        function updateTimerDisplay() {
-            let minutes = Math.floor(currentTimerSeconds / 60);
-            let seconds = currentTimerSeconds % 60;
-            document.getElementById('timer-display').innerText = 
-                `الوقت المتبقي: ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        function updateQueueTimerDisplay() {
+            let minutes = Math.floor(queueTimerSeconds / 60);
+            let seconds = queueTimerSeconds % 60;
+            document.getElementById('queue-timer-display').innerText = 
+                `مهلة تأكيد الدور: ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
         }
 
-        // دالة التحويل التسلسلي عند انتهاء الوقت دون تأكيد
-        function handleTurnTimeout() {
+        function handleQueueTimeout() {
             if (queueList && queueList.length > 0) {
-                let skippedUser = queueList.shift(); // إزالة الشخص الذي تأخر عن دوره
-                console.log(`تم تخطي الدور لعدم التأكيد: ${skippedUser.name}`);
+                let skippedUser = queueList.shift(); // تخطي الشخص المتأخر
+                console.log(`تم تخطي الدور لعدم التأكيد خلال دقيقتين: ${skippedUser.name}`);
 
-                // التحقق بعد الإزالة: هل فرغت القائمة بالكامل؟
                 if (queueList.length === 0) {
-                    stopQueueSystem("تم إيقاف النظام: جميع الموجودين في قائمة الانتظار لم يؤكدوا دورهم، وتم إيقاف رسائل التأكيد.");
+                    stopQueueSystem("تم إيقاف النظام: جميع الموجودين في قائمة الانتظار لم يؤكدوا دورهم خلال المدة، وتم إيقاف رسائل التأكيد.");
                     return;
                 }
 
-                // تحديث الواجهة بقائمة الانتظار الجديدة
                 renderQueueUI();
-
-                // نقل الدور للشخص التالي في القائمة وإعادة ضبط العداد
                 assignNextTurn(queueList[0]);
-                currentTimerSeconds = 420; // إعادة ضبط الـ 7 دقائق للشخص الجديد
-                startConfirmationTimer();
+                queueTimerSeconds = 120; // إعادة ضبط دقيقتين للشخص التالي
+                startQueueTimer();
 
             } else {
                 stopQueueSystem("قائمة الانتظار فارغة حالياً.");
@@ -203,13 +222,62 @@
 
         function confirmTurn() {
             if (window.activeQueueTimer) clearInterval(window.activeQueueTimer);
-            alert("تم تأكيد الحضور بنجاح! يتم خدمة المريض الآن.");
+            alert("تم تأكيد الحضور بنجاح! يتم خدمة المراجع الآن.");
             stopQueueSystem("تم اكتمال حضور الدور الحالي وإيقاف دورة التأكيد.");
         }
 
+        // --- وظائف البريك التلقائي (دقيقتان) ---
+        function startBreak() {
+            document.getElementById('employee-status').innerText = "في استراحة (بريك)";
+            document.getElementById('employee-status').style.color = "#f0ad4e";
+            document.getElementById('break-ui').style.display = 'none';
+            document.getElementById('end-break-ui').style.display = 'block';
+            document.getElementById('break-timer-display').style.display = 'block';
+
+            breakTimerSeconds = 120; // ضبط البريك على دقيقتين
+            if (window.activeBreakTimer) clearInterval(window.activeBreakTimer);
+
+            window.activeBreakTimer = setInterval(() => {
+                if (breakTimerSeconds > 0) {
+                    breakTimerSeconds--;
+                    updateBreakTimerDisplay();
+                } else {
+                    clearInterval(window.activeBreakTimer);
+                    autoEndBreakDueToTimeout(); // السستم يخرجه تلقائياً بعد دقيقتين
+                }
+            }, 1000);
+        }
+
+        function updateBreakTimerDisplay() {
+            let minutes = Math.floor(breakTimerSeconds / 60);
+            let seconds = breakTimerSeconds % 60;
+            document.getElementById('break-timer-display').innerText = 
+                `وقت البريك المتبقي: ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        function endBreakManual() {
+            if (window.activeBreakTimer) clearInterval(window.activeBreakTimer);
+            resetBreakState();
+            showAdminAlert("تم إنهاء البريك يدوياً والعودة للعمل.");
+        }
+
+        function autoEndBreakDueToTimeout() {
+            resetBreakState();
+            showAdminAlert("انتهت مدة البريك (دقيقتان)، وتم إخراج الموظف من البريك وتحديث حالته تلقائياً.");
+        }
+
+        function resetBreakState() {
+            document.getElementById('employee-status').innerText = "على رأس العمل";
+            document.getElementById('employee-status').style.color = "#28a745";
+            document.getElementById('break-ui').style.display = 'block';
+            document.getElementById('end-break-ui').style.display = 'none';
+            document.getElementById('break-timer-display').style.display = 'none';
+        }
+
+        // --- أدوات عامة وإيقاف ---
         function hideConfirmationUI() {
             document.getElementById('confirmation-ui').style.display = 'none';
-            document.getElementById('timer-display').innerText = 'انتهت الجلسة / متوقف';
+            document.getElementById('queue-timer-display').innerText = 'انتهت الجلسة / متوقف';
         }
 
         function stopQueueSystem(reasonMessage) {
@@ -226,14 +294,13 @@
             alertBox.innerText = msg;
         }
 
-        function simulateTimeoutManual() {
-            // دالة مساعدة لتجربة التخطي فوراً دون انتظار 7 دقائق
-            currentTimerSeconds = 0;
-            handleTurnTimeout();
+        function simulateQueueTimeout() {
+            queueTimerSeconds = 0;
+            handleQueueTimeout();
         }
 
-        // بدء المؤقت عند تحميل الصفحة للتجربة
-        startConfirmationTimer();
+        // بدء عداد الانتظار تلقائياً عند فتح الصفحة للتجربة
+        startQueueTimer();
     </script>
 </body>
 </html>
