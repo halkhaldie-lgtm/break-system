@@ -1174,77 +1174,178 @@
         const currentTime = Date.now();
         const newWaiting = state.waiting || [];
 
-        // 1. فحص البريك النشط: إخراج الموظف إجبارياً بعد 45 دقيقة وتسجيله في التقارير
-        if (state.active && state.active.length > 0) {
-            for (let i = state.active.length - 1; i >= 0; i--) {
-                const activeItem = state.active[i];
-                const elapsedMs = currentTime - activeItem.timestamp;
-                const maxLimitMs = 45 * 60 * 1000; // 45 دقيقة
+        // ============================================================
+        // AUTO TIME LIMITS
+        // IMPORTANT:
+        // - Active break: exactly 45 minutes.
+        // - Waiting queue: exactly 3 hours from queueEnteredAt.
+        // - These automatic removals use Firebase TRANSACTION so that
+        //   one employee's browser cannot overwrite another browser's
+        //   newer data with an old local copy of "state".
+        // ============================================================
 
-                if (elapsedMs >= maxLimitMs) {
-                    const finishedItem = state.active.splice(i, 1)[0];
-                    const endTime = Date.now();
-                    const durationMs = endTime - finishedItem.timestamp;
-                    const durationSecs = Math.floor(durationMs / 1000);
-                    const durationMins = Math.floor(durationSecs / 60);
-                    const durationSecsRem = durationSecs % 60;
-                    const durationText = `${durationMins}m ${durationSecsRem}s`;
-                    const endTimeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                    const breakDateStr = finishedItem.dateStr || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                    
-                    let typeText = 'Normal Break';
-                    if (finishedItem.type === 'quick') typeText = 'Quick Break (5m)';
-                    else if (finishedItem.type === 'request') typeText = 'Requested Break';
+        const MAX_BREAK_MS = 45 * 60 * 1000;
+        const MAX_WAITING_MS = 3 * 60 * 60 * 1000;
 
-                    if (!state.reports) state.reports = [];
-                    state.reports.unshift({
-                        name: finishedItem.name,
-                        type: typeText + ' (Exceeded 45m Limit - Auto Ended)',
-                        dateStr: breakDateStr,
-                        startTime: finishedItem.timeStr,
-                        endTime: endTimeStr,
-                        duration: durationText,
-                        isOvertime: true,
-                        endTimestamp: endTime
-                    });
+        // ---------- 1. AUTO-END ACTIVE BREAK AFTER 45 MINUTES ----------
+        const expiredActive = (state.active || []).filter(item => {
+            const startedAt = Number(item.timestamp);
+            return Number.isFinite(startedAt) &&
+                   startedAt > 0 &&
+                   currentTime >= startedAt &&
+                   (currentTime - startedAt) >= MAX_BREAK_MS;
+        });
 
-                    db.set(state);
+        if (expiredActive.length > 0) {
+            const expiredIds = expiredActive.map(item => String(item.id));
+
+            db.transaction(currentData => {
+                if (!currentData) return currentData;
+
+                const data = {
+                    active: Array.isArray(currentData.active) ? currentData.active : [],
+                    waiting: Array.isArray(currentData.waiting) ? currentData.waiting : [],
+                    requests: Array.isArray(currentData.requests) ? currentData.requests : [],
+                    reports: Array.isArray(currentData.reports) ? currentData.reports : [],
+                    swapLogs: Array.isArray(currentData.swapLogs) ? currentData.swapLogs : []
+                };
+
+                const now = Date.now();
+                let changed = false;
+                const removed = [];
+
+                data.active = data.active.filter(item => {
+                    const startedAt = Number(item.timestamp);
+                    const shouldRemove =
+                        expiredIds.includes(String(item.id)) &&
+                        Number.isFinite(startedAt) &&
+                        startedAt > 0 &&
+                        now >= startedAt &&
+                        (now - startedAt) >= MAX_BREAK_MS;
+
+                    if (shouldRemove) {
+                        removed.push(item);
+                        changed = true;
+
+                        const durationMs = now - startedAt;
+                        const durationSecs = Math.floor(durationMs / 1000);
+                        const durationMins = Math.floor(durationSecs / 60);
+                        const durationSecsRem = durationSecs % 60;
+
+                        let typeText = 'Normal Break';
+                        if (item.type === 'quick') typeText = 'Quick Break (5m)';
+                        else if (item.type === 'request') typeText = 'Requested Break';
+
+                        data.reports.unshift({
+                            name: item.name,
+                            type: typeText + ' (Exceeded 45m Limit - Auto Ended)',
+                            dateStr: item.dateStr || new Date(now).toLocaleDateString('en-GB', {
+                                day: '2-digit', month: '2-digit', year: 'numeric'
+                            }),
+                            startTime: item.timeStr || '-',
+                            endTime: new Date(now).toLocaleTimeString('en-US', {
+                                hour: '2-digit', minute: '2-digit', second: '2-digit'
+                            }),
+                            duration: `${durationMins}m ${durationSecsRem}s`,
+                            isOvertime: true,
+                            endTimestamp: now
+                        });
+                    }
+
+                    return !shouldRemove;
+                });
+
+                return changed ? data : undefined;
+            }).then(result => {
+                if (result.committed) {
+                    const removedNames = expiredActive.map(item => item.name).join(', ');
                     playBeep();
-                    showCustomAlert(`⚠️ Maximum break limit of 45 minutes exceeded for (${finishedItem.name}). Automatically removed from system.`);
-                    return;
+                    showCustomAlert(
+                        `⚠️ Maximum break limit of 45 minutes exceeded for (${removedNames}). Automatically removed from system.`
+                    );
                 }
-            }
+            }).catch(error => {
+                console.error('45-minute auto-end transaction failed:', error);
+            });
         }
 
-        // 2. فحص قائمة الانتظار: إلغاء دور الموظف إن مكث في الانتظار لمدة 3 ساعات (10,800,000 ms) وتسجيله بالتقرير
-        if (newWaiting.length > 0) {
-            for (let i = newWaiting.length - 1; i >= 0; i--) {
-                const waitingItem = newWaiting[i];
-                const queueStartTime = waitingItem.queueStartTime || waitingItem.timestamp;
-                const waitingElapsedMs = currentTime - queueStartTime;
-                const threeHoursMs = 3 * 60 * 60 * 1000; // 3 ساعات
+        // ---------- 2. AUTO-CANCEL WAITING AFTER 3 HOURS ----------
+        // queueEnteredAt is the ONLY new authoritative timestamp.
+        // queueStartTime/timestamp are kept only as legacy fallbacks for
+        // old records created before this correction.
+        const expiredWaiting = newWaiting.filter(item => {
+            const queueEnteredAt = Number(
+                item.queueEnteredAt || item.queueStartTime || item.timestamp
+            );
 
-                if (waitingElapsedMs >= threeHoursMs) {
-                    const cancelledItem = newWaiting.splice(i, 1)[0];
-                    
-                    if (!state.reports) state.reports = [];
-                    state.reports.unshift({
-                        name: cancelledItem.name,
-                        type: 'Waiting Cancelled (Exceeded 3 Hours Limit)',
-                        dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-                        startTime: '-',
-                        endTime: '-',
-                        duration: '0m 0s',
-                        isOvertime: true,
-                        endTimestamp: Date.now()
-                    });
+            return Number.isFinite(queueEnteredAt) &&
+                   queueEnteredAt > 0 &&
+                   currentTime >= queueEnteredAt &&
+                   (currentTime - queueEnteredAt) >= MAX_WAITING_MS;
+        });
 
-                    db.set(state);
+        if (expiredWaiting.length > 0) {
+            const expiredIds = expiredWaiting.map(item => String(item.id));
+
+            db.transaction(currentData => {
+                if (!currentData) return currentData;
+
+                const data = {
+                    active: Array.isArray(currentData.active) ? currentData.active : [],
+                    waiting: Array.isArray(currentData.waiting) ? currentData.waiting : [],
+                    requests: Array.isArray(currentData.requests) ? currentData.requests : [],
+                    reports: Array.isArray(currentData.reports) ? currentData.reports : [],
+                    swapLogs: Array.isArray(currentData.swapLogs) ? currentData.swapLogs : []
+                };
+
+                const now = Date.now();
+                let changed = false;
+
+                data.waiting = data.waiting.filter(item => {
+                    const queueEnteredAt = Number(
+                        item.queueEnteredAt || item.queueStartTime || item.timestamp
+                    );
+
+                    const shouldRemove =
+                        expiredIds.includes(String(item.id)) &&
+                        Number.isFinite(queueEnteredAt) &&
+                        queueEnteredAt > 0 &&
+                        now >= queueEnteredAt &&
+                        (now - queueEnteredAt) >= MAX_WAITING_MS;
+
+                    if (shouldRemove) {
+                        changed = true;
+
+                        data.reports.unshift({
+                            name: item.name,
+                            type: 'Waiting Cancelled (Exceeded 3 Hours Limit)',
+                            dateStr: new Date(now).toLocaleDateString('en-GB', {
+                                day: '2-digit', month: '2-digit', year: 'numeric'
+                            }),
+                            startTime: '-',
+                            endTime: '-',
+                            duration: '0m 0s',
+                            isOvertime: true,
+                            endTimestamp: now
+                        });
+                    }
+
+                    return !shouldRemove;
+                });
+
+                return changed ? data : undefined;
+            }).then(result => {
+                if (result.committed) {
+                    const removedNames = expiredWaiting.map(item => item.name).join(', ');
                     playBeep();
-                    showCustomAlert(`⚠️ Waiting queue time limit of 3 hours exceeded for (${cancelledItem.name}). Turn cancelled automatically.`);
-                    return;
+                    showCustomAlert(
+                        `⚠️ Waiting queue time limit of 3 hours exceeded for (${removedNames}). Turn cancelled automatically.`
+                    );
+                    stopTitleBlink();
                 }
-            }
+            }).catch(error => {
+                console.error('3-hour waiting auto-cancel transaction failed:', error);
+            });
         }
 
         if (newWaiting.length > 0) {
@@ -1414,6 +1515,7 @@
             name: name,
             type: type,
             timestamp: now,
+            queueEnteredAt: now,
             queueStartTime: now,
             dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
             timeStr: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -1449,6 +1551,8 @@
 
         const itemToBreak = state.waiting.splice(index, 1)[0];
         itemToBreak.timestamp = Date.now();
+        delete itemToBreak.queueEnteredAt;
+        delete itemToBreak.queueStartTime;
         itemToBreak.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
         itemToBreak.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         delete itemToBreak.turnStartTime;
@@ -1469,6 +1573,10 @@
         if (!isAdmin) return;
         const reqItem = state.requests.splice(index, 1)[0];
         if (reqItem) {
+            const now = Date.now();
+            reqItem.queueEnteredAt = now;
+            reqItem.queueStartTime = now; // kept for backward compatibility/display
+            delete reqItem.turnStartTime;
             state.waiting.push(reqItem);
             db.set(state);
         }
@@ -1522,6 +1630,8 @@
         userItem.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
         userItem.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         delete userItem.turnStartTime;
+        delete userItem.queueEnteredAt;
+        delete userItem.queueStartTime;
         state.active.push(userItem);
 
         stopTitleBlink();
@@ -1569,7 +1679,10 @@
                 let targetPos = finishedItem.originalQueuePos - 1; 
                 delete finishedItem.keepInQueueRole;
                 delete finishedItem.originalQueuePos;
-                finishedItem.timestamp = Date.now();
+                const requeueTime = Date.now();
+                finishedItem.timestamp = requeueTime;
+                finishedItem.queueEnteredAt = requeueTime;
+                finishedItem.queueStartTime = requeueTime; // kept for backward compatibility/display
                 finishedItem.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
                 if (targetPos < 0) targetPos = 0;
@@ -1944,10 +2057,10 @@
                 const showCancelBtn = (isOwner || isAdmin);
                 const isQuick = item.type === 'quick';
 
-                if (!item.queueStartTime) {
-                    item.queueStartTime = item.timestamp || currentTime;
-                }
-                const elapsedSecs = Math.floor((currentTime - item.queueStartTime) / 1000);
+                const displayQueueStart = Number(
+                    item.queueEnteredAt || item.queueStartTime || item.timestamp || currentTime
+                );
+                const elapsedSecs = Math.max(0, Math.floor((currentTime - displayQueueStart) / 1000));
                 const initMins = Math.floor(elapsedSecs / 60);
                 const initSecs = elapsedSecs % 60;
                 const countupText = `${initMins}m ${initSecs}s`;
@@ -1984,7 +2097,7 @@
                         <div>
                             <span class="waiting-badge-num">#${i + 1}</span>
                             <strong>${item.name}</strong>
-                            <span style="margin-left: 8px; color:var(--text-muted); font-size: 0.85rem;">Waiting: <span class="admin-countup-timer" data-starttime="${item.queueStartTime}">${countupText}</span></span>
+                            <span style="margin-left: 8px; color:var(--text-muted); font-size: 0.85rem;">Waiting: <span class="admin-countup-timer" data-starttime="${displayQueueStart}">${countupText}</span></span>
                             ${typeLabel}
                             ${adminStatusBadge}
                             ${swapMessageHtml}
