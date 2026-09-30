@@ -983,7 +983,6 @@
     db.on('value', (snapshot) => {
         const val = snapshot.val();
         if (val) {
-            // المسح التلقائي العام كل 10 ساعات (36,000,000 ms)
             const tenHoursAgo = Date.now() - (10 * 60 * 60 * 1000);
             let filteredReports = (val.reports || []).filter(rep => rep.endTimestamp > tenHoursAgo);
             let filteredSwaps = (val.swapLogs || []).filter(sw => sw.timestamp > tenHoursAgo);
@@ -1156,6 +1155,7 @@
         const currentTime = Date.now();
         const newWaiting = state.waiting || [];
 
+        // 1. ميزة الإخراج التلقائي من البريك بعد 45 دقيقة متواصلة
         if (state.active && state.active.length > 0) {
             for (let i = state.active.length - 1; i >= 0; i--) {
                 const activeItem = state.active[i];
@@ -1192,6 +1192,37 @@
                     db.set(state);
                     playBeep();
                     showCustomAlert(`⚠️ Maximum break limit of 45 minutes exceeded for (${finishedItem.name}). Automatically removed from system.`);
+                    return;
+                }
+            }
+        }
+
+        // 2. ميزة الإخراج التلقائي من قائمة الانتظار بعد 3 ساعات متواصلة دون الدخول في بريك
+        if (newWaiting && newWaiting.length > 0) {
+            for (let i = newWaiting.length - 1; i >= 0; i--) {
+                const waitItem = newWaiting[i];
+                const queueStartTime = waitItem.queueStartTime || waitItem.timestamp || currentTime;
+                const elapsedQueueMs = currentTime - queueStartTime;
+                const maxQueueLimitMs = 3 * 60 * 60 * 1000; // 3 ساعات
+
+                if (elapsedQueueMs >= maxQueueLimitMs) {
+                    const removedWaitItem = newWaiting.splice(i, 1)[0];
+                    
+                    if (!state.reports) state.reports = [];
+                    state.reports.unshift({
+                        name: removedWaitItem.name,
+                        type: 'Auto-Removed (Queue Timeout 3 Hours)',
+                        dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                        startTime: '-',
+                        endTime: '-',
+                        duration: '3h 0m 0s',
+                        isOvertime: true,
+                        endTimestamp: Date.now()
+                    });
+
+                    db.set(state);
+                    playBeep();
+                    showCustomAlert(`⚠️ Employee (${removedWaitItem.name}) has been automatically removed from waiting queue after 3 continuous hours.`);
                     return;
                 }
             }
@@ -1364,6 +1395,7 @@
             name: name,
             type: type,
             timestamp: now,
+            queueStartTime: now, // تسجيل وقت الدخول لقائمة الانتظار لضبط مؤقت الـ 3 ساعات
             dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
             timeStr: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
         };
@@ -1471,6 +1503,7 @@
         userItem.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
         userItem.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         delete userItem.turnStartTime;
+        delete userItem.queueStartTime;
         state.active.push(userItem);
 
         stopTitleBlink();
@@ -1519,6 +1552,7 @@
                 delete finishedItem.keepInQueueRole;
                 delete finishedItem.originalQueuePos;
                 finishedItem.timestamp = Date.now();
+                finishedItem.queueStartTime = Date.now();
                 finishedItem.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
                 if (targetPos < 0) targetPos = 0;
@@ -1647,7 +1681,6 @@
     function exportToExcel() {
         if (!isAdmin) return;
 
-        // فلترة التقارير لآخر 48 ساعة فقط عند التصدير للإكسل (حسب طلبك)
         const fortyEightHoursAgo = Date.now() - (48 * 60 * 60 * 1000);
         const validReports = (state.reports || []).filter(rep => rep.endTimestamp >= fortyEightHoursAgo);
 
@@ -1998,7 +2031,6 @@
 
         const rBox = document.getElementById('reportsBox');
         if (isAdmin) {
-            // عرض التقارير الخاصة بآخر 48 ساعة فقط للـ Admin
             const fortyEightHoursAgo = currentTime - (48 * 60 * 60 * 1000);
             const filteredReports = (state.reports || []).filter(rep => rep.endTimestamp >= fortyEightHoursAgo);
 
