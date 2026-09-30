@@ -1187,6 +1187,9 @@
         const MAX_BREAK_MS = 45 * 60 * 1000;
         const MAX_WAITING_MS = 3 * 60 * 60 * 1000;
 
+        // SAFETY: Firebase transactions below preserve every existing root
+        // property and only modify active/waiting/reports when an item expires.
+
         // ---------- 1. AUTO-END ACTIVE BREAK AFTER 45 MINUTES ----------
         const expiredActive = (state.active || []).filter(item => {
             const startedAt = Number(item.timestamp);
@@ -1202,13 +1205,15 @@
             db.transaction(currentData => {
                 if (!currentData) return currentData;
 
-                const data = {
-                    active: Array.isArray(currentData.active) ? currentData.active : [],
-                    waiting: Array.isArray(currentData.waiting) ? currentData.waiting : [],
-                    requests: Array.isArray(currentData.requests) ? currentData.requests : [],
-                    reports: Array.isArray(currentData.reports) ? currentData.reports : [],
-                    swapLogs: Array.isArray(currentData.swapLogs) ? currentData.swapLogs : []
-                };
+                // Preserve the ENTIRE Firebase root object.
+                // Only clone/change the arrays this transaction is responsible for.
+                // This prevents unknown/custom root properties (roles, config,
+                // future settings, etc.) from being dropped by the transaction.
+                const data = { ...currentData };
+                data.active = Array.isArray(currentData.active) ? currentData.active.slice() : [];
+                data.waiting = Array.isArray(currentData.waiting) ? currentData.waiting.slice() : [];
+                data.requests = Array.isArray(currentData.requests) ? currentData.requests.slice() : [];
+                data.reports = Array.isArray(currentData.reports) ? currentData.reports.slice() : [];
 
                 const now = Date.now();
                 let changed = false;
@@ -1290,13 +1295,15 @@
             db.transaction(currentData => {
                 if (!currentData) return currentData;
 
-                const data = {
-                    active: Array.isArray(currentData.active) ? currentData.active : [],
-                    waiting: Array.isArray(currentData.waiting) ? currentData.waiting : [],
-                    requests: Array.isArray(currentData.requests) ? currentData.requests : [],
-                    reports: Array.isArray(currentData.reports) ? currentData.reports : [],
-                    swapLogs: Array.isArray(currentData.swapLogs) ? currentData.swapLogs : []
-                };
+                // Preserve the ENTIRE Firebase root object.
+                // Only clone/change the arrays this transaction is responsible for.
+                // This prevents unknown/custom root properties (roles, config,
+                // future settings, etc.) from being dropped by the transaction.
+                const data = { ...currentData };
+                data.active = Array.isArray(currentData.active) ? currentData.active.slice() : [];
+                data.waiting = Array.isArray(currentData.waiting) ? currentData.waiting.slice() : [];
+                data.requests = Array.isArray(currentData.requests) ? currentData.requests.slice() : [];
+                data.reports = Array.isArray(currentData.reports) ? currentData.reports.slice() : [];
 
                 const now = Date.now();
                 let changed = false;
