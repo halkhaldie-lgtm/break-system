@@ -229,15 +229,8 @@
             box-shadow: 0 8px 20px rgba(0,0,0,0.2);
         }
 
-        .action-buttons { 
-            display: grid; 
-            grid-template-columns: repeat(3, 1fr); 
-            gap: 8px; 
-        }
-        @media(max-width: 600px) {
-            .action-buttons { grid-template-columns: 1fr; }
-        }
-        .action-buttons button { width: 100%; padding: 12px 8px; }
+        .action-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+        .action-buttons button { flex: 1; min-width: 110px; }
 
         input[type="text"], input[type="password"], select {
             width: 100%;
@@ -365,6 +358,16 @@
             padding-top: 10px;
             overflow-x: auto;
         }
+        .report-table-title {
+            background-color: #bae6fd;
+            color: #0369a1;
+            padding: 4px 8px;
+            font-weight: bold;
+            font-size: 0.78rem;
+            border-radius: 4px;
+            margin-bottom: 6px;
+            display: inline-block;
+        }
         .report-table {
             width: 100%;
             border-collapse: collapse;
@@ -470,8 +473,6 @@
 </head>
 <body>
 
-<div id="testModeBanner" style="position:sticky;top:0;z-index:99999;width:100%;background:#7c2d12;color:#fff;padding:9px 12px;text-align:center;font-weight:800;font-size:0.9rem;border-bottom:2px solid #f59e0b;box-shadow:0 2px 8px rgba(0,0,0,.25);">🧪 TEST MODE — This page uses isolated TEST data only</div>
-
 <div class="container">
     <header>
         <div class="top-header-row">
@@ -531,8 +532,15 @@
             <div class="action-buttons">
                 <button type="button" class="btn btn-green" onclick="submitBreak('normal')">Normal Break 🏃</button>
                 <button type="button" class="btn btn-amber" onclick="submitBreak('quick')">⚡ Quick Break (5m)</button>
-                <button type="button" class="btn btn-purple" onclick="submitBreak('leader')">Request Break From The Leader</button>
+                <button type="button" class="btn btn-purple" onclick="submitBreak('request')">(Request Break From The Leader)</button>
             </div>
+        </div>
+
+        <div class="section-card" id="requestsSectionContainer" style="display: none; border-color: #5b21b6;">
+            <div class="section-header-title" style="color: #a78bfa;">
+                <span>⏳ Pending Break Requests (Admin Approval)</span>
+            </div>
+            <div id="requestsBox"></div>
         </div>
 
         <div class="section-card" style="border-color: #115e59;">
@@ -627,6 +635,17 @@
     </div>
 </div>
 
+<div class="custom-modal-overlay" id="forceOutModalOverlay">
+    <div class="custom-modal-box">
+        <div class="custom-modal-title">⚠️ Force Out Employee Option</div>
+        <div class="custom-modal-subtitle" id="forceOutModalText">Would you like to keep the employee's position reserved in the waiting queue, or cancel their turn completely?</div>
+        <div class="custom-modal-buttons" style="display: flex; gap: 10px; margin-top: 20px;">
+            <button type="button" class="btn btn-green" style="flex: 1;" onclick="handleForceOutChoice(true)">Keep Position Reserved</button>
+            <button type="button" class="btn btn-red" style="flex: 1;" onclick="handleForceOutChoice(false)">Cancel Turn Completely</button>
+        </div>
+    </div>
+</div>
+
 <script>
     function showCustomAlert(message) {
         var existingAlert = document.getElementById('custom-alert-box');
@@ -690,19 +709,17 @@
         firebase.initializeApp(firebaseConfig);
     }
     
-    const TEST_BREAKS_PATH = 'alsalam_hospital_breaks_TEST_v1';
-    const TEST_USERS_PATH = 'alsalam_hospital_users_TEST_v1';
+    const db = firebase.database().ref('alsalam_hospital_breaks_v48');
+    const usersDb = firebase.database().ref('alsalam_hospital_users');
 
-    const db = firebase.database().ref(TEST_BREAKS_PATH);
-    const usersDb = firebase.database().ref(TEST_USERS_PATH);
-
-    let state = { active: [], waiting: [], reports: [], swapLogs: [] };
+    let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
     let usersState = {};
-    let isAdmin = localStorage.getItem('test_is_admin_mode') === 'true';
-    let currentLoggedInUser = localStorage.getItem('test_logged_in_username') || '';
-    let currentEmployeeName = localStorage.getItem('test_logged_in_empname') || '';
+    let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
+    let currentLoggedInUser = localStorage.getItem('logged_in_username') || '';
+    let currentEmployeeName = localStorage.getItem('logged_in_empname') || '';
     let isReportsExpanded = false;
     let isUsersListExpanded = false;
+    let pendingForceOutIndex = null;
 
     let audioCtx = null;
     function initAudioContext() {
@@ -719,7 +736,7 @@
     }, { once: true });
 
     function getAdminPassword() {
-        return localStorage.getItem('test_admin_secret_pass') || '1234';
+        return localStorage.getItem('admin_secret_pass') || '1234';
     }
 
     function toggleUsersListExpand() {
@@ -747,11 +764,11 @@
 
         if (u === 'admin' && p === getAdminPassword()) {
             isAdmin = true;
-            localStorage.setItem('test_is_admin_mode', 'true');
+            localStorage.setItem('is_admin_mode', 'true');
             currentLoggedInUser = 'admin';
             currentEmployeeName = 'Administrator';
-            localStorage.setItem('test_logged_in_username', 'admin');
-            localStorage.setItem('test_logged_in_empname', 'Administrator');
+            localStorage.setItem('logged_in_username', 'admin');
+            localStorage.setItem('logged_in_empname', 'Administrator');
             checkSession();
             return;
         }
@@ -760,11 +777,11 @@
         if (users[u] && users[u].password === p) {
             const isUserAdmin = (users[u].role === 'admin');
             isAdmin = isUserAdmin;
-            localStorage.setItem('test_is_admin_mode', isUserAdmin ? 'true' : 'false');
+            localStorage.setItem('is_admin_mode', isUserAdmin ? 'true' : 'false');
             currentLoggedInUser = u;
             currentEmployeeName = users[u].name;
-            localStorage.setItem('test_logged_in_username', u);
-            localStorage.setItem('test_logged_in_empname', users[u].name);
+            localStorage.setItem('logged_in_username', u);
+            localStorage.setItem('logged_in_empname', users[u].name);
             checkSession();
         } else {
             showCustomAlert('Invalid username or password!');
@@ -772,388 +789,59 @@
     }
 
     function logoutUser() {
-        isAdmin = false;
+        localStorage.removeItem('logged_in_username');
+        localStorage.removeItem('logged_in_empname');
+        localStorage.setItem('is_admin_mode', 'false');
         currentLoggedInUser = '';
         currentEmployeeName = '';
-        localStorage.removeItem('test_is_admin_mode');
-        localStorage.removeItem('test_logged_in_username');
-        localStorage.removeItem('test_logged_in_empname');
+        isAdmin = false;
         checkSession();
     }
 
     function checkSession() {
         const loginSec = document.getElementById('loginSection');
-        const mainCont = document.getElementById('mainSystemContent');
-        const adminBadge = document.getElementById('adminActiveBadge');
-        const logoutBadge = document.getElementById('logoutBtn');
-        const topAdminOpt = document.getElementById('topAdminOptionBtn');
+        const mainSec = document.getElementById('mainSystemContent');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const adminActiveBadge = document.getElementById('adminActiveBadge');
+        const topAdminBtn = document.getElementById('topAdminOptionBtn');
         const reportBox = document.getElementById('adminReportContainer');
-        const myHistSec = document.getElementById('myBreakHistorySection');
 
         if (currentLoggedInUser) {
             loginSec.style.display = 'none';
-            mainCont.style.display = 'block';
-            logoutBadge.style.display = 'inline-block';
-            document.getElementById('welcomeEmpLabel').innerText = 'Welcome: ' + currentEmployeeName + (isAdmin ? ' (Admin)' : '');
-            myHistSec.style.display = 'block';
-
+            mainSec.style.display = 'block';
+            document.getElementById('welcomeEmpLabel').innerText = `Welcome: ${currentEmployeeName} (${currentLoggedInUser})`;
+            
             if (isAdmin) {
-                adminBadge.style.display = 'inline-block';
-                topAdminOpt.style.display = 'inline-block';
+                logoutBtn.style.display = 'inline-block';
+                adminActiveBadge.style.display = 'inline-block';
+                topAdminBtn.style.display = 'inline-block';
                 reportBox.style.display = 'block';
             } else {
-                adminBadge.style.display = 'none';
-                topAdminOpt.style.display = 'none';
+                logoutBtn.style.display = 'inline-block';
+                adminActiveBadge.style.display = 'none';
+                topAdminBtn.style.display = 'none';
                 reportBox.style.display = 'none';
             }
-            renderUI();
         } else {
             loginSec.style.display = 'block';
-            mainCont.style.display = 'none';
-            adminBadge.style.display = 'none';
-            logoutBadge.style.display = 'none';
-            topAdminOpt.style.display = 'none';
+            mainSec.style.display = 'none';
+            logoutBtn.style.display = 'none';
+            adminActiveBadge.style.display = 'none';
+            topAdminBtn.style.display = 'none';
             reportBox.style.display = 'none';
-            myHistSec.style.display = 'none';
-        }
-    }
-
-    function checkAutoTimeouts() {
-        const now = Date.now();
-        if (state.active && state.active.length > 0) {
-            state.active.forEach(emp => {
-                if (emp.startTime && (now - emp.startTime >= 120000)) {
-                    finishBreakByName(emp.name, true);
-                }
-            });
-        }
-
-        if (state.waiting && state.waiting.length > 0) {
-            const firstWaiting = state.waiting[0];
-            if (firstWaiting && firstWaiting.turnStartedAt && (now - firstWaiting.turnStartedAt >= 120000)) {
-                cancelWaitingTurnDirectly(firstWaiting.name);
-            }
-        }
-    }
-
-    function finishBreakByName(empName, isAuto) {
-        const idx = state.active.findIndex(e => e.name === empName);
-        if (idx !== -1) {
-            const emp = state.active.splice(idx, 1)[0];
-            const endTime = Date.now();
-            const durationMs = emp.startTime ? (endTime - emp.startTime) : 0;
-            const durationSec = Math.floor(durationMs / 1000);
-
-            if (!state.reports) state.reports = [];
-            state.reports.push({
-                name: emp.name,
-                type: emp.type || 'normal',
-                startTime: emp.startTime || Date.now(),
-                endTime: endTime,
-                duration: durationSec,
-                note: isAuto ? 'Auto-finished after 2 minutes timeout' : 'Finished normally'
-            });
-            saveStateToFirebase();
-        }
-    }
-
-    function cancelWaitingTurnDirectly(empName) {
-        const idx = state.waiting.findIndex(e => e.name === empName);
-        if (idx !== -1) {
-            state.waiting.splice(idx, 1);
-            if (!state.reports) state.reports = [];
-            state.reports.push({
-                name: empName,
-                type: 'cancelled_turn',
-                startTime: Date.now(),
-                endTime: Date.now(),
-                duration: 0,
-                note: 'Turn cancelled automatically after 2 minutes inactivity'
-            });
-            saveStateToFirebase();
-        }
-    }
-
-    setInterval(() => {
-        if (currentLoggedInUser) {
-            checkAutoTimeouts();
-            renderUI();
-        }
-    }, 1000);
-
-    db.on('value', (snapshot) => {
-        const val = snapshot.val();
-        if (val) {
-            state = {
-                active: val.active || [],
-                waiting: val.waiting || [],
-                reports: val.reports || [],
-                swapLogs: val.swapLogs || []
-            };
-        } else {
-            state = { active: [], waiting: [], reports: [], swapLogs: [] };
         }
         renderUI();
-    });
-
-    usersDb.on('value', (snapshot) => {
-        usersState = snapshot.val() || {};
-        renderEmployeeAccountsList();
-    });
-
-    function saveStateToFirebase() {
-        db.set(state);
-    }
-
-    function submitBreak(type) {
-        if (!currentEmployeeName) return;
-
-        const inActive = state.active.some(e => e.name === currentEmployeeName);
-        const inWaiting = state.waiting.some(e => e.name === currentEmployeeName);
-
-        if (inActive || inWaiting) {
-            showCustomAlert('You are already in active break or waiting queue!');
-            return;
-        }
-
-        state.waiting.push({
-            name: currentEmployeeName,
-            type: type,
-            turnStartedAt: Date.now()
-        });
-        showCustomAlert('Added to the waiting queue successfully.');
-        saveStateToFirebase();
-    }
-
-    function confirmMyTurn() {
-        const idx = state.waiting.findIndex(e => e.name === currentEmployeeName);
-        if (idx !== -1) {
-            const emp = state.waiting.splice(idx, 1)[0];
-            state.active.push({
-                name: emp.name,
-                type: emp.type || 'normal',
-                startTime: Date.now()
-            });
-            saveStateToFirebase();
-        }
-    }
-
-    function renderUI() {
-        const myTurnBox = document.getElementById('myTurnPromptBox');
-        if (state.waiting.length > 0 && state.waiting[0].name === currentEmployeeName) {
-            myTurnBox.style.display = 'block';
-            
-            const firstItem = state.waiting[0];
-            if (!firstItem.turnStartedAt) firstItem.turnStartedAt = Date.now();
-            const elapsed = Math.floor((Date.now() - firstItem.turnStartedAt) / 1000);
-            const remaining = 120 - elapsed;
-            
-            const countDisplay = document.getElementById('liveCountdownDisplay');
-            if (remaining > 0) {
-                const mins = Math.floor(remaining / 60);
-                const secs = remaining % 60;
-                countDisplay.innerText = `⏳ Time remaining to confirm: ${mins}:${secs < 10 ? '0' : ''}${secs}`;
-            } else {
-                countDisplay.innerText = `⏳ Timeout expired!`;
-            }
-        } else {
-            myTurnBox.style.display = 'none';
-        }
-
-        const activeBox = document.getElementById('activeBox');
-        if (state.active.length === 0) {
-            activeBox.innerHTML = '<div class="empty-msg">No employees currently on break.</div>';
-        } else {
-            activeBox.innerHTML = state.active.map(emp => {
-                const startT = emp.startTime || Date.now();
-                const elapsedSec = Math.floor((Date.now() - startT) / 1000);
-                const mins = Math.floor(elapsedSec / 60);
-                const secs = elapsedSec % 60;
-                const isOver = elapsedSec > 120;
-
-                return `
-                    <div class="card-item ${isOver ? 'overtime' : ''}">
-                        <div>
-                            <strong>${emp.name}</strong> <span style="font-size:0.8rem; opacity:0.8;">(${emp.type || 'normal'})</span>
-                            <div style="font-size: 0.85rem; margin-top: 4px; color: ${isOver ? '#fca5a5' : '#38bdf8'};">
-                                Duration: ${isNaN(mins) ? 0 : mins}:${(isNaN(secs) || secs < 10) ? '0' : ''}${isNaN(secs) ? 0 : secs} ${isOver ? '⚠️ (Exceeded 2m limit!)' : ''}
-                            </div>
-                        </div>
-                        ${(isAdmin || emp.name === currentEmployeeName) ? `<button type="button" class="btn btn-red" onclick="endBreakByName('${emp.name}')">End Break</button>` : ''}
-                    </div>
-                `;
-            }).join('');
-        }
-
-        const waitingBox = document.getElementById('waitingBox');
-        if (state.waiting.length === 0) {
-            waitingBox.innerHTML = '<div class="empty-msg">Waiting queue is empty.</div>';
-        } else {
-            waitingBox.innerHTML = state.waiting.map((emp, index) => {
-                return `
-                    <div class="card-item">
-                        <div style="display: flex; align-items: center;">
-                            <span class="waiting-badge-num">${index + 1}</span>
-                            <div>
-                                <strong>${emp.name}</strong>
-                                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">Type: ${emp.type || 'normal'}</div>
-                            </div>
-                        </div>
-                        ${isAdmin ? `<button type="button" class="btn btn-red" onclick="adminRemoveWaiting('${emp.name}')">Remove</button>` : ''}
-                    </div>
-                `;
-            }).join('');
-        }
-
-        if (isAdmin) {
-            renderReports();
-        }
-
-        renderMyBreakHistory();
-    }
-
-    function endBreakByName(empName) {
-        finishBreakByName(empName, false);
-    }
-
-    function adminRemoveWaiting(empName) {
-        const idx = state.waiting.findIndex(e => e.name === empName);
-        if (idx !== -1) {
-            state.waiting.splice(idx, 1);
-            saveStateToFirebase();
-        }
-    }
-
-    function renderMyBreakHistory() {
-        const box = document.getElementById('myBreakHistoryBox');
-        if (!state.reports) {
-            box.innerHTML = '<div class="empty-msg">No break history available.</div>';
-            return;
-        }
-        const myReports = state.reports.filter(r => r.name === currentEmployeeName);
-        if (myReports.length === 0) {
-            box.innerHTML = '<div class="empty-msg">No break history recorded yet.</div>';
-            return;
-        }
-        box.innerHTML = `
-            <table class="report-table">
-                <tr><th>Type</th><th>Start Time</th><th>Duration (s)</th><th>Status</th></tr>
-                ${myReports.map(r => `
-                    <tr>
-                        <td>${r.type}</td>
-                        <td>${r.startTime ? new Date(r.startTime).toLocaleTimeString() : 'N/A'}</td>
-                        <td>${r.duration}s</td>
-                        <td>${r.note || 'Completed'}</td>
-                    </tr>
-                `).join('')}
-            </table>
-        `;
-    }
-
-    function clearMyBreakHistory() {
-        if (!state.reports) return;
-        state.reports = state.reports.filter(r => r.name !== currentEmployeeName);
-        saveStateToFirebase();
-    }
-
-    function renderReports() {
-        const box = document.getElementById('reportsBox');
-        if (!state.reports || state.reports.length === 0) {
-            box.innerHTML = '<div class="empty-msg">No reports logged yet.</div>';
-            return;
-        }
-        box.innerHTML = `
-            <table class="report-table">
-                <tr><th>Name</th><th>Type</th><th>Start</th><th>Duration (s)</th><th>Note</th></tr>
-                ${state.reports.map(r => `
-                    <tr>
-                        <td>${r.name}</td>
-                        <td>${r.type}</td>
-                        <td>${r.startTime ? new Date(r.startTime).toLocaleTimeString() : 'N/A'}</td>
-                        <td class="${r.duration > 120 ? 'exceed-cell' : ''}">${r.duration}s</td>
-                        <td>${r.note || '-'}</td>
-                    </tr>
-                `).join('')}
-            </table>
-        `;
-    }
-
-    function toggleReportsExpand() {
-        isReportsExpanded = !isReportsExpanded;
-        const wrapper = document.getElementById('reportsContainerWrapper');
-        const btn = document.getElementById('toggleReportsBtn');
-        if (isReportsExpanded) {
-            wrapper.style.display = 'block';
-            btn.innerText = '▲';
-        } else {
-            wrapper.style.display = 'none';
-            btn.innerText = '▼';
-        }
-    }
-
-    function clearReports() {
-        state.reports = [];
-        saveStateToFirebase();
-    }
-
-    function exportToExcel() {
-        if (!state.reports || state.reports.length === 0) {
-            showCustomAlert('No data to export!');
-            return;
-        }
-        let csv = 'Name,Type,Start Time,Duration (s),Note\n';
-        state.reports.forEach(r => {
-            csv += `"${r.name}","${r.type}","${r.startTime ? new Date(r.startTime).toLocaleString() : 'N/A'}","${r.duration}","${r.note || ''}"\n`;
-        });
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = 'break_reports.csv';
-        link.click();
-    }
-
-    function openAdminModal() {
-        document.getElementById('adminModalOverlay').style.display = 'flex';
-        document.getElementById('adminPasswordPromptBox').style.display = 'none';
-        document.getElementById('selfRegisterBox').style.display = 'none';
-        document.getElementById('adminDashboardBox').style.display = 'block';
-        document.getElementById('adminModalTitle').innerText = 'Admin Dashboard & Users';
-    }
-
-    function openAdminPortalPrompt() {
-        document.getElementById('adminModalOverlay').style.display = 'flex';
-        document.getElementById('adminPasswordPromptBox').style.display = 'block';
-        document.getElementById('selfRegisterBox').style.display = 'none';
-        document.getElementById('adminDashboardBox').style.display = 'none';
-        document.getElementById('adminModalTitle').innerText = 'Admin Portal Access';
     }
 
     function openRegisterModal() {
-        document.getElementById('adminModalOverlay').style.display = 'flex';
+        document.getElementById('adminModalTitle').innerText = 'Employee Registration';
         document.getElementById('adminPasswordPromptBox').style.display = 'none';
         document.getElementById('selfRegisterBox').style.display = 'block';
         document.getElementById('adminDashboardBox').style.display = 'none';
-        document.getElementById('adminModalTitle').innerText = 'Register New Account';
-    }
-
-    function closeAdminModal() {
-        document.getElementById('adminModalOverlay').style.display = 'none';
-    }
-
-    function verifyAdminPassword() {
-        const pass = document.getElementById('adminPassInput').value.trim();
-        if (pass === getAdminPassword()) {
-            isAdmin = true;
-            localStorage.setItem('test_is_admin_mode', 'true');
-            currentLoggedInUser = 'admin';
-            currentEmployeeName = 'Administrator';
-            localStorage.setItem('test_logged_in_username', 'admin');
-            localStorage.setItem('test_logged_in_empname', 'Administrator');
-            closeAdminModal();
-            checkSession();
-        } else {
-            showCustomAlert('Incorrect admin password!');
-        }
+        document.getElementById('regEmpName').value = '';
+        document.getElementById('regEmpUser').value = '';
+        document.getElementById('regEmpPass').value = '';
+        document.getElementById('adminModalOverlay').style.display = 'flex';
     }
 
     function selfRegisterAccount() {
@@ -1162,22 +850,72 @@
         const pass = document.getElementById('regEmpPass').value.trim();
 
         if (!name || !user || !pass) {
-            showCustomAlert('Please fill in all registration fields!');
+            showCustomAlert('Please fill in all fields!');
             return;
         }
 
-        usersDb.child(user).set({
-            name: name,
-            password: pass,
-            role: 'normal'
-        }, (error) => {
-            if (error) {
-                showCustomAlert('Registration failed: ' + error.message);
-            } else {
-                showCustomAlert('Account registered successfully! You can now login.');
-                closeAdminModal();
-            }
+        if (usersState[user]) {
+            showCustomAlert('Username already exists! Please choose another one.');
+            return;
+        }
+
+        usersState[user] = { name: name, password: pass, role: 'normal' };
+        usersDb.set(usersState).then(() => {
+            closeAdminModal();
+            showCustomAlert('Account created successfully! You can now login.');
         });
+    }
+
+    function openAdminModal() {
+        document.getElementById('adminModalTitle').innerText = 'Admin Access & Users';
+        if (isAdmin) {
+            document.getElementById('adminPasswordPromptBox').style.display = 'none';
+            document.getElementById('selfRegisterBox').style.display = 'none';
+            document.getElementById('adminDashboardBox').style.display = 'block';
+            isUsersListExpanded = false;
+            document.getElementById('empAccountsListContainer').style.display = 'none';
+            document.getElementById('usersToggleArrow').innerText = '▼';
+            renderAdminUsersList();
+            document.getElementById('adminModalOverlay').style.display = 'flex';
+        } else {
+            document.getElementById('adminPassInput').value = '';
+            document.getElementById('adminPasswordPromptBox').style.display = 'block';
+            document.getElementById('selfRegisterBox').style.display = 'none';
+            document.getElementById('adminDashboardBox').style.display = 'none';
+            document.getElementById('adminModalOverlay').style.display = 'flex';
+            document.getElementById('adminPassInput').focus();
+        }
+    }
+
+    function openAdminPortalPrompt() {
+        isAdmin = false;
+        document.getElementById('adminModalTitle').innerText = 'Admin Access & Users';
+        document.getElementById('adminPassInput').value = '';
+        document.getElementById('adminPasswordPromptBox').style.display = 'block';
+        document.getElementById('selfRegisterBox').style.display = 'none';
+        document.getElementById('adminDashboardBox').style.display = 'none';
+        document.getElementById('adminModalOverlay').style.display = 'flex';
+        document.getElementById('adminPassInput').focus();
+    }
+
+    function closeAdminModal() {
+        document.getElementById('adminModalOverlay').style.display = 'none';
+    }
+
+    function verifyAdminPassword() {
+        const pass = document.getElementById('adminPassInput').value;
+        if (pass === getAdminPassword()) {
+            isAdmin = true;
+            localStorage.setItem('is_admin_mode', 'true');
+            currentLoggedInUser = 'admin';
+            currentEmployeeName = 'Administrator';
+            localStorage.setItem('logged_in_username', 'admin');
+            localStorage.setItem('logged_in_empname', 'Administrator');
+            closeAdminModal();
+            checkSession();
+        } else {
+            showCustomAlert('Incorrect admin password!');
+        }
     }
 
     function saveEmployeeAccount() {
@@ -1187,62 +925,1153 @@
         const role = document.getElementById('admEmpRole').value;
 
         if (!name || !user || !pass) {
-            showCustomAlert('Please fill in all user account fields!');
+            showCustomAlert('Please fill all user details!');
             return;
         }
 
-        usersDb.child(user).set({
-            name: name,
-            password: pass,
-            role: role
-        }, (error) => {
-            if (error) {
-                showCustomAlert('Operation failed: ' + error.message);
-            } else {
-                showCustomAlert('User account saved/updated successfully!');
-                document.getElementById('admEmpName').value = '';
-                document.getElementById('admEmpUser').value = '';
-                document.getElementById('admEmpPass').value = '';
-            }
+        usersState[user] = { name: name, password: pass, role: role };
+        
+        usersDb.set(usersState).then(() => {
+            document.getElementById('admEmpName').value = '';
+            document.getElementById('admEmpUser').value = '';
+            document.getElementById('admEmpPass').value = '';
+            document.getElementById('admEmpRole').value = 'normal';
+            renderAdminUsersList();
+            showCustomAlert('Account saved successfully!');
         });
     }
 
-    function renderEmployeeAccountsList() {
-        const container = document.getElementById('empAccountsListContainer');
-        if (!container) return;
-        const users = usersState || {};
-        const keys = Object.keys(users);
-        if (keys.length === 0) {
-            container.innerHTML = '<div class="empty-msg">No registered users found.</div>';
-            return;
+    function deleteEmployeeAccount(username) {
+        if (confirm(`Are you sure you want to delete account (${username})?`)) {
+            if (usersState[username]) {
+                delete usersState[username];
+                usersDb.set(usersState).then(() => {
+                    renderAdminUsersList();
+                });
+            }
         }
-        container.innerHTML = keys.map(u => `
-            <div style="display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 6px 10px; border-radius: 6px; margin-bottom: 4px; font-size: 0.8rem; color: #0f172a; border: 1px solid #cbd5e1;">
-                <div><strong>${users[u].name}</strong> (${u}) - <em>${users[u].role}</em></div>
-                <button type="button" class="btn btn-red" style="padding: 2px 6px; font-size: 0.7rem;" onclick="deleteUserAccount('${u}')">Delete</button>
-            </div>
-        `).join('');
     }
 
-    function deleteUserAccount(username) {
-        if (confirm('Are you sure you want to delete user ' + username + '?')) {
-            usersDb.child(username).remove();
+    function renderAdminUsersList() {
+        const container = document.getElementById('empAccountsListContainer');
+        const users = usersState || {};
+        const keys = Object.keys(users);
+
+        if (keys.length === 0) {
+            container.innerHTML = '<div class="empty-msg" style="color:#0f172a;">No custom user accounts yet</div>';
+            return;
+        }
+
+        container.innerHTML = keys.map(uname => {
+            const u = users[uname];
+            const roleBadge = (u.role === 'admin') ? ' <span style="color:#b91c1c; font-weight:bold;">[Admin]</span>' : ' <span style="color:#047857;">[Normal]</span>';
+            return `
+                <div style="display: flex; justify-content: space-between; align-items: center; background: #ffffff; padding: 6px 10px; border-radius: 6px; margin-bottom: 6px; border: 1px solid #cbd5e1;">
+                    <div style="font-size: 0.82rem; color: #0f172a;">
+                        <strong>${u.name}</strong> (${uname}) ${roleBadge}
+                    </div>
+                    <button type="button" class="btn btn-red" style="padding: 2px 6px; font-size: 0.7rem;" onclick="deleteEmployeeAccount('${uname}')">Delete</button>
+                </div>
+            `;
+        }).join('');
+    }
+
+    usersDb.on('value', (snapshot) => {
+        usersState = snapshot.val() || {};
+    });
+
+    db.on('value', (snapshot) => {
+        const val = snapshot.val();
+        if (val) {
+            const tenHoursAgo = Date.now() - (10 * 60 * 60 * 1000);
+            let filteredReports = (val.reports || []).filter(rep => rep.endTimestamp > tenHoursAgo);
+            let filteredSwaps = (val.swapLogs || []).filter(sw => sw.timestamp > tenHoursAgo);
+
+            state = {
+                active: val.active || [],
+                waiting: val.waiting || [],
+                requests: val.requests || [],
+                reports: filteredReports,
+                swapLogs: filteredSwaps
+            };
+        } else {
+            state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
+        }
+
+        checkTurnLogicAndNotifications();
+        renderUI();
+    });
+
+    setInterval(() => {
+        runLiveTimerCheck();
+    }, 1000);
+
+    document.addEventListener('DOMContentLoaded', () => {
+        checkSession();
+        if ("Notification" in window && Notification.permission !== "granted") {
+            Notification.requestPermission();
+        }
+        
+        document.getElementById('adminPassInput').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') verifyAdminPassword();
+        });
+    });
+
+    function toggleReportsExpand() {
+        isReportsExpanded = !isReportsExpanded;
+        const wrapper = document.getElementById('reportsContainerWrapper');
+        const btn = document.getElementById('toggleReportsBtn');
+        if (isReportsExpanded) {
+            wrapper.style.display = 'block';
+            btn.innerText = '▲';
+            btn.title = 'Hide Log';
+        } else {
+            wrapper.style.display = 'none';
+            btn.innerText = '▼';
+            btn.title = 'Show Log';
         }
     }
 
     function requestNotificationPermission() {
+        initAudioContext();
         if ("Notification" in window) {
             Notification.requestPermission().then(permission => {
                 if (permission === "granted") {
-                    showCustomAlert('Notifications & Audio Enabled Successfully!');
+                    playBeep();
+                    showCustomAlert('Notifications and sounds enabled successfully!');
+                    new Notification("Al Salam Hospitals", { body: "Notifications enabled successfully." });
+                } else {
+                    showCustomAlert('Please allow notifications from your browser settings.');
                 }
             });
+        } else {
+            playBeep();
+            showCustomAlert('Your browser does not support pop-up notifications.');
         }
     }
 
-    window.onload = function() {
-        checkSession();
-    };
+    function playBeep() {
+        try {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.6);
+        } catch(e) {
+            console.error("Audio playback error:", e);
+        }
+    }
+
+    function sendBrowserNotification(title, bodyText) {
+        try {
+            if ("Notification" in window && Notification.permission === "granted") {
+                new Notification(title, {
+                    body: bodyText,
+                    icon: "https://www.gstatic.com/images/icons/material/system/2/svg/ic_notifications_active.svg",
+                    requireInteraction: true
+                });
+            }
+        } catch(e) {
+            console.log("Notification error:", e);
+        }
+    }
+
+    let titleBlinkInterval = null;
+    function startTitleBlink(alertMessage) {
+        if (titleBlinkInterval) return;
+        let isAlt = false;
+        titleBlinkInterval = setInterval(() => {
+            document.title = isAlt ? "🚨 " + alertMessage + " 🚨" : "🔔 Break Turn Alert!";
+            isAlt = !isAlt;
+        }, 1000);
+    }
+
+    function stopTitleBlink() {
+        if (titleBlinkInterval) {
+            clearInterval(titleBlinkInterval);
+            titleBlinkInterval = null;
+            document.title = "Contact Center Break - Al Salam Hospitals";
+        }
+    }
+
+    let lastNotifiedTurnState = "";
+    let lastNotifiedAheadState = "";
+
+    function checkTurnLogicAndNotifications() {
+        const newWaiting = state.waiting || [];
+
+        if (currentEmployeeName) {
+            const myUserLower = currentEmployeeName.trim().toLowerCase();
+            const myIndex = newWaiting.findIndex(w => w.name.trim().toLowerCase() === myUserLower);
+
+            if (myIndex === 1) {
+                if (lastNotifiedAheadState !== myUserLower + "_ahead") {
+                    lastNotifiedAheadState = myUserLower + "_ahead";
+                    playBeep();
+                    showCustomAlert("⚠️ Alert: There is only one person ahead of you in the waiting queue, get ready.");
+                    sendBrowserNotification("Al Salam Break Alert", "There is only one person ahead of you in the waiting queue, get ready.");
+                    startTitleBlink("One person ahead!");
+                }
+            } else if (myIndex !== 1) {
+                lastNotifiedAheadState = "";
+            }
+
+            const firstNormal = newWaiting.find(w => w.type === 'normal');
+            const firstQuick = newWaiting.find(w => w.type === 'quick');
+            const hasNormalSlot = !state.active.some(a => a.type === 'normal' || a.type === 'request');
+            const hasQuickSlot = !state.active.some(a => a.type === 'quick');
+
+            const isMyTurn = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) ||
+                             (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot);
+
+            if (isMyTurn) {
+                if (lastNotifiedTurnState !== "my_turn") {
+                    lastNotifiedTurnState = "my_turn";
+                    playBeep();
+                    showCustomAlert("🚨 It is your turn for break! Please click the confirmation button on the main screen.");
+                    sendBrowserNotification("🚨 It is your turn for break!", "Your turn has arrived, please open the page and confirm.");
+                    startTitleBlink("🚨 It is your turn!");
+                }
+            } else {
+                if (myIndex > 0 || myIndex === -1) {
+                    lastNotifiedTurnState = "";
+                    stopTitleBlink();
+                }
+            }
+        }
+    }
+
+    function runLiveTimerCheck() {
+        const currentTime = Date.now();
+        const newWaiting = state.waiting || [];
+
+        // 1. ميزة الإخراج التلقائي من البريك بعد 45 دقيقة متواصلة
+        if (state.active && state.active.length > 0) {
+            for (let i = state.active.length - 1; i >= 0; i--) {
+                const activeItem = state.active[i];
+                const elapsedMs = currentTime - activeItem.timestamp;
+                const maxLimitMs = 45 * 60 * 1000;
+
+                if (elapsedMs >= maxLimitMs) {
+                    const finishedItem = state.active.splice(i, 1)[0];
+                    const endTime = Date.now();
+                    const durationMs = endTime - finishedItem.timestamp;
+                    const durationSecs = Math.floor(durationMs / 1000);
+                    const durationMins = Math.floor(durationSecs / 60);
+                    const durationSecsRem = durationSecs % 60;
+                    const durationText = `${durationMins}m ${durationSecsRem}s`;
+                    const endTimeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    const breakDateStr = finishedItem.dateStr || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                    
+                    let typeText = 'Normal Break';
+                    if (finishedItem.type === 'quick') typeText = 'Quick Break (5m)';
+                    else if (finishedItem.type === 'request') typeText = 'Requested Break';
+
+                    if (!state.reports) state.reports = [];
+                    state.reports.unshift({
+                        name: finishedItem.name,
+                        type: typeText + ' (Exceeded 45m Limit - Auto Ended)',
+                        dateStr: breakDateStr,
+                        startTime: finishedItem.timeStr,
+                        endTime: endTimeStr,
+                        duration: durationText,
+                        isOvertime: true,
+                        endTimestamp: endTime
+                    });
+
+                    db.set(state);
+                    playBeep();
+                    showCustomAlert(`⚠️ Maximum break limit of 45 minutes exceeded for (${finishedItem.name}). Automatically removed from system.`);
+                    return;
+                }
+            }
+        }
+
+        // 2. ميزة الإخراج التلقائي من قائمة الانتظار بعد 3 ساعات متواصلة دون الدخول في بريك
+        if (newWaiting && newWaiting.length > 0) {
+            for (let i = newWaiting.length - 1; i >= 0; i--) {
+                const waitItem = newWaiting[i];
+                const queueStartTime = waitItem.queueStartTime || waitItem.timestamp || currentTime;
+                const elapsedQueueMs = currentTime - queueStartTime;
+                const maxQueueLimitMs = 3 * 60 * 60 * 1000; // 3 ساعات
+
+                if (elapsedQueueMs >= maxQueueLimitMs) {
+                    const removedWaitItem = newWaiting.splice(i, 1)[0];
+                    
+                    if (!state.reports) state.reports = [];
+                    state.reports.unshift({
+                        name: removedWaitItem.name,
+                        type: 'Auto-Removed (Queue Timeout 3 Hours)',
+                        dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                        startTime: '-',
+                        endTime: '-',
+                        duration: '3h 0m 0s',
+                        isOvertime: true,
+                        endTimestamp: Date.now()
+                    });
+
+                    db.set(state);
+                    playBeep();
+                    showCustomAlert(`⚠️ Employee (${removedWaitItem.name}) has been automatically removed from waiting queue after 3 continuous hours.`);
+                    return;
+                }
+            }
+        }
+
+        if (newWaiting.length > 0) {
+            const hasNormalSlot = !state.active.some(a => a.type === 'normal' || a.type === 'request');
+            const hasQuickSlot = !state.active.some(a => a.type === 'quick');
+            
+            const firstNormal = newWaiting.find(w => w.type === 'normal');
+            const firstQuick = newWaiting.find(w => w.type === 'quick');
+
+            let targetToShift = null;
+            if (firstNormal && hasNormalSlot) targetToShift = firstNormal;
+            else if (firstQuick && hasQuickSlot) targetToShift = firstQuick;
+
+            if (targetToShift) {
+                if (!targetToShift.turnStartTime) {
+                    targetToShift.turnStartTime = currentTime;
+                    db.set(state);
+                } else {
+                    const elapsedMs = currentTime - targetToShift.turnStartTime;
+                    if (elapsedMs > 420000) { 
+                        const idx = newWaiting.findIndex(w => w.id === targetToShift.id);
+                        if (idx > -1) {
+                            const timedOutItem = newWaiting.splice(idx, 1)[0];
+                            delete timedOutItem.turnStartTime;
+                            delete timedOutItem.promptSwapChoice;
+
+                            newWaiting.unshift(timedOutItem);
+
+                            if (!state.reports) state.reports = [];
+                            state.reports.unshift({
+                                name: timedOutItem.name,
+                                type: 'Auto-Delayed (Timeout)',
+                                dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                                startTime: '-',
+                                endTime: '-',
+                                duration: '0m 0s',
+                                isOvertime: true,
+                                endTimestamp: Date.now()
+                            });
+
+                            db.set(state);
+                            playBeep();
+                            showCustomAlert("⏱️ Alert: Confirmation timeout exceeded, turn automatically delayed.");
+                            stopTitleBlink();
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
+        const promptBox = document.getElementById('myTurnPromptBox');
+        if (currentEmployeeName && promptBox.style.display === 'block') {
+            const myUserLower = currentEmployeeName.trim().toLowerCase();
+            const firstNormal = newWaiting.find(w => w.type === 'normal');
+            const firstQuick = newWaiting.find(w => w.type === 'quick');
+            const targetItem = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower) ? firstNormal : 
+                             ((firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower) ? firstQuick : null);
+
+            if (targetItem && targetItem.turnStartTime) {
+                const elapsed = currentTime - targetItem.turnStartTime;
+                const remainingMs = 420000 - elapsed;
+                
+                if (remainingMs > 0) {
+                    const totalSecs = Math.floor(remainingMs / 1000);
+                    const mins = Math.floor(totalSecs / 60);
+                    const secs = totalSecs % 60;
+                    const timeFormatted = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+
+                    const countdownEl = document.getElementById('liveCountdownDisplay');
+                    if (countdownEl) {
+                        if (mins >= 2) {
+                            countdownEl.innerHTML = `⏳ Confirmation deadline countdown: <span style="font-size: 1.1rem; color: #fff;">${timeFormatted}</span> remaining`;
+                        } else {
+                            countdownEl.innerHTML = `⚠️ Alert: Last 2 grace minutes entered: <span style="font-size: 1.1rem; color: #fca5a5;">${timeFormatted}</span> remaining!`;
+                        }
+                    }
+                }
+            }
+        }
+
+        const waitingItems = document.querySelectorAll('.admin-countup-timer');
+        waitingItems.forEach(el => {
+            const startTime = parseInt(el.getAttribute('data-starttime') || '0', 10);
+            if (startTime) {
+                const elapsedSecs = Math.floor((currentTime - startTime) / 1000);
+                const mins = Math.floor(elapsedSecs / 60);
+                const secs = elapsedSecs % 60;
+                el.innerText = `${mins}m ${secs}s`;
+            }
+        });
+
+        const activeItems = document.querySelectorAll('.active-countup-timer');
+        activeItems.forEach(el => {
+            const startTime = parseInt(el.getAttribute('data-starttime') || '0', 10);
+            if (startTime) {
+                const elapsedSecs = Math.floor((currentTime - startTime) / 1000);
+                const mins = Math.floor(elapsedSecs / 60);
+                const secs = elapsedSecs % 60;
+                el.innerText = `${mins}m ${secs}s`;
+            }
+        });
+    }
+
+    function promptSwapChoiceAction(choice) {
+        if (!currentEmployeeName) return;
+        const myUserLower = currentEmployeeName.trim().toLowerCase();
+        const firstNormal = state.waiting.find(w => w.type === 'normal');
+        const firstQuick = state.waiting.find(w => w.type === 'quick');
+        
+        let targetItem = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower) ? firstNormal : 
+                         ((firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower) ? firstQuick : null);
+
+        if (!targetItem) return;
+
+        if (choice === 'no') {
+            const idx = state.waiting.findIndex(w => w.id === targetItem.id);
+            if (idx > -1) {
+                const movedItem = state.waiting.splice(idx, 1)[0];
+                delete movedItem.turnStartTime;
+                delete movedItem.promptSwapChoice;
+                state.waiting.unshift(movedItem);
+
+                if (!state.reports) state.reports = [];
+                state.reports.unshift({
+                    name: movedItem.name,
+                    type: 'Delayed by choice (No Swap)',
+                    dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                    startTime: '-',
+                    endTime: '-',
+                    duration: '0m 0s',
+                    isOvertime: false,
+                    endTimestamp: Date.now()
+                });
+
+                db.set(state);
+                showCustomAlert("⏱️ Your turn has been delayed based on your choice.");
+                stopTitleBlink();
+            }
+        }
+    }
+
+    function submitBreak(type) {
+        initAudioContext();
+        if (!currentEmployeeName) {
+            showCustomAlert('Please login first!');
+            return;
+        }
+
+        const name = currentEmployeeName;
+        const nameLower = name.toLowerCase();
+        const isInActive = state.active.some(item => item.name.trim().toLowerCase() === nameLower);
+        const isInWaiting = state.waiting.some(item => item.name.trim().toLowerCase() === nameLower);
+        const isInRequests = state.requests.some(item => item.name.trim().toLowerCase() === nameLower);
+
+        if (isInActive || isInWaiting || isInRequests) {
+            showCustomAlert('Sorry, you are currently on break or have a pending request!');
+            return;
+        }
+
+        lastNotifiedTurnState = "";
+        stopTitleBlink();
+
+        const now = Date.now();
+        const newItem = {
+            id: String(now),
+            name: name,
+            type: type,
+            timestamp: now,
+            queueStartTime: now, // تسجيل وقت الدخول لقائمة الانتظار لضبط مؤقت الـ 3 ساعات
+            dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+            timeStr: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        };
+
+        if (type === 'request') {
+            state.requests.push(newItem);
+        } else {
+            state.waiting.push(newItem);
+        }
+
+        db.set(state);
+    }
+
+    function adminForceOutAction(index) {
+        if (!isAdmin) return;
+        pendingForceOutIndex = index;
+        const item = state.waiting[index];
+        if (!item) return;
+        document.getElementById('forceOutModalOverlay').style.display = 'flex';
+    }
+
+    function handleForceOutChoice(keepInQueue) {
+        document.getElementById('forceOutModalOverlay').style.display = 'none';
+        if (pendingForceOutIndex === null) return;
+        
+        const index = pendingForceOutIndex;
+        pendingForceOutIndex = null;
+        const item = state.waiting[index];
+        if (!item) return;
+
+        const originalPosition = index + 1;
+
+        const itemToBreak = state.waiting.splice(index, 1)[0];
+        itemToBreak.timestamp = Date.now();
+        itemToBreak.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        itemToBreak.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        delete itemToBreak.turnStartTime;
+
+        if (keepInQueue) {
+            itemToBreak.keepInQueueRole = true;
+            itemToBreak.originalQueuePos = originalPosition;
+        } else {
+            itemToBreak.keepInQueueRole = false;
+        }
+
+        state.active.push(itemToBreak);
+        db.set(state);
+        showCustomAlert(`Employee (${item.name}) forced out to break successfully.`);
+    }
+
+    function approveRequest(index) {
+        if (!isAdmin) return;
+        const reqItem = state.requests.splice(index, 1)[0];
+        if (reqItem) {
+            state.waiting.push(reqItem);
+            db.set(state);
+        }
+    }
+
+    function cancelRequest(index) {
+        const item = state.requests[index];
+        const isOwner = currentEmployeeName && item.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase();
+        if (!isOwner && !isAdmin) {
+            showCustomAlert('You can only cancel your own request!');
+            return;
+        }
+        if (confirm(`Are you sure you want to cancel request for (${item.name})?`)) {
+            state.requests.splice(index, 1);
+            db.set(state);
+        }
+    }
+
+    function confirmMyTurn() {
+        initAudioContext();
+        if (!currentEmployeeName) return;
+        const myUserLower = currentEmployeeName.trim().toLowerCase();
+        
+        const index = state.waiting.findIndex(item => item.name.trim().toLowerCase() === myUserLower);
+        if (index === -1) {
+            showCustomAlert('You are not currently in the waiting queue!');
+            return;
+        }
+
+        const userItem = state.waiting[index];
+        const firstOfThisType = state.waiting.find(w => w.type === userItem.type);
+        if (!firstOfThisType || firstOfThisType.id !== userItem.id) {
+            showCustomAlert('Sorry, there is someone ahead of you in the queue who must take their turn first!');
+            return;
+        }
+
+        const hasNormal = state.active.some(item => item.type === 'normal' || item.type === 'request');
+        const hasQuick = state.active.some(item => item.type === 'quick');
+
+        let canEnter = false;
+        if (userItem.type === 'quick' && !hasQuick) canEnter = true;
+        else if ((userItem.type === 'normal' || userItem.type === 'request') && !hasNormal) canEnter = true;
+
+        if (!canEnter) {
+            showCustomAlert(`The (${userItem.type}) break slot is still occupied.`);
+            return;
+        }
+
+        state.waiting.splice(index, 1);
+        userItem.timestamp = Date.now();
+        userItem.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        userItem.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        delete userItem.turnStartTime;
+        delete userItem.queueStartTime;
+        state.active.push(userItem);
+
+        stopTitleBlink();
+        db.set(state);
+    }
+
+    function endBreak(index) {
+        initAudioContext();
+        const finishedItem = state.active.splice(index, 1)[0];
+        
+        if (finishedItem) {
+            const endTime = Date.now();
+            const durationMs = endTime - finishedItem.timestamp;
+            const durationSecs = Math.floor(durationMs / 1000);
+            const durationMins = Math.floor(durationSecs / 60);
+            const durationSecsRem = durationSecs % 60;
+            const durationText = `${durationMins}m ${durationSecsRem}s`;
+            const endTimeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            
+            const breakDateStr = finishedItem.dateStr || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            
+            let typeText = 'Normal Break';
+            if (finishedItem.type === 'quick') typeText = 'Quick Break (5m)';
+            else if (finishedItem.type === 'request') typeText = 'Requested Break';
+
+            let isOvertime = false;
+            if (finishedItem.type === 'quick' && durationMins >= 5 && durationSecsRem > 0) {
+                isOvertime = true;
+            } else if ((finishedItem.type === 'normal' || finishedItem.type === 'request') && durationMins >= 20 && durationSecsRem > 0) {
+                isOvertime = true;
+            }
+
+            state.reports.unshift({
+                name: finishedItem.name,
+                type: typeText,
+                dateStr: breakDateStr,
+                startTime: finishedItem.timeStr,
+                endTime: endTimeStr,
+                duration: durationText,
+                isOvertime: isOvertime,
+                endTimestamp: endTime
+            });
+
+            if (finishedItem.keepInQueueRole === true) {
+                let targetPos = finishedItem.originalQueuePos - 1; 
+                delete finishedItem.keepInQueueRole;
+                delete finishedItem.originalQueuePos;
+                finishedItem.timestamp = Date.now();
+                finishedItem.queueStartTime = Date.now();
+                finishedItem.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+                if (targetPos < 0) targetPos = 0;
+                if (targetPos > state.waiting.length) targetPos = state.waiting.length;
+                state.waiting.splice(targetPos, 0, finishedItem);
+            }
+        }
+
+        db.set(state);
+    }
+
+    function cancelWaiting(index) {
+        const item = state.waiting[index];
+        const isOwner = currentEmployeeName && item.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase();
+
+        if (!isOwner && !isAdmin) {
+            showCustomAlert('You can only cancel your own turn!');
+            return;
+        }
+
+        if (confirm(`Are you sure you want to cancel (${item.name})?`)) {
+            state.waiting.splice(index, 1);
+            stopTitleBlink();
+            db.set(state);
+        }
+    }
+
+    function executeSwap() {
+        initAudioContext();
+        let id1, id2;
+
+        if (isAdmin) {
+            id1 = document.getElementById('swap1').value;
+            id2 = document.getElementById('swap2').value;
+        } else {
+            if (!currentEmployeeName) {
+                showCustomAlert('Please login first!');
+                return;
+            }
+            const myUserLower = currentEmployeeName.trim().toLowerCase();
+            const myItem = state.waiting.find(w => w.name.trim().toLowerCase() === myUserLower);
+            if (!myItem) {
+                showCustomAlert('You are not in the waiting queue to swap!');
+                return;
+            }
+            id1 = myItem.id;
+            id2 = document.getElementById('swapTarget').value;
+        }
+
+        if (!id1 || !id2 || id1 === id2) {
+            showCustomAlert('Please select a person to swap with!');
+            return;
+        }
+
+        const idx1 = state.waiting.findIndex(x => x.id === id1);
+        const idx2 = state.waiting.findIndex(x => x.id === id2);
+
+        if (idx1 > -1 && idx2 > -1) {
+            if (!isAdmin) {
+                if (Math.abs(idx1 - idx2) !== 1) {
+                    showCustomAlert('Sorry, you can only swap with the person directly above or below you!');
+                    return;
+                }
+            }
+
+            const oldPos1 = idx1 + 1;
+            const oldPos2 = idx2 + 1;
+
+            const temp = state.waiting[idx1];
+            state.waiting[idx1] = state.waiting[idx2];
+            state.waiting[idx2] = temp;
+
+            const name1 = state.waiting[idx1].name;
+            const name2 = state.waiting[idx2].name;
+            const newPos1 = idx1 + 1;
+            const newPos2 = idx2 + 1;
+
+            if (!state.swapLogs) state.swapLogs = [];
+
+            state.swapLogs.unshift({
+                id: String(Date.now() + 1),
+                receiverName: name1,
+                initiatorName: isAdmin ? 'Admin' : name2,
+                oldPos: oldPos2,
+                newPos: newPos1,
+                timestamp: Date.now(),
+                dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                timeStr: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+            });
+
+            state.swapLogs.unshift({
+                id: String(Date.now() + 2),
+                receiverName: name2,
+                initiatorName: isAdmin ? 'Admin' : name1,
+                oldPos: oldPos1,
+                newPos: newPos2,
+                timestamp: Date.now(),
+                dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                timeStr: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+            });
+
+            db.set(state);
+            showCustomAlert('Swapped successfully!');
+        }
+    }
+
+    function clearReports() {
+        if (!isAdmin) return;
+        if (confirm('Are you sure you want to clear reports and logs?')) {
+            state.reports = [];
+            state.swapLogs = [];
+            db.set(state);
+        }
+    }
+
+    function clearMyBreakHistory() {
+        if (!currentEmployeeName) return;
+        if (confirm('Are you sure you want to clear your personal break history?')) {
+            const empNameLower = currentEmployeeName.trim().toLowerCase();
+            state.reports = (state.reports || []).filter(rep => rep.name.trim().toLowerCase() !== empNameLower);
+            db.set(state);
+            showCustomAlert('Your personal break history has been cleared successfully.');
+        }
+    }
+
+    function exportToExcel() {
+        if (!isAdmin) return;
+
+        const fortyEightHoursAgo = Date.now() - (48 * 60 * 60 * 1000);
+        const validReports = (state.reports || []).filter(rep => rep.endTimestamp >= fortyEightHoursAgo);
+
+        let employeeSummaryMap = {};
+        validReports.forEach(rep => {
+            if (!employeeSummaryMap[rep.name]) {
+                employeeSummaryMap[rep.name] = { totalBreaks: 0, totalSecs: 0, details: [] };
+            }
+            employeeSummaryMap[rep.name].totalBreaks += 1;
+            
+            let totalSecs = 0;
+            if (rep.duration) {
+                let mMatch = rep.duration.match(/(\d+)m/);
+                let sMatch = rep.duration.match(/(\d+)s/);
+                if (mMatch) totalSecs += parseInt(mMatch[1]) * 60;
+                if (sMatch) totalSecs += parseInt(sMatch[1]);
+            }
+            employeeSummaryMap[rep.name].totalSecs += totalSecs;
+            employeeSummaryMap[rep.name].details.push(rep);
+        });
+
+        let html = `
+            <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+            <head>
+                <meta charset="UTF-8">
+                <style>
+                    table { border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; mso-displayed-decimal-separator: "."; mso-displayed-thousand-separator: ","; }
+                    .section-title { background-color: #1F497D; color: #FFFFFF; font-weight: bold; font-size: 11pt; border: 1px solid #000000; text-align: left; height: 21pt; padding: 6px; }
+                    th { background-color: #1F497D; color: #FFFFFF; font-weight: bold; font-size: 9pt; border: 1px solid #000000; text-align: center; height: 22pt; padding: 6px; }
+                    td { border: 1px solid #000000; text-align: center; height: 20pt; font-size: 9pt; padding: 5px; mso-number-format: "\@"; }
+                    .exceed { background-color: #EF4444; color: #FFFFFF; font-weight: bold; }
+                    .normal { background-color: #A7F3D0; color: #065F46; font-weight: bold; }
+                </style>
+            </head>
+            <body>
+                <table>
+                    <tr>
+                        <td colspan="7" class="section-title">--- Contact Center Break Report - Last 48 Hours Summary & Details ---</td>
+                    </tr>
+                    <tr>
+                        <th style="width: 130pt;">Employee Name</th>
+                        <th style="width: 110pt;">Break Type</th>
+                        <th style="width: 90pt;">Date</th>
+                        <th style="width: 80pt;">Start Time</th>
+                        <th style="width: 80pt;">End Time</th>
+                        <th style="width: 100pt;">Duration</th>
+                        <th style="width: 100pt;">Overtime Status</th>
+                    </tr>
+        `;
+
+        Object.keys(employeeSummaryMap).forEach(empName => {
+            const empData = employeeSummaryMap[empName];
+            empData.details.forEach(rep => {
+                const statusClass = rep.isOvertime ? 'exceed' : 'normal';
+                const statusText = rep.isOvertime ? 'Exceed' : 'Normal';
+                const repDate = rep.dateStr || new Date(rep.endTimestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                html += `
+                    <tr>
+                        <td><b>${rep.name}</b></td>
+                        <td>${rep.type}</td>
+                        <td>${repDate}</td>
+                        <td>${rep.startTime}</td>
+                        <td>${rep.endTime}</td>
+                        <td>${rep.duration}</td>
+                        <td class="${statusClass}">${statusText}</td>
+                    </tr>
+                `;
+            });
+            const totMins = Math.floor(empData.totalSecs / 60);
+            const totSecsRem = empData.totalSecs % 60;
+            html += `
+                <tr>
+                    <td colspan="5" style="text-align: right; font-weight: bold; background-color: #e2e8f0;">Total Breaks for (${empName}):</td>
+                    <td colspan="2" style="font-weight: bold; background-color: #e2e8f0;">Total Breaks: ${empData.totalBreaks} | Total Duration: ${totMins}m ${totSecsRem}s</td>
+                </tr>
+            `;
+        });
+
+        html += `
+                </table>
+            </body>
+            </html>
+        `;
+
+        const blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'Contact_Center_Break_Report_48Hours.xls';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    function renderUI() {
+        const currentTime = Date.now();
+        const adminActiveBadge = document.getElementById('adminActiveBadge');
+        const topAdminBtn = document.getElementById('topAdminOptionBtn');
+        const reportBox = document.getElementById('adminReportContainer');
+        
+        if (isAdmin) {
+            if (currentLoggedInUser) {
+                adminActiveBadge.style.display = 'inline-block';
+                topAdminBtn.style.display = 'inline-block';
+                reportBox.style.display = 'block';
+            }
+        } else {
+            adminActiveBadge.style.display = 'none';
+            topAdminBtn.style.display = 'none';
+            reportBox.style.display = 'none';
+        }
+
+        const requestsSection = document.getElementById('requestsSectionContainer');
+        const reqBox = document.getElementById('requestsBox');
+        if (state.requests && state.requests.length > 0 && (isAdmin || (currentEmployeeName && state.requests.some(r => r.name.toLowerCase() === currentEmployeeName.toLowerCase())))) {
+            requestsSection.style.display = 'block';
+            reqBox.innerHTML = state.requests.map((item, i) => {
+                const isOwner = currentEmployeeName && item.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase();
+                const showActions = (isAdmin || isOwner);
+                return `
+                    <div class="card-item">
+                        <div>
+                            <strong>${item.name}</strong> <span style="color:#a78bfa;">[Break Request]</span>
+                            <br><small style="color:var(--text-muted)">Requested at: ${item.timeStr}</small>
+                        </div>
+                        <div style="display: flex; gap: 6px;">
+                            ${isAdmin ? `<button type="button" class="btn btn-green" style="padding: 6px 12px; font-size: 0.85rem;" onclick="approveRequest(${i})">Approve</button>` : ``}
+                            ${showActions ? `<button type="button" class="btn btn-red" onclick="cancelRequest(${i})">Cancel</button>` : ``}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        } else {
+            requestsSection.style.display = 'none';
+        }
+
+        const promptBox = document.getElementById('myTurnPromptBox');
+        let showMyPrompt = false;
+
+        if (currentEmployeeName && state.waiting.length > 0) {
+            const myUserLower = currentEmployeeName.trim().toLowerCase();
+            const firstNormal = state.waiting.find(w => w.type === 'normal');
+            const firstQuick = state.waiting.find(w => w.type === 'quick');
+            const hasNormalSlot = !state.active.some(a => a.type === 'normal' || a.type === 'request');
+            const hasQuickSlot = !state.active.some(a => a.type === 'quick');
+
+            if ((firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) ||
+                (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot)) {
+                showMyPrompt = true;
+            }
+        }
+        promptBox.style.display = showMyPrompt ? 'block' : 'none';
+
+        const myHistorySection = document.getElementById('myBreakHistorySection');
+        const myHistoryBox = document.getElementById('myBreakHistoryBox');
+        if (currentEmployeeName && !isAdmin) {
+            myHistorySection.style.display = 'block';
+            const myReports = (state.reports || []).filter(rep => rep.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase());
+            
+            if (myReports.length === 0) {
+                myHistoryBox.innerHTML = '<div class="empty-msg">No past break records found</div>';
+            } else {
+                let totalMySecs = 0;
+                let listHtml = myReports.map(rep => {
+                    let totalSecs = 0;
+                    if (rep.duration) {
+                        let mMatch = rep.duration.match(/(\d+)m/);
+                        let sMatch = rep.duration.match(/(\d+)s/);
+                        if (mMatch) totalSecs += parseInt(mMatch[1]) * 60;
+                        if (sMatch) totalSecs += parseInt(sMatch[1]);
+                    }
+                    totalMySecs += totalSecs;
+
+                    return `
+                        <div style="background: #0f172a; border: 1px solid #334155; padding: 10px; border-radius: 8px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
+                            <div>
+                                <strong>${rep.type}</strong> (${rep.dateStr || ''})
+                                <br><small style="color:var(--text-muted)">Time: from ${rep.startTime} to ${rep.endTime}</small>
+                            </div>
+                            <div style="text-align: right;">
+                                <span style="color: #38bdf8; font-weight: bold;">${rep.duration}</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                const totMins = Math.floor(totalMySecs / 60);
+                const totSecsRem = totalMySecs % 60;
+
+                listHtml += `
+                    <div style="background: #1e293b; padding: 10px; border-radius: 8px; margin-top: 10px; text-align: center; font-weight: bold; color: #34d399; font-size: 0.95rem;">
+                        Total Break Duration: ${totMins}m ${totSecsRem}s
+                    </div>
+                `;
+                myHistoryBox.innerHTML = listHtml;
+            }
+        } else {
+            myHistorySection.style.display = 'none';
+        }
+
+        const aBox = document.getElementById('activeBox');
+        if (!state.active || state.active.length === 0) {
+            aBox.innerHTML = '<div class="empty-msg">No one on break right now</div>';
+        } else {
+            aBox.innerHTML = state.active.map((item, i) => {
+                const elapsedMs = currentTime - item.timestamp;
+                const elapsedSecs = Math.floor(elapsedMs / 1000);
+                const minsInBreak = Math.floor(elapsedSecs / 60);
+                const secsInBreak = elapsedSecs % 60;
+                const activeDurationStr = `${minsInBreak}m ${secsInBreak}s`;
+
+                const isOwner = currentEmployeeName && item.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase();
+                const showEndBtn = (isOwner || isAdmin);
+                
+                const isQuick = item.type === 'quick';
+                const isOvertime = (isQuick && (minsInBreak >= 5 && secsInBreak > 0)) || (!isQuick && (minsInBreak >= 20 && secsInBreak > 0));
+
+                let typeLabel = '<span style="color:#fbbf24;">[Normal]</span>';
+                if (isQuick) typeLabel = '<span style="color:#3b82f6;">[Quick]</span>';
+                else if (item.type === 'request') typeLabel = '<span style="color:#a78bfa;">[Requested]</span>';
+
+                return `
+                    <div class="card-item ${isOvertime ? 'overtime' : ''}">
+                        <div>
+                            <strong>${item.name}</strong> 
+                            <span style="margin-left: 8px; font-size: 0.9rem;">⏱️ <span class="active-countup-timer" data-starttime="${item.timestamp}">${activeDurationStr}</span></span>
+                            ${typeLabel}
+                            <br><small style="color:var(--text-muted)">Out at: ${item.dateStr || ''} ${item.timeStr}</small>
+                            ${isOvertime ? `<br><span style="color: var(--accent-red); font-weight: bold; font-size: 0.85rem;">⚠️ Exceeded limit time (${isQuick ? '5m' : '20m'})! Max limit is 45m.</span>` : ''}
+                        </div>
+                        ${showEndBtn ? `<button type="button" class="btn btn-red" onclick="endBreak(${i})">End</button>` : ``}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        const wBox = document.getElementById('waitingBox');
+        if (!state.waiting || state.waiting.length === 0) {
+            wBox.innerHTML = '<div class="empty-msg">Waiting queue is empty</div>';
+        } else {
+            wBox.innerHTML = state.waiting.map((item, i) => {
+                const isOwner = currentEmployeeName && item.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase();
+                const showCancelBtn = (isOwner || isAdmin);
+                const isQuick = item.type === 'quick';
+
+                if (!item.queueStartTime) {
+                    item.queueStartTime = item.timestamp || currentTime;
+                }
+                const elapsedSecs = Math.floor((currentTime - item.queueStartTime) / 1000);
+                const initMins = Math.floor(elapsedSecs / 60);
+                const initSecs = elapsedSecs % 60;
+                const countupText = `${initMins}m ${initSecs}s`;
+
+                let typeLabel = '<span style="color:#fbbf24;">[Normal]</span>';
+                if (isQuick) typeLabel = '<span style="color:#3b82f6;">[Quick]</span>';
+
+                let adminStatusBadge = '';
+                if (isAdmin) {
+                    if (item.turnStartTime) {
+                        const elapsedWaiting = currentTime - item.turnStartTime;
+                        const waitingMins = Math.floor(elapsedWaiting / 60000);
+                        if (waitingMins >= 7) {
+                            adminStatusBadge = `<br><span style="background:#7f1d1d; color:#fca5a5; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:bold;">⚠️ Confirmation Timeout (${waitingMins}m)</span>`;
+                        } else {
+                            adminStatusBadge = `<br><span style="background:#065f46; color:#34d399; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:bold;">⏳ Waiting Confirmation (${waitingMins}m)</span>`;
+                        }
+                    } else {
+                        adminStatusBadge = `<br><span style="color:var(--text-muted); font-size:0.75rem;">In Waiting Queue</span>`;
+                    }
+                }
+
+                let swapMessageHtml = '';
+                if (state.swapLogs && state.swapLogs.length > 0) {
+                    const itemNameLower = item.name.trim().toLowerCase();
+                    const recentLog = state.swapLogs.find(log => log.receiverName.trim().toLowerCase() === itemNameLower && (currentTime - log.timestamp < 600000));
+                    if (recentLog) {
+                        swapMessageHtml = `<br><span style="color: #60a5fa; font-size: 0.8rem; font-weight: bold;">💬 Swapped with ${recentLog.initiatorName}, old position #${recentLog.oldPos} -> new #${recentLog.newPos}</span>`;
+                    }
+                }
+
+                return `
+                    <div class="card-item">
+                        <div>
+                            <span class="waiting-badge-num">#${i + 1}</span>
+                            <strong>${item.name}</strong>
+                            <span style="margin-left: 8px; color:var(--text-muted); font-size: 0.85rem;">Waiting: <span class="admin-countup-timer" data-starttime="${item.queueStartTime}">${countupText}</span></span>
+                            ${typeLabel}
+                            ${adminStatusBadge}
+                            ${swapMessageHtml}
+                        </div>
+                        <div style="display: flex; gap: 6px; align-items: center;">
+                            ${isAdmin ? `
+                                <button type="button" class="btn btn-green" style="padding: 6px 10px; font-size: 0.75rem;" onclick="adminForceOutAction(${i})">Force Out</button>
+                            ` : ``}
+                            ${showCancelBtn ? `<button type="button" class="btn btn-red" onclick="cancelWaiting(${i})">Cancel</button>` : ``}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        const swapSection = document.getElementById('swapSection');
+        const swapTitle = document.getElementById('swapSectionTitle');
+        const swapControls = document.getElementById('swapControlsContainer');
+
+        if (state.waiting && state.waiting.length >= 2) {
+            swapSection.style.display = 'block';
+            if (isAdmin) {
+                swapTitle.innerText = '🔄 Swap Queue Positions (Admin Privilege):';
+                swapControls.innerHTML = `
+                    <select id="swap1"></select>
+                    <span>with</span>
+                    <select id="swap2"></select>
+                    <button type="button" class="btn btn-amber" onclick="executeSwap()">Swap</button>
+                `;
+                const s1 = document.getElementById('swap1');
+                const s2 = document.getElementById('swap2');
+                state.waiting.forEach((item, i) => {
+                    s1.add(new Option(`#${i + 1} - ${item.name}`, item.id));
+                    s2.add(new Option(`#${i + 1} - ${item.name}`, item.id));
+                });
+                if (s2.options.length > 1) s2.selectedIndex = 1;
+            } else {
+                swapTitle.innerText = '🔄 Swap your turn (Adjacent only):';
+                swapControls.innerHTML = `
+                    <select id="swapTarget"></select>
+                    <button type="button" class="btn btn-amber" onclick="executeSwap()">Swap Turn</button>
+                `;
+                const sTarget = document.getElementById('swapTarget');
+                const myUserLower = currentEmployeeName ? currentEmployeeName.trim().toLowerCase() : '';
+                const myIdx = state.waiting.findIndex(item => item.name.trim().toLowerCase() === myUserLower);
+
+                if (myIdx > -1) {
+                    if (myIdx > 0) {
+                        const aboveItem = state.waiting[myIdx - 1];
+                        sTarget.add(new Option(`#${myIdx} - ${aboveItem.name} [Directly Above]`, aboveItem.id));
+                    }
+                    if (myIdx < state.waiting.length - 1) {
+                        const belowItem = state.waiting[myIdx + 1];
+                        sTarget.add(new Option(`#${myIdx + 2} - ${belowItem.name} [Directly Below]`, belowItem.id));
+                    }
+                }
+            }
+        } else {
+            swapSection.style.display = 'none';
+        }
+
+        const rBox = document.getElementById('reportsBox');
+        if (isAdmin) {
+            const fortyEightHoursAgo = currentTime - (48 * 60 * 60 * 1000);
+            const filteredReports = (state.reports || []).filter(rep => rep.endTimestamp >= fortyEightHoursAgo);
+
+            if (!filteredReports || filteredReports.length === 0) {
+                rBox.innerHTML = '<div class="empty-msg">No reports logged in the last 48 hours</div>';
+            } else {
+                let tableHtml = `
+                    <div class="report-table-title">Contact Center Break Report (Last 48 Hours)</div>
+                    <table class="report-table">
+                        <thead>
+                            <tr>
+                                <th>Employee Name</th>
+                                <th>Break Type</th>
+                                <th>Date</th>
+                                <th>Start Time</th>
+                                <th>End Time</th>
+                                <th>Duration</th>
+                                <th>Overtime Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                filteredReports.forEach(rep => {
+                    const repDate = rep.dateStr || new Date(rep.endTimestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                    tableHtml += `
+                        <tr>
+                            <td><strong>${rep.name}</strong></td>
+                            <td>${rep.type}</td>
+                            <td>${repDate}</td>
+                            <td>${rep.startTime}</td>
+                            <td>${rep.endTime}</td>
+                            <td class="${rep.isOvertime ? 'exceed-cell' : ''}">${rep.duration}</td>
+                            <td>${rep.isOvertime ? 'Exceed' : 'Normal'}</td>
+                        </tr>
+                    `;
+                });
+                tableHtml += `</tbody></table>`;
+                rBox.innerHTML = tableHtml;
+            }
+        }
+    }
 </script>
 </body>
 </html>
