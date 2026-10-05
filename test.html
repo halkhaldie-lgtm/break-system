@@ -713,6 +713,28 @@
     const usersDb = firebase.database().ref('alsalam_hospital_users');
 
     let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
+
+    // Safe Firebase transaction helper: prevents stale clients from overwriting newer queue changes.
+    function runStateTransaction(mutator, onCommitted, onFailed) {
+        db.transaction(function(current) {
+            const nextState = current || { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
+            nextState.active = nextState.active || [];
+            nextState.waiting = nextState.waiting || [];
+            nextState.requests = nextState.requests || [];
+            nextState.reports = nextState.reports || [];
+            nextState.swapLogs = nextState.swapLogs || [];
+            return mutator(nextState);
+        }).then(function(result) {
+            if (result.committed) {
+                if (onCommitted) onCommitted(result.snapshot.val());
+            } else if (onFailed) {
+                onFailed();
+            }
+        }).catch(function(error) {
+            console.error('Firebase transaction failed:', error);
+            if (onFailed) onFailed(error);
+        });
+    }
     let usersState = {};
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
     let currentLoggedInUser = localStorage.getItem('logged_in_username') || '';
@@ -1189,40 +1211,18 @@
                         endTimestamp: endTime
                     });
 
-                    db.set(state);
-                    playBeep();
-                    showCustomAlert(`⚠️ Maximum break limit of 45 minutes exceeded for (${finishedItem.name}). Automatically removed from system.`);
-                    return;
-                }
-            }
-        }
-
-        // 2. ميزة الإخراج التلقائي من قائمة الانتظار بعد 3 ساعات متواصلة دون الدخول في بريك
-        if (newWaiting && newWaiting.length > 0) {
-            for (let i = newWaiting.length - 1; i >= 0; i--) {
-                const waitItem = newWaiting[i];
-                const queueStartTime = waitItem.queueStartTime || waitItem.timestamp || currentTime;
-                const elapsedQueueMs = currentTime - queueStartTime;
-                const maxQueueLimitMs = 3 * 60 * 60 * 1000; // 3 ساعات
-
-                if (elapsedQueueMs >= maxQueueLimitMs) {
-                    const removedWaitItem = newWaiting.splice(i, 1)[0];
-                    
-                    if (!state.reports) state.reports = [];
-                    state.reports.unshift({
-                        name: removedWaitItem.name,
-                        type: 'Auto-Removed (Queue Timeout 3 Hours)',
-                        dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-                        startTime: '-',
-                        endTime: '-',
-                        duration: '3h 0m 0s',
-                        isOvertime: true,
-                        endTimestamp: Date.now()
+                    const autoEndedId = finishedItem.id;
+                    const autoEndedReport = state.reports[state.reports.length - 1];
+                    runStateTransaction(function(latest) {
+                        const activeIndex = latest.active.findIndex(item => item.id === autoEndedId);
+                        if (activeIndex === -1) return;
+                        latest.active.splice(activeIndex, 1);
+                        latest.reports.unshift(autoEndedReport);
+                        return latest;
+                    }, function() {
+                        playBeep();
+                        showCustomAlert(`⚠️ Maximum break limit of 45 minutes exceeded for (${finishedItem.name}). Automatically removed from system.`);
                     });
-
-                    db.set(state);
-                    playBeep();
-                    showCustomAlert(`⚠️ Employee (${removedWaitItem.name}) has been automatically removed from waiting queue after 3 continuous hours.`);
                     return;
                 }
             }
@@ -1241,8 +1241,13 @@
 
             if (targetToShift) {
                 if (!targetToShift.turnStartTime) {
-                    targetToShift.turnStartTime = currentTime;
-                    db.set(state);
+                    const turnStartId = targetToShift.id;
+                    runStateTransaction(function(latest) {
+                        const target = latest.waiting.find(item => item.id === turnStartId);
+                        if (!target) return;
+                        if (!target.turnStartTime) target.turnStartTime = currentTime;
+                        return latest;
+                    });
                 } else {
                     const elapsedMs = currentTime - targetToShift.turnStartTime;
                     if (elapsedMs > 420000) { 
@@ -1266,10 +1271,22 @@
                                 endTimestamp: Date.now()
                             });
 
-                            db.set(state);
-                            playBeep();
-                            showCustomAlert("⏱️ Alert: Confirmation timeout exceeded, turn automatically delayed.");
-                            stopTitleBlink();
+                            const timedOutId = timedOutItem.id;
+                            const timeoutReport = state.reports[state.reports.length - 1];
+                            runStateTransaction(function(latest) {
+                                const idxLatest = latest.waiting.findIndex(w => w.id === timedOutId);
+                                if (idxLatest === -1) return;
+                                const itemLatest = latest.waiting.splice(idxLatest, 1)[0];
+                                delete itemLatest.turnStartTime;
+                                delete itemLatest.promptSwapChoice;
+                                latest.waiting.unshift(itemLatest);
+                                latest.reports.unshift(timeoutReport);
+                                return latest;
+                            }, function() {
+                                playBeep();
+                                showCustomAlert("⏱️ Alert: Confirmation timeout exceeded, turn automatically delayed.");
+                                stopTitleBlink();
+                            });
                             return;
                         }
                     }
@@ -1335,36 +1352,37 @@
         const myUserLower = currentEmployeeName.trim().toLowerCase();
         const firstNormal = state.waiting.find(w => w.type === 'normal');
         const firstQuick = state.waiting.find(w => w.type === 'quick');
-        
-        let targetItem = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower) ? firstNormal : 
-                         ((firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower) ? firstQuick : null);
+        const targetItem = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower) ? firstNormal :
+                           ((firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower) ? firstQuick : null);
 
         if (!targetItem) return;
 
         if (choice === 'no') {
-            const idx = state.waiting.findIndex(w => w.id === targetItem.id);
-            if (idx > -1) {
-                const movedItem = state.waiting.splice(idx, 1)[0];
+            const targetId = targetItem.id;
+            const delayReport = {
+                name: targetItem.name,
+                type: 'Delayed by choice (No Swap)',
+                dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                startTime: '-',
+                endTime: '-',
+                duration: '0m 0s',
+                isOvertime: false,
+                endTimestamp: Date.now()
+            };
+
+            runStateTransaction(function(latest) {
+                const idx = latest.waiting.findIndex(w => w.id === targetId);
+                if (idx === -1) return;
+                const movedItem = latest.waiting.splice(idx, 1)[0];
                 delete movedItem.turnStartTime;
                 delete movedItem.promptSwapChoice;
-                state.waiting.unshift(movedItem);
-
-                if (!state.reports) state.reports = [];
-                state.reports.unshift({
-                    name: movedItem.name,
-                    type: 'Delayed by choice (No Swap)',
-                    dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-                    startTime: '-',
-                    endTime: '-',
-                    duration: '0m 0s',
-                    isOvertime: false,
-                    endTimestamp: Date.now()
-                });
-
-                db.set(state);
+                latest.waiting.unshift(movedItem);
+                latest.reports.unshift(delayReport);
+                return latest;
+            }, function() {
                 showCustomAlert("⏱️ Your turn has been delayed based on your choice.");
                 stopTitleBlink();
-            }
+            });
         }
     }
 
@@ -1395,18 +1413,21 @@
             name: name,
             type: type,
             timestamp: now,
-            queueStartTime: now, // تسجيل وقت الدخول لقائمة الانتظار لضبط مؤقت الـ 3 ساعات
             dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
             timeStr: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
         };
 
-        if (type === 'request') {
-            state.requests.push(newItem);
-        } else {
-            state.waiting.push(newItem);
-        }
-
-        db.set(state);
+        runStateTransaction(function(latest) {
+            const alreadyInSystem = latest.active.some(item => item.name.trim().toLowerCase() === nameLower) ||
+                                    latest.waiting.some(item => item.name.trim().toLowerCase() === nameLower) ||
+                                    latest.requests.some(item => item.name.trim().toLowerCase() === nameLower);
+            if (alreadyInSystem) return;
+            if (type === 'request') latest.requests.push(newItem);
+            else latest.waiting.push(newItem);
+            return latest;
+        }, null, function() {
+            showCustomAlert('Sorry, the request could not be saved. Please try again.');
+        });
     }
 
     function adminForceOutAction(index) {
@@ -1420,39 +1441,55 @@
     function handleForceOutChoice(keepInQueue) {
         document.getElementById('forceOutModalOverlay').style.display = 'none';
         if (pendingForceOutIndex === null) return;
-        
+
         const index = pendingForceOutIndex;
         pendingForceOutIndex = null;
         const item = state.waiting[index];
         if (!item) return;
 
+        const targetId = item.id;
         const originalPosition = index + 1;
+        const itemName = item.name;
+        const now = Date.now();
+        const dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-        const itemToBreak = state.waiting.splice(index, 1)[0];
-        itemToBreak.timestamp = Date.now();
-        itemToBreak.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        itemToBreak.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        delete itemToBreak.turnStartTime;
-
-        if (keepInQueue) {
-            itemToBreak.keepInQueueRole = true;
-            itemToBreak.originalQueuePos = originalPosition;
-        } else {
-            itemToBreak.keepInQueueRole = false;
-        }
-
-        state.active.push(itemToBreak);
-        db.set(state);
-        showCustomAlert(`Employee (${item.name}) forced out to break successfully.`);
+        runStateTransaction(function(latest) {
+            const latestIndex = latest.waiting.findIndex(w => w.id === targetId);
+            if (latestIndex === -1) return;
+            const itemToBreak = latest.waiting.splice(latestIndex, 1)[0];
+            itemToBreak.timestamp = now;
+            itemToBreak.dateStr = dateStr;
+            itemToBreak.timeStr = timeStr;
+            delete itemToBreak.turnStartTime;
+            if (keepInQueue) {
+                itemToBreak.keepInQueueRole = true;
+                itemToBreak.originalQueuePos = originalPosition;
+            } else {
+                itemToBreak.keepInQueueRole = false;
+            }
+            latest.active.push(itemToBreak);
+            return latest;
+        }, function() {
+            showCustomAlert(`Employee (${itemName}) forced out to break successfully.`);
+        }, function() {
+            showCustomAlert('The employee is no longer in the waiting queue. Please refresh and try again.');
+        });
     }
 
     function approveRequest(index) {
         if (!isAdmin) return;
-        const reqItem = state.requests.splice(index, 1)[0];
-        if (reqItem) {
-            state.waiting.push(reqItem);
-            db.set(state);
-        }
+        const reqItem = state.requests[index];
+        if (!reqItem) return;
+        const requestId = reqItem.id;
+
+        runStateTransaction(function(latest) {
+            const reqIndex = latest.requests.findIndex(r => r.id === requestId);
+            if (reqIndex === -1) return;
+            const item = latest.requests.splice(reqIndex, 1)[0];
+            latest.waiting.push(item);
+            return latest;
+        });
     }
 
     function cancelRequest(index) {
@@ -1463,8 +1500,13 @@
             return;
         }
         if (confirm(`Are you sure you want to cancel request for (${item.name})?`)) {
-            state.requests.splice(index, 1);
-            db.set(state);
+            const requestId = item.id;
+            runStateTransaction(function(latest) {
+                const requestIndex = latest.requests.findIndex(r => r.id === requestId);
+                if (requestIndex === -1) return;
+                latest.requests.splice(requestIndex, 1);
+                return latest;
+            });
         }
     }
 
@@ -1472,71 +1514,69 @@
         initAudioContext();
         if (!currentEmployeeName) return;
         const myUserLower = currentEmployeeName.trim().toLowerCase();
-        
-        const index = state.waiting.findIndex(item => item.name.trim().toLowerCase() === myUserLower);
-        if (index === -1) {
+        const localItem = state.waiting.find(item => item.name.trim().toLowerCase() === myUserLower);
+        if (!localItem) {
             showCustomAlert('You are not currently in the waiting queue!');
             return;
         }
 
-        const userItem = state.waiting[index];
-        const firstOfThisType = state.waiting.find(w => w.type === userItem.type);
-        if (!firstOfThisType || firstOfThisType.id !== userItem.id) {
-            showCustomAlert('Sorry, there is someone ahead of you in the queue who must take their turn first!');
-            return;
-        }
+        const targetId = localItem.id;
+        runStateTransaction(function(latest) {
+            const index = latest.waiting.findIndex(item => item.id === targetId);
+            if (index === -1) return;
+            const userItem = latest.waiting[index];
+            const firstOfThisType = latest.waiting.find(w => w.type === userItem.type);
+            if (!firstOfThisType || firstOfThisType.id !== userItem.id) return;
 
-        const hasNormal = state.active.some(item => item.type === 'normal' || item.type === 'request');
-        const hasQuick = state.active.some(item => item.type === 'quick');
+            const hasNormal = latest.active.some(item => item.type === 'normal' || item.type === 'request');
+            const hasQuick = latest.active.some(item => item.type === 'quick');
+            let canEnter = false;
+            if (userItem.type === 'quick' && !hasQuick) canEnter = true;
+            else if ((userItem.type === 'normal' || userItem.type === 'request') && !hasNormal) canEnter = true;
+            if (!canEnter) return;
 
-        let canEnter = false;
-        if (userItem.type === 'quick' && !hasQuick) canEnter = true;
-        else if ((userItem.type === 'normal' || userItem.type === 'request') && !hasNormal) canEnter = true;
-
-        if (!canEnter) {
-            showCustomAlert(`The (${userItem.type}) break slot is still occupied.`);
-            return;
-        }
-
-        state.waiting.splice(index, 1);
-        userItem.timestamp = Date.now();
-        userItem.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        userItem.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        delete userItem.turnStartTime;
-        delete userItem.queueStartTime;
-        state.active.push(userItem);
-
-        stopTitleBlink();
-        db.set(state);
+            latest.waiting.splice(index, 1);
+            userItem.timestamp = Date.now();
+            userItem.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            userItem.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            delete userItem.turnStartTime;
+            latest.active.push(userItem);
+            return latest;
+        }, function() {
+            stopTitleBlink();
+        }, function() {
+            showCustomAlert('Your turn could not be confirmed. Please check the queue and try again.');
+        });
     }
 
     function endBreak(index) {
         initAudioContext();
-        const finishedItem = state.active.splice(index, 1)[0];
-        
-        if (finishedItem) {
-            const endTime = Date.now();
+        const localItem = state.active[index];
+        if (!localItem) return;
+        const targetId = localItem.id;
+        const endTime = Date.now();
+
+        runStateTransaction(function(latest) {
+            const activeIndex = latest.active.findIndex(item => item.id === targetId);
+            if (activeIndex === -1) return;
+            const finishedItem = latest.active.splice(activeIndex, 1)[0];
             const durationMs = endTime - finishedItem.timestamp;
             const durationSecs = Math.floor(durationMs / 1000);
             const durationMins = Math.floor(durationSecs / 60);
             const durationSecsRem = durationSecs % 60;
             const durationText = `${durationMins}m ${durationSecsRem}s`;
-            const endTimeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            
-            const breakDateStr = finishedItem.dateStr || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-            
+            const endTimeStr = new Date(endTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const breakDateStr = finishedItem.dateStr || new Date(endTime).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
             let typeText = 'Normal Break';
             if (finishedItem.type === 'quick') typeText = 'Quick Break (5m)';
             else if (finishedItem.type === 'request') typeText = 'Requested Break';
 
             let isOvertime = false;
-            if (finishedItem.type === 'quick' && durationMins >= 5 && durationSecsRem > 0) {
-                isOvertime = true;
-            } else if ((finishedItem.type === 'normal' || finishedItem.type === 'request') && durationMins >= 20 && durationSecsRem > 0) {
-                isOvertime = true;
-            }
+            if (finishedItem.type === 'quick' && durationMins >= 5 && durationSecsRem > 0) isOvertime = true;
+            else if ((finishedItem.type === 'normal' || finishedItem.type === 'request') && durationMins >= 20 && durationSecsRem > 0) isOvertime = true;
 
-            state.reports.unshift({
+            latest.reports.unshift({
                 name: finishedItem.name,
                 type: typeText,
                 dateStr: breakDateStr,
@@ -1548,24 +1588,22 @@
             });
 
             if (finishedItem.keepInQueueRole === true) {
-                let targetPos = finishedItem.originalQueuePos - 1; 
+                let targetPos = finishedItem.originalQueuePos - 1;
                 delete finishedItem.keepInQueueRole;
                 delete finishedItem.originalQueuePos;
                 finishedItem.timestamp = Date.now();
-                finishedItem.queueStartTime = Date.now();
                 finishedItem.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-
                 if (targetPos < 0) targetPos = 0;
-                if (targetPos > state.waiting.length) targetPos = state.waiting.length;
-                state.waiting.splice(targetPos, 0, finishedItem);
+                if (targetPos > latest.waiting.length) targetPos = latest.waiting.length;
+                latest.waiting.splice(targetPos, 0, finishedItem);
             }
-        }
-
-        db.set(state);
+            return latest;
+        });
     }
 
     function cancelWaiting(index) {
         const item = state.waiting[index];
+        if (!item) return;
         const isOwner = currentEmployeeName && item.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase();
 
         if (!isOwner && !isAdmin) {
@@ -1574,9 +1612,15 @@
         }
 
         if (confirm(`Are you sure you want to cancel (${item.name})?`)) {
-            state.waiting.splice(index, 1);
-            stopTitleBlink();
-            db.set(state);
+            const targetId = item.id;
+            runStateTransaction(function(latest) {
+                const latestIndex = latest.waiting.findIndex(w => w.id === targetId);
+                if (latestIndex === -1) return;
+                latest.waiting.splice(latestIndex, 1);
+                return latest;
+            }, function() {
+                stopTitleBlink();
+            });
         }
     }
 
@@ -1607,56 +1651,41 @@
             return;
         }
 
-        const idx1 = state.waiting.findIndex(x => x.id === id1);
-        const idx2 = state.waiting.findIndex(x => x.id === id2);
+        const localIdx1 = state.waiting.findIndex(x => x.id === id1);
+        const localIdx2 = state.waiting.findIndex(x => x.id === id2);
+        if (localIdx1 === -1 || localIdx2 === -1) return;
+        if (!isAdmin && Math.abs(localIdx1 - localIdx2) !== 1) {
+            showCustomAlert('Sorry, you can only swap with the person directly above or below you!');
+            return;
+        }
 
-        if (idx1 > -1 && idx2 > -1) {
-            if (!isAdmin) {
-                if (Math.abs(idx1 - idx2) !== 1) {
-                    showCustomAlert('Sorry, you can only swap with the person directly above or below you!');
-                    return;
-                }
-            }
+        runStateTransaction(function(latest) {
+            const idx1 = latest.waiting.findIndex(x => x.id === id1);
+            const idx2 = latest.waiting.findIndex(x => x.id === id2);
+            if (idx1 === -1 || idx2 === -1) return;
+            if (!isAdmin && Math.abs(idx1 - idx2) !== 1) return;
 
             const oldPos1 = idx1 + 1;
             const oldPos2 = idx2 + 1;
+            const temp = latest.waiting[idx1];
+            latest.waiting[idx1] = latest.waiting[idx2];
+            latest.waiting[idx2] = temp;
 
-            const temp = state.waiting[idx1];
-            state.waiting[idx1] = state.waiting[idx2];
-            state.waiting[idx2] = temp;
-
-            const name1 = state.waiting[idx1].name;
-            const name2 = state.waiting[idx2].name;
+            const name1 = latest.waiting[idx1].name;
+            const name2 = latest.waiting[idx2].name;
             const newPos1 = idx1 + 1;
             const newPos2 = idx2 + 1;
+            const now = Date.now();
+            const dateStr = new Date(now).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            const timeStr = new Date(now).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            if (!latest.swapLogs) latest.swapLogs = [];
 
-            if (!state.swapLogs) state.swapLogs = [];
-
-            state.swapLogs.unshift({
-                id: String(Date.now() + 1),
-                receiverName: name1,
-                initiatorName: isAdmin ? 'Admin' : name2,
-                oldPos: oldPos2,
-                newPos: newPos1,
-                timestamp: Date.now(),
-                dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-                timeStr: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-            });
-
-            state.swapLogs.unshift({
-                id: String(Date.now() + 2),
-                receiverName: name2,
-                initiatorName: isAdmin ? 'Admin' : name1,
-                oldPos: oldPos1,
-                newPos: newPos2,
-                timestamp: Date.now(),
-                dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-                timeStr: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-            });
-
-            db.set(state);
+            latest.swapLogs.unshift({ id: String(now + 1), receiverName: name1, initiatorName: isAdmin ? 'Admin' : name2, oldPos: oldPos2, newPos: newPos1, timestamp: now, dateStr, timeStr });
+            latest.swapLogs.unshift({ id: String(now + 2), receiverName: name2, initiatorName: isAdmin ? 'Admin' : name1, oldPos: oldPos1, newPos: newPos2, timestamp: now, dateStr, timeStr });
+            return latest;
+        }, function() {
             showCustomAlert('Swapped successfully!');
-        }
+        });
     }
 
     function clearReports() {
@@ -1664,7 +1693,7 @@
         if (confirm('Are you sure you want to clear reports and logs?')) {
             state.reports = [];
             state.swapLogs = [];
-            db.set(state);
+            db.update({ reports: [], swapLogs: [] });
         }
     }
 
@@ -1673,7 +1702,7 @@
         if (confirm('Are you sure you want to clear your personal break history?')) {
             const empNameLower = currentEmployeeName.trim().toLowerCase();
             state.reports = (state.reports || []).filter(rep => rep.name.trim().toLowerCase() !== empNameLower);
-            db.set(state);
+            db.update({ reports: state.reports });
             showCustomAlert('Your personal break history has been cleared successfully.');
         }
     }
