@@ -488,11 +488,11 @@
 
         <div class="hospital-logo-box">
             <div class="logo-top-row">
+                <span class="logo-crescent"></span>
                 <div class="logo-text-col">
                     <span class="logo-arabic-title">مستشفيات السلام</span>
                     <span class="logo-english-title">Al Salam Hospital</span>
                 </div>
-                <span class="logo-crescent"></span>
             </div>
             <div class="logo-divider"></div>
             <div class="logo-footer-row">
@@ -574,7 +574,7 @@
         <div class="report-box" id="adminReportContainer">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div style="font-size: 0.85rem; font-weight: bold; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
-                    <span>📊 Contact Center Break Report (Admin 48-Hour View / Auto-Clears Every 10 Hours)</span>
+                    <span>📊 Contact Center Break Report (Admin 48-Hour View / Older Records Are Archived Automatically)</span>
                 </div>
                 <div style="display: flex; gap: 6px; align-items: center;">
                     <button type="button" class="btn btn-excel" id="excelBtn" onclick="exportToExcel()">📥 Excel</button>
@@ -708,40 +708,470 @@
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
-    
-    const db = firebase.database().ref('alsalam_hospital_breaks_v48');
-    const usersDb = firebase.database().ref('alsalam_hospital_users');
+/* =====================================================================
+   CONFIG  —  TEST copy of the Break System (phase 1: reliability fixes)
+   LIVE = false  → uses separate TEST data. Live data is only READ (users).
+   LIVE = true   → uses the real paths (same data/format as the current system).
+   ===================================================================== */
+const LIVE = true;
+const LIVE_Q = 'alsalam_hospital_breaks_v48';
+const LIVE_U = 'alsalam_hospital_users';
+const PATH_Q = LIVE ? LIVE_Q : 'alsalam_hospital_breaks_TEST';
+const PATH_U = LIVE ? LIVE_U : 'alsalam_hospital_users_TEST';
+const PATH_A = LIVE ? 'alsalam_hospital_breaks_archive' : 'alsalam_hospital_breaks_archive_TEST';
+const CFG = {
+    autoEndMin: 45,            // break is ended automatically after this
+    normalLimitMin: 20,        // overtime thresholds (same as before)
+    quickLimitMin: 5,
+    turnTimeoutMs: 7 * 60000,  // time to confirm your turn
+    keepHours: 48,             // reports older than this are moved to the archive
+    employeeClearHidesOnly: true // true: "Clear Break History" hides records from the employee only (admin keeps them)
+};
+const BASE_TITLE = 'Contact Center Break - Al Salam Hospitals';
 
-    let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
+const root = firebase.database();
+const db = root.ref(PATH_Q);
+const usersDb = root.ref(PATH_U);
+const archDb = root.ref(PATH_A);
+let state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
+let usersState = {};
+let serverOffset = 0;
+root.ref('.info/serverTimeOffset').on('value', s => { serverOffset = s.val() || 0; });
+const nowTs = () => Date.now() + serverOffset;      // server clock, not the PC clock
+
+/* ---------- helpers ---------- */
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const lc = s => String(s || '').trim().toLowerCase();
+const pad2 = n => String(n).padStart(2, '0');
+const fmtDate = ts => new Date(ts).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+const fmtTime = ts => new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const dayKey = ts => { const d = new Date(ts); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); };
+const durText = secs => Math.floor(secs / 60) + 'm ' + (secs % 60) + 's';
+const toArr = x => Array.isArray(x) ? x.filter(Boolean) : (x && typeof x === 'object' ? Object.keys(x).sort((a, b) => a - b).map(k => x[k]).filter(Boolean) : []);
+const secsOf = rep => {
+    if (typeof rep.durationSecs === 'number') return rep.durationSecs;
+    let t = 0; const m = String(rep.duration || '').match(/(\d+)m/), s = String(rep.duration || '').match(/(\d+)s/);
+    if (m) t += parseInt(m[1]) * 60; if (s) t += parseInt(s[1]); return t;
+};
+const lane = x => x.type === 'quick' ? 'quick' : 'normal';        // "request" items use the normal lane
+const mine = item => !!currentLoggedInUser && (item.user ? item.user === currentLoggedInUser : lc(item.name) === lc(currentEmployeeName));
+const mineReport = r => !!currentLoggedInUser && (r.user ? r.user === currentLoggedInUser : lc(r.name) === lc(currentEmployeeName));
+const newId = t => t + '-' + Math.random().toString(36).slice(2, 6);
+
+function normalizeState(cur) {
+    const s = cur || {};
+    s.active = toArr(s.active); s.waiting = toArr(s.waiting); s.requests = toArr(s.requests);
+    s.reports = toArr(s.reports); s.swapLogs = toArr(s.swapLogs);
+    return s;
+}
+
+/* One transaction wrapper: reports older than keepHours are moved to the archive AFTER the write succeeds */
+function runStateTransaction(mutator, onCommitted, onFailed) {
+    const ctx = { archived: [] };
+    db.transaction(function (current) {
+        ctx.archived = [];
+        return mutator(normalizeState(current), ctx);
+    }).then(function (result) {
+        if (result.committed) {
+            if (ctx.archived.length) archiveReports(ctx.archived);
+            if (onCommitted) onCommitted(result.snapshot.val());
+        } else if (onFailed) { onFailed(); }
+    }).catch(function (err) {
+        console.error('Transaction error', err);
+        if (onFailed) onFailed(err);
+    });
+}
+function archiveReports(list) {
+    return Promise.all(list.map(r => archDb.child(dayKey(r.endTimestamp || nowTs())).push(r)));
+}
+function addReport(latest, rep, ctx) {
+    latest.reports.unshift(rep);
+    const cutoff = nowTs() - CFG.keepHours * 3600000, keep = [], old = [];
+    latest.reports.forEach(r => ((r.endTimestamp || 0) >= cutoff ? keep : old).push(r));
+    latest.reports = keep;
+    if (ctx) ctx.archived = ctx.archived.concat(old);
+    latest.swapLogs = latest.swapLogs.filter(l => (l.timestamp || 0) >= nowTs() - 3600000);
+}
+function breakTypeText(it) { return it.type === 'quick' ? 'Quick Break (5m)' : it.type === 'request' ? 'Requested Break' : 'Normal Break'; }
+function makeReport(item, endTs, auto) {
+    const secs = Math.max(0, Math.floor((endTs - item.timestamp) / 1000));
+    const limit = (item.type === 'quick' ? CFG.quickLimitMin : CFG.normalLimitMin) * 60;
+    return {
+        name: item.name, user: item.user || null,
+        type: breakTypeText(item) + (auto ? ' (Exceeded ' + CFG.autoEndMin + 'm Limit - Auto Ended)' : ''),
+        dateStr: item.dateStr || fmtDate(endTs), startTime: item.timeStr, endTime: fmtTime(endTs),
+        duration: durText(secs), durationSecs: secs, isOvertime: auto ? true : secs > limit, endTimestamp: endTs
+    };
+}
+function noteReport(item, label, overtime) {
+    const t = nowTs();
+    return { name: item.name, user: item.user || null, type: label, dateStr: fmtDate(t), startTime: '-', endTime: '-', duration: '0m 0s', durationSecs: 0, isOvertime: !!overtime, endTimestamp: t };
+}
+
+/* ---------- queue lanes ---------- */
+function laneState() {
+    const w = state.waiting || [], a = state.active || [];
+    return {
+        firstNormal: w.find(x => lane(x) === 'normal') || null, firstQuick: w.find(x => lane(x) === 'quick') || null,
+        normalFree: !a.some(x => lane(x) === 'normal'), quickFree: !a.some(x => lane(x) === 'quick')
+    };
+}
+function myTurnItem() {
+    if (!currentLoggedInUser) return null;
+    const L = laneState();
+    if (L.firstNormal && L.normalFree && mine(L.firstNormal)) return L.firstNormal;
+    if (L.firstQuick && L.quickFree && mine(L.firstQuick)) return L.firstQuick;
+    return null;
+}
+
+function checkTurnLogicAndNotifications() {
+    if (!currentLoggedInUser) return;
+    const w = state.waiting || [], myIndex = w.findIndex(mine);
+    if (myIndex === 1) {
+        if (lastNotifiedAheadState !== 'ahead') {
+            lastNotifiedAheadState = 'ahead'; playBeep();
+            sendBrowserNotification('Break Queue Notification', 'You are next in line! Get ready.');
+            showCustomAlert('📣 Get ready! You are #2 in the queue, you are next in line.');
+        }
+    } else { lastNotifiedAheadState = ''; }
+    if (myTurnItem()) {
+        if (lastNotifiedTurnState !== 'my_turn') {
+            lastNotifiedTurnState = 'my_turn'; playBeep(); startTitleBlink();
+            sendBrowserNotification('🔔 It is your turn!', 'Please confirm your break turn within 7 minutes.');
+        }
+    } else { lastNotifiedTurnState = ''; stopTitleBlink(); }
+}
+
+/* ---------- submit / cancel / approve ---------- */
+function submitBreak(type) {
+    initAudioContext();
+    if (!currentLoggedInUser) { showCustomAlert('Please login first!'); return; }
+    const inSystem = [].concat(state.active, state.waiting, state.requests).some(mine);
+    if (inSystem) { showCustomAlert('You already have an active, waiting or pending break request!'); return; }
+    lastNotifiedTurnState = ''; stopTitleBlink();
+    const t = nowTs();
+    const item = { id: newId(t), user: currentLoggedInUser, name: currentEmployeeName, type: type, timestamp: t, dateStr: fmtDate(t), timeStr: fmtTime(t) };
+    runStateTransaction(function (latest) {
+        if ([].concat(latest.active, latest.waiting, latest.requests).some(mine)) return;
+        (type === 'request' ? latest.requests : latest.waiting).push(item);
+        return latest;
+    }, function () {
+        if (type === 'request') showCustomAlert('Break request sent to the leader. Please wait for approval.');
+    }, function () { showCustomAlert('Your request could not be saved (you may already be in the system). Please try again.'); });
+}
+function cancelRequest(id) {
+    const it = state.requests.find(x => x.id === id); if (!it) return;
+    if (!(mine(it) || isAdmin)) return;
+    if (!confirm('Do you want to cancel this break request?')) return;
+    runStateTransaction(function (latest) {
+        const i = latest.requests.findIndex(x => x.id === id); if (i === -1) return;
+        latest.requests.splice(i, 1); return latest;
+    });
+}
+function approveRequest(id) {
+    if (!isAdmin) return;
+    runStateTransaction(function (latest) {
+        const i = latest.requests.findIndex(x => x.id === id); if (i === -1) return;
+        const it = latest.requests.splice(i, 1)[0]; latest.waiting.push(it); return latest;   // request items use the normal lane
+    }, function () { showCustomAlert('Request approved and added to the waiting queue.'); });
+}
+function cancelWaiting(id) {
+    const it = state.waiting.find(x => x.id === id); if (!it) return;
+    if (!(mine(it) || isAdmin)) return;
+    if (!confirm('Do you want to cancel your position in the waiting queue?')) return;
+    runStateTransaction(function (latest) {
+        const i = latest.waiting.findIndex(x => x.id === id); if (i === -1) return;
+        latest.waiting.splice(i, 1); return latest;
+    });
+}
+
+/* ---------- turn confirmation / delay ---------- */
+function confirmMyTurn() {
+    initAudioContext();
+    if (!currentLoggedInUser) return;
+    if (!state.waiting.some(mine)) { showCustomAlert('You are not currently in the waiting queue!'); return; }
+    const item = myTurnItem();
+    if (!item) { showCustomAlert('It is not your turn yet. Please wait until you are first in line.'); return; }
+    const id = item.id;
+    runStateTransaction(function (latest) {
+        const i = latest.waiting.findIndex(w => w.id === id); if (i === -1) return;
+        const it = latest.waiting[i];
+        const first = latest.waiting.find(w => lane(w) === lane(it));
+        if (!first || first.id !== it.id) return;
+        if (latest.active.some(a => lane(a) === lane(it))) return;
+        latest.waiting.splice(i, 1);
+        const t = nowTs(); it.timestamp = t; it.dateStr = fmtDate(t); it.timeStr = fmtTime(t);
+        delete it.turnStartTime; latest.active.push(it); return latest;
+    }, function () { lastNotifiedTurnState = ''; stopTitleBlink(); },
+       function () { showCustomAlert('Your turn could not be confirmed (it may have changed). Please check the queue.'); });
+}
+/* "No, Delay" and the 7-minute timeout: kept EXACTLY as in the original system —
+   the person is taken out and put back at the FRONT of the queue (like exchanging his turn). */
+function delayItem(id, kind, done) {
+    runStateTransaction(function (latest, ctx) {
+        const i = latest.waiting.findIndex(w => w.id === id); if (i === -1) return;
+        const it = latest.waiting.splice(i, 1)[0];
+        delete it.turnStartTime; delete it.promptSwapChoice;
+        latest.waiting.unshift(it);
+        addReport(latest, noteReport(it, kind === 'timeout' ? 'Auto-Delayed (Timeout)' : 'Delayed by choice (No Swap)', kind === 'timeout'), ctx);
+        return latest;
+    }, done);
+}
+function promptSwapChoiceAction(choice) {
+    if (choice !== 'no') return;
+    const it = myTurnItem(); if (!it) return;
+    delayItem(it.id, 'choice', function () { showCustomAlert('⏱️ Your turn has been delayed based on your choice.'); });
+}
+function startTurnTimer(id) {
+    runStateTransaction(function (latest) {
+        const it = latest.waiting.find(w => w.id === id);
+        if (!it || it.turnStartTime) return;
+        it.turnStartTime = nowTs(); return latest;
+    });
+}
+
+/* ---------- end break / auto end / force out ---------- */
+function finishBreak(latest, item, endTs, auto, ctx) {
+    addReport(latest, makeReport(item, endTs, auto), ctx);
+    if (item.keepInQueueRole === true && !auto) {
+        let pos = Math.max(0, Math.min((item.originalQueuePos || 1) - 1, latest.waiting.length));
+        delete item.keepInQueueRole; delete item.originalQueuePos;
+        const t = nowTs(); item.timestamp = t; item.dateStr = fmtDate(t); item.timeStr = fmtTime(t);
+        latest.waiting.splice(pos, 0, item);
+    }
+}
+function endBreak(id) {
+    initAudioContext();
+    const it = state.active.find(x => x.id === id); if (!it) return;
+    if (!(mine(it) || isAdmin)) return;
+    const endTs = nowTs();
+    runStateTransaction(function (latest, ctx) {
+        const i = latest.active.findIndex(x => x.id === id); if (i === -1) return;
+        const f = latest.active.splice(i, 1)[0];
+        finishBreak(latest, f, endTs, false, ctx); return latest;
+    });
+}
+function autoEnd(id) {
+    const it = state.active.find(x => x.id === id); if (!it) return;
+    const nm = it.name;
+    runStateTransaction(function (latest, ctx) {
+        const i = latest.active.findIndex(x => x.id === id); if (i === -1) return;
+        const f = latest.active[i];
+        if (nowTs() - f.timestamp < CFG.autoEndMin * 60000) return;
+        latest.active.splice(i, 1);
+        finishBreak(latest, f, f.timestamp + CFG.autoEndMin * 60000, true, ctx); return latest;     // recorded at the limit (not at the moment someone noticed)
+    }, function () {
+        playBeep();
+        showCustomAlert('⚠️ Maximum break limit of ' + CFG.autoEndMin + ' minutes exceeded for (' + nm + '). Automatically removed from the system.');
+    });
+}
+let pendingForceOutId = null;
+function adminForceOutAction(id) {
+    if (!isAdmin) return;
+    if (!state.waiting.some(x => x.id === id)) return;
+    pendingForceOutId = id;
+    document.getElementById('forceOutModalOverlay').style.display = 'flex';
+}
+function handleForceOutChoice(keepInQueue) {
+    document.getElementById('forceOutModalOverlay').style.display = 'none';
+    if (pendingForceOutId === null) return;
+    const id = pendingForceOutId; pendingForceOutId = null;
+    const it = state.waiting.find(w => w.id === id); if (!it) return;
+    const nm = it.name, t = nowTs();
+    runStateTransaction(function (latest) {
+        const i = latest.waiting.findIndex(w => w.id === id); if (i === -1) return;
+        const x = latest.waiting.splice(i, 1)[0];
+        x.timestamp = t; x.dateStr = fmtDate(t); x.timeStr = fmtTime(t); delete x.turnStartTime;
+        if (keepInQueue) { x.keepInQueueRole = true; x.originalQueuePos = i + 1; } else { x.keepInQueueRole = false; }
+        latest.active.push(x); return latest;
+    }, function () { showCustomAlert('Employee (' + nm + ') forced out to break successfully.'); },
+       function () { showCustomAlert('The employee is no longer in the waiting queue. Please refresh and try again.'); });
+}
+
+/* ---------- swap ---------- */
+function executeSwap() {
+    initAudioContext();
+    let id1, id2;
+    if (isAdmin) { id1 = document.getElementById('swap1').value; id2 = document.getElementById('swap2').value; }
+    else {
+        if (!currentLoggedInUser) { showCustomAlert('Please login first!'); return; }
+        const my = state.waiting.find(mine);
+        if (!my) { showCustomAlert('You are not in the waiting queue to swap!'); return; }
+        id1 = my.id; id2 = document.getElementById('swapTarget').value;
+    }
+    if (!id1 || !id2 || id1 === id2) { showCustomAlert('Please select a person to swap with!'); return; }
+    const l1 = state.waiting.findIndex(x => x.id === id1), l2 = state.waiting.findIndex(x => x.id === id2);
+    if (l1 === -1 || l2 === -1) return;
+    if (!isAdmin && Math.abs(l1 - l2) !== 1) { showCustomAlert('Sorry, you can only swap with the person directly above or below you!'); return; }
+    const admin = isAdmin;
+    runStateTransaction(function (latest, ctx) {
+        const i1 = latest.waiting.findIndex(x => x.id === id1), i2 = latest.waiting.findIndex(x => x.id === id2);
+        if (i1 === -1 || i2 === -1) return;
+        if (!admin && Math.abs(i1 - i2) !== 1) return;
+        const p1 = i1 + 1, p2 = i2 + 1, tmp = latest.waiting[i1];
+        latest.waiting[i1] = latest.waiting[i2]; latest.waiting[i2] = tmp;
+        const n1 = latest.waiting[i1].name, n2 = latest.waiting[i2].name, t = nowTs();
+        const ds = fmtDate(t), ts = fmtTime(t);
+        latest.swapLogs = latest.swapLogs.filter(l => (l.timestamp || 0) >= t - 3600000);
+        latest.swapLogs.unshift({ id: newId(t), receiverName: n1, initiatorName: admin ? 'Admin' : n2, oldPos: p2, newPos: i1 + 1, timestamp: t, dateStr: ds, timeStr: ts });
+        latest.swapLogs.unshift({ id: newId(t), receiverName: n2, initiatorName: admin ? 'Admin' : n1, oldPos: p1, newPos: i2 + 1, timestamp: t, dateStr: ds, timeStr: ts });
+        return latest;
+    }, function () { showCustomAlert('Swapped successfully!'); });
+}
+
+/* ---------- reports ---------- */
+function clearReports() {
+    if (!isAdmin) return;
+    if (!confirm('Are you sure you want to clear the reports and logs?\n(They are moved to the archive, not deleted.)')) return;
+    runStateTransaction(function (latest, ctx) {
+        ctx.archived = latest.reports.slice(); latest.reports = []; latest.swapLogs = []; return latest;
+    });
+}
+function clearMyBreakHistory() {
+    if (!currentLoggedInUser) return;
+    if (!confirm('Are you sure you want to clear your break history?')) return;
+    runStateTransaction(function (latest) {
+        let n = 0;
+        if (CFG.employeeClearHidesOnly) { latest.reports.forEach(r => { if (mineReport(r) && !r.hiddenByUser) { r.hiddenByUser = true; n++; } }); }
+        else { const before = latest.reports.length; latest.reports = latest.reports.filter(r => !mineReport(r)); n = before - latest.reports.length; }
+        return n ? latest : undefined;
+    });
+}
+
+/* ---------- timers (every client checks, throttled; all writes are transactions) ---------- */
+let lastOverCount = 0;
+const attempts = {};
+function canTry(key, gap) { const t = Date.now(); if (attempts[key] && t - attempts[key] < (gap || 20000)) return false; attempts[key] = t; return true; }
+function runLiveTimerCheck() {
+    const t = nowTs();
+    (state.active || []).forEach(it => { if (t - it.timestamp >= CFG.autoEndMin * 60000 && canTry('end_' + it.id)) autoEnd(it.id); });
+    const L = laneState();
+    [[L.firstNormal, L.normalFree], [L.firstQuick, L.quickFree]].forEach(function (p) {
+        const it = p[0]; if (!it || !p[1]) return;
+        if (!it.turnStartTime) { if (canTry('turn_' + it.id)) startTurnTimer(it.id); }
+        else if (t - it.turnStartTime > CFG.turnTimeoutMs && canTry('to_' + it.id)) {
+            delayItem(it.id, 'timeout', function () {
+                playBeep(); showCustomAlert('⏱️ Alert: Confirmation timeout exceeded, turn automatically delayed.'); stopTitleBlink();
+            });
+        }
+    });
+    const overNow = (state.active || []).filter(a => (isAdmin || mine(a)) && (t - a.timestamp) > (a.type === 'quick' ? CFG.quickLimitMin : CFG.normalLimitMin) * 60000).length;
+    if (overNow !== lastOverCount) { lastOverCount = overNow; renderUI(); }
+    document.querySelectorAll('.admin-countup-timer').forEach(el => {
+        const st = parseInt(el.getAttribute('data-starttime')); if (!st) return;
+        const s = Math.max(0, Math.floor((t - st) / 1000)); el.textContent = Math.floor(s / 60) + 'm ' + (s % 60) + 's';
+    });
+    document.querySelectorAll('.active-countup-timer').forEach(el => {
+        const st = parseInt(el.getAttribute('data-starttime')); if (!st) return;
+        const s = Math.max(0, Math.floor((t - st) / 1000)); el.textContent = Math.floor(s / 60) + 'm ' + (s % 60) + 's';
+    });
+    const tgt = myTurnItem(), cd = document.getElementById('myTurnCountdown');
+    if (tgt && cd && tgt.turnStartTime) {
+        const rem = Math.max(0, CFG.turnTimeoutMs - (t - tgt.turnStartTime));
+        cd.textContent = pad2(Math.floor(rem / 60000)) + ':' + pad2(Math.floor((rem % 60000) / 1000));
+    }
+}
+
+/* ---------- accounts ---------- */
+const USER_RE = /^[A-Za-z0-9_-]{2,30}$/;
+function validateAccount(name, user, pass) {
+    if (!name || !user || !pass) { showCustomAlert('Please fill in all fields!'); return false; }
+    if (name.length > 40) { showCustomAlert('The name is too long (max 40 characters).'); return false; }
+    if (!USER_RE.test(user) || user.toLowerCase() === 'admin') { showCustomAlert('Username must be 2-30 letters, numbers, "-" or "_" and cannot be "admin".'); return false; }
+    if (pass.length < 4) { showCustomAlert('Password must be at least 4 characters.'); return false; }
+    return true;
+}
+function selfRegisterAccount() {
+    const name = document.getElementById('regEmpName').value.trim().replace(/\s+/g, ' ');
+    const user = document.getElementById('regEmpUser').value.trim();
+    const pass = document.getElementById('regEmpPass').value;
+    if (!validateAccount(name, user, pass)) return;
+    if (usersState[user]) { showCustomAlert('This username already exists! Please choose another one.'); return; }
+    usersDb.child(user).transaction(cur => cur ? undefined : { name: name, password: pass, role: 'normal' }, function (err, committed) {
+        if (err || !committed) { showCustomAlert('This username already exists or could not be saved. Please choose another one.'); return; }
+        document.getElementById('regEmpName').value = ''; document.getElementById('regEmpUser').value = ''; document.getElementById('regEmpPass').value = '';
+        closeAdminModal(); showCustomAlert('Account created successfully! You can now login.');
+    }, false);
+}
+function saveEmployeeAccount() {
+    if (!isAdmin) return;
+    const name = document.getElementById('admEmpName').value.trim().replace(/\s+/g, ' ');
+    const user = document.getElementById('admEmpUser').value.trim();
+    const pass = document.getElementById('admEmpPass').value;
+    const role = document.getElementById('admEmpRole').value === 'admin' ? 'admin' : 'normal';
+    if (!validateAccount(name, user, pass)) return;
+    usersDb.child(user).set({ name: name, password: pass, role: role }).then(function () {
+        document.getElementById('admEmpName').value = ''; document.getElementById('admEmpUser').value = ''; document.getElementById('admEmpPass').value = '';
+        showCustomAlert('Account saved successfully.');
+    });
+}
+function deleteEmployeeAccount(uname) {
+    if (!isAdmin) return;
+    const u = usersState[uname]; if (!u) return;
+    if (u._live) { showCustomAlert('This account belongs to the live system. In the test copy it cannot be deleted.'); return; }
+    if (!confirm('Delete the account "' + uname + '"?')) return;
+    usersDb.child(uname).remove();
+}
+function renderAdminUsersList() {
+    const c = document.getElementById('empAccountsListContainer'); if (!c) return;
+    const keys = Object.keys(usersState || {}).sort();
+    if (!keys.length) { c.innerHTML = '<div class="empty-msg" style="color:#0f172a;">No user accounts yet</div>'; return; }
+    c.innerHTML = keys.map(k => {
+        const u = usersState[k];
+        return '<div style="display:flex;justify-content:space-between;align-items:center;background:#ffffff;padding:6px 10px;border-radius:6px;margin-bottom:6px;border:1px solid #cbd5e1;">' +
+            '<div style="font-size:0.8rem;color:#1e293b;"><strong>' + esc(u.name) + '</strong> (' + esc(k) + ') ' +
+            (u.role === 'admin' ? '<span style="color:#b91c1c;font-weight:bold;">[Admin]</span>' : '<span style="color:#475569;">[Employee]</span>') +
+            (u._live ? ' <small style="color:#64748b;">(live)</small>' : '') + '</div>' +
+            '<button type="button" class="btn btn-red" style="padding:2px 8px;font-size:0.7rem;" data-del-user="' + esc(k) + '">Delete</button></div>';
+    }).join('');
+}
+let liveUsers = {}, testUsers = {}, usersReady = { t: false, l: LIVE };
+function mergeUsers() {
+    const m = Object.assign({}, liveUsers, testUsers);
+    Object.keys(m).forEach(k => { m[k] = Object.assign({}, m[k], { _live: !LIVE && !!liveUsers[k] && !testUsers[k] }); });
+    usersState = m;
+    renderAdminUsersList();
+    if (usersReady.t && usersReady.l) revalidateSession();
+}
+function revalidateSession() {
+    if (!currentLoggedInUser || currentLoggedInUser === 'admin') return;
+    const u = usersState[currentLoggedInUser];
+    if (!u) { logoutUser(); return; }                                           // account was deleted
+    const adm = u.role === 'admin';
+    if (adm !== isAdmin) { isAdmin = adm; localStorage.setItem('is_admin_mode', adm ? 'true' : 'false'); checkSession(); }
+}
+
+/* ---------- test-area tools ---------- */
+function copyLiveIntoTest() {
+    if (!confirm('Copy the current LIVE queue and reports into the TEST area?\n(The live data is only read, never changed.)')) return;
+    root.ref(LIVE_Q).once('value').then(snap => db.set(snap.val() || null)).then(() => showCustomAlert('Done. The test area now contains a copy of the live queue.'));
+}
+function resetTestData() {
+    if (!confirm('Erase ALL data of the TEST area (queue, reports, test accounts)?\nThe live system is not touched.')) return;
+    Promise.all([db.remove(), usersDb.remove(), archDb.remove()]).then(() => showCustomAlert('Test data erased.'));
+}
+function initTestBanner() {
+    if (LIVE) return;
+    document.title = BASE_TITLE + ' [TEST]';
+    const bar = document.createElement('div');
+    bar.style.cssText = 'background:#b45309;color:#fff;padding:8px 12px;font:600 13px Arial,sans-serif;text-align:center;position:sticky;top:0;z-index:9998;';
+    bar.innerHTML = '🧪 TEST VERSION — separate data, the live system is not affected. Real accounts can log in. ' +
+        '<button type="button" id="tbCopy" style="margin-left:8px;padding:3px 10px;border-radius:6px;border:0;cursor:pointer;font-weight:700">Copy live queue into test</button>' +
+        '<button type="button" id="tbReset" style="margin-left:6px;padding:3px 10px;border-radius:6px;border:0;cursor:pointer;font-weight:700">Reset test data</button>';
+    document.body.prepend(bar);
+    document.getElementById('tbCopy').onclick = copyLiveIntoTest;
+    document.getElementById('tbReset').onclick = resetTestData;
+}
+
+    
+
 
     // Safe Firebase transaction helper: prevents stale clients from overwriting newer queue changes.
-    function runStateTransaction(mutator, onCommitted, onFailed) {
-        db.transaction(function(current) {
-            const nextState = current || { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
-            nextState.active = nextState.active || [];
-            nextState.waiting = nextState.waiting || [];
-            nextState.requests = nextState.requests || [];
-            nextState.reports = nextState.reports || [];
-            nextState.swapLogs = nextState.swapLogs || [];
-            return mutator(nextState);
-        }).then(function(result) {
-            if (result.committed) {
-                if (onCommitted) onCommitted(result.snapshot.val());
-            } else if (onFailed) {
-                onFailed();
-            }
-        }).catch(function(error) {
-            console.error('Firebase transaction failed:', error);
-            if (onFailed) onFailed(error);
-        });
-    }
-    let usersState = {};
     let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
     let currentLoggedInUser = localStorage.getItem('logged_in_username') || '';
     let currentEmployeeName = localStorage.getItem('logged_in_empname') || '';
     let isReportsExpanded = false;
     let isUsersListExpanded = false;
-    let pendingForceOutIndex = null;
 
     let audioCtx = null;
     function initAudioContext() {
@@ -866,28 +1296,6 @@
         document.getElementById('adminModalOverlay').style.display = 'flex';
     }
 
-    function selfRegisterAccount() {
-        const name = document.getElementById('regEmpName').value.trim();
-        const user = document.getElementById('regEmpUser').value.trim();
-        const pass = document.getElementById('regEmpPass').value.trim();
-
-        if (!name || !user || !pass) {
-            showCustomAlert('Please fill in all fields!');
-            return;
-        }
-
-        if (usersState[user]) {
-            showCustomAlert('Username already exists! Please choose another one.');
-            return;
-        }
-
-        usersState[user] = { name: name, password: pass, role: 'normal' };
-        usersDb.set(usersState).then(() => {
-            closeAdminModal();
-            showCustomAlert('Account created successfully! You can now login.');
-        });
-    }
-
     function openAdminModal() {
         document.getElementById('adminModalTitle').innerText = 'Admin Access & Users';
         if (isAdmin) {
@@ -940,93 +1348,8 @@
         }
     }
 
-    function saveEmployeeAccount() {
-        const name = document.getElementById('admEmpName').value.trim();
-        const user = document.getElementById('admEmpUser').value.trim();
-        const pass = document.getElementById('admEmpPass').value.trim();
-        const role = document.getElementById('admEmpRole').value;
 
-        if (!name || !user || !pass) {
-            showCustomAlert('Please fill all user details!');
-            return;
-        }
 
-        usersState[user] = { name: name, password: pass, role: role };
-        
-        usersDb.set(usersState).then(() => {
-            document.getElementById('admEmpName').value = '';
-            document.getElementById('admEmpUser').value = '';
-            document.getElementById('admEmpPass').value = '';
-            document.getElementById('admEmpRole').value = 'normal';
-            renderAdminUsersList();
-            showCustomAlert('Account saved successfully!');
-        });
-    }
-
-    function deleteEmployeeAccount(username) {
-        if (confirm(`Are you sure you want to delete account (${username})?`)) {
-            if (usersState[username]) {
-                delete usersState[username];
-                usersDb.set(usersState).then(() => {
-                    renderAdminUsersList();
-                });
-            }
-        }
-    }
-
-    function renderAdminUsersList() {
-        const container = document.getElementById('empAccountsListContainer');
-        const users = usersState || {};
-        const keys = Object.keys(users);
-
-        if (keys.length === 0) {
-            container.innerHTML = '<div class="empty-msg" style="color:#0f172a;">No custom user accounts yet</div>';
-            return;
-        }
-
-        container.innerHTML = keys.map(uname => {
-            const u = users[uname];
-            const roleBadge = (u.role === 'admin') ? ' <span style="color:#b91c1c; font-weight:bold;">[Admin]</span>' : ' <span style="color:#047857;">[Normal]</span>';
-            return `
-                <div style="display: flex; justify-content: space-between; align-items: center; background: #ffffff; padding: 6px 10px; border-radius: 6px; margin-bottom: 6px; border: 1px solid #cbd5e1;">
-                    <div style="font-size: 0.82rem; color: #0f172a;">
-                        <strong>${u.name}</strong> (${uname}) ${roleBadge}
-                    </div>
-                    <button type="button" class="btn btn-red" style="padding: 2px 6px; font-size: 0.7rem;" onclick="deleteEmployeeAccount('${uname}')">Delete</button>
-                </div>
-            `;
-        }).join('');
-    }
-
-    usersDb.on('value', (snapshot) => {
-        usersState = snapshot.val() || {};
-    });
-
-    db.on('value', (snapshot) => {
-        const val = snapshot.val();
-        if (val) {
-            const tenHoursAgo = Date.now() - (10 * 60 * 60 * 1000);
-            let filteredReports = (val.reports || []).filter(rep => rep.endTimestamp > tenHoursAgo);
-            let filteredSwaps = (val.swapLogs || []).filter(sw => sw.timestamp > tenHoursAgo);
-
-            state = {
-                active: val.active || [],
-                waiting: val.waiting || [],
-                requests: val.requests || [],
-                reports: filteredReports,
-                swapLogs: filteredSwaps
-            };
-        } else {
-            state = { active: [], waiting: [], requests: [], reports: [], swapLogs: [] };
-        }
-
-        checkTurnLogicAndNotifications();
-        renderUI();
-    });
-
-    setInterval(() => {
-        runLiveTimerCheck();
-    }, 1000);
 
     document.addEventListener('DOMContentLoaded', () => {
         checkSession();
@@ -1122,595 +1445,17 @@
         if (titleBlinkInterval) {
             clearInterval(titleBlinkInterval);
             titleBlinkInterval = null;
-            document.title = "Contact Center Break - Al Salam Hospitals";
+            document.title = BASE_TITLE + (LIVE ? "" : " [TEST]");
         }
     }
 
     let lastNotifiedTurnState = "";
     let lastNotifiedAheadState = "";
 
-    function checkTurnLogicAndNotifications() {
-        const newWaiting = state.waiting || [];
-
-        if (currentEmployeeName) {
-            const myUserLower = currentEmployeeName.trim().toLowerCase();
-            const myIndex = newWaiting.findIndex(w => w.name.trim().toLowerCase() === myUserLower);
-
-            if (myIndex === 1) {
-                if (lastNotifiedAheadState !== myUserLower + "_ahead") {
-                    lastNotifiedAheadState = myUserLower + "_ahead";
-                    playBeep();
-                    showCustomAlert("⚠️ Alert: There is only one person ahead of you in the waiting queue, get ready.");
-                    sendBrowserNotification("Al Salam Break Alert", "There is only one person ahead of you in the waiting queue, get ready.");
-                    startTitleBlink("One person ahead!");
-                }
-            } else if (myIndex !== 1) {
-                lastNotifiedAheadState = "";
-            }
-
-            const firstNormal = newWaiting.find(w => w.type === 'normal');
-            const firstQuick = newWaiting.find(w => w.type === 'quick');
-            const hasNormalSlot = !state.active.some(a => a.type === 'normal' || a.type === 'request');
-            const hasQuickSlot = !state.active.some(a => a.type === 'quick');
-
-            const isMyTurn = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) ||
-                             (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot);
-
-            if (isMyTurn) {
-                if (lastNotifiedTurnState !== "my_turn") {
-                    lastNotifiedTurnState = "my_turn";
-                    playBeep();
-                    showCustomAlert("🚨 It is your turn for break! Please click the confirmation button on the main screen.");
-                    sendBrowserNotification("🚨 It is your turn for break!", "Your turn has arrived, please open the page and confirm.");
-                    startTitleBlink("🚨 It is your turn!");
-                }
-            } else {
-                if (myIndex > 0 || myIndex === -1) {
-                    lastNotifiedTurnState = "";
-                    stopTitleBlink();
-                }
-            }
-        }
-    }
-
-    function runLiveTimerCheck() {
-        const currentTime = Date.now();
-        const newWaiting = state.waiting || [];
-
-        // 1. ميزة الإخراج التلقائي من البريك بعد 45 دقيقة متواصلة
-        if (state.active && state.active.length > 0) {
-            for (let i = state.active.length - 1; i >= 0; i--) {
-                const activeItem = state.active[i];
-                const elapsedMs = currentTime - activeItem.timestamp;
-                const maxLimitMs = 45 * 60 * 1000;
-
-                if (elapsedMs >= maxLimitMs) {
-                    const finishedItem = state.active.splice(i, 1)[0];
-                    const endTime = Date.now();
-                    const durationMs = endTime - finishedItem.timestamp;
-                    const durationSecs = Math.floor(durationMs / 1000);
-                    const durationMins = Math.floor(durationSecs / 60);
-                    const durationSecsRem = durationSecs % 60;
-                    const durationText = `${durationMins}m ${durationSecsRem}s`;
-                    const endTimeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                    const breakDateStr = finishedItem.dateStr || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                    
-                    let typeText = 'Normal Break';
-                    if (finishedItem.type === 'quick') typeText = 'Quick Break (5m)';
-                    else if (finishedItem.type === 'request') typeText = 'Requested Break';
-
-                    if (!state.reports) state.reports = [];
-                    state.reports.unshift({
-                        name: finishedItem.name,
-                        type: typeText + ' (Exceeded 45m Limit - Auto Ended)',
-                        dateStr: breakDateStr,
-                        startTime: finishedItem.timeStr,
-                        endTime: endTimeStr,
-                        duration: durationText,
-                        isOvertime: true,
-                        endTimestamp: endTime
-                    });
-
-                    const autoEndedId = finishedItem.id;
-                    const autoEndedReport = state.reports[state.reports.length - 1];
-                    runStateTransaction(function(latest) {
-                        const activeIndex = latest.active.findIndex(item => item.id === autoEndedId);
-                        if (activeIndex === -1) return;
-                        latest.active.splice(activeIndex, 1);
-                        latest.reports.unshift(autoEndedReport);
-                        return latest;
-                    }, function() {
-                        playBeep();
-                        showCustomAlert(`⚠️ Maximum break limit of 45 minutes exceeded for (${finishedItem.name}). Automatically removed from system.`);
-                    });
-                    return;
-                }
-            }
-        }
-
-        if (newWaiting.length > 0) {
-            const hasNormalSlot = !state.active.some(a => a.type === 'normal' || a.type === 'request');
-            const hasQuickSlot = !state.active.some(a => a.type === 'quick');
-            
-            const firstNormal = newWaiting.find(w => w.type === 'normal');
-            const firstQuick = newWaiting.find(w => w.type === 'quick');
-
-            let targetToShift = null;
-            if (firstNormal && hasNormalSlot) targetToShift = firstNormal;
-            else if (firstQuick && hasQuickSlot) targetToShift = firstQuick;
-
-            if (targetToShift) {
-                if (!targetToShift.turnStartTime) {
-                    const turnStartId = targetToShift.id;
-                    runStateTransaction(function(latest) {
-                        const target = latest.waiting.find(item => item.id === turnStartId);
-                        if (!target) return;
-                        if (!target.turnStartTime) target.turnStartTime = currentTime;
-                        return latest;
-                    });
-                } else {
-                    const elapsedMs = currentTime - targetToShift.turnStartTime;
-                    if (elapsedMs > 420000) { 
-                        const idx = newWaiting.findIndex(w => w.id === targetToShift.id);
-                        if (idx > -1) {
-                            const timedOutItem = newWaiting.splice(idx, 1)[0];
-                            delete timedOutItem.turnStartTime;
-                            delete timedOutItem.promptSwapChoice;
-
-                            newWaiting.unshift(timedOutItem);
-
-                            if (!state.reports) state.reports = [];
-                            state.reports.unshift({
-                                name: timedOutItem.name,
-                                type: 'Auto-Delayed (Timeout)',
-                                dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-                                startTime: '-',
-                                endTime: '-',
-                                duration: '0m 0s',
-                                isOvertime: true,
-                                endTimestamp: Date.now()
-                            });
-
-                            const timedOutId = timedOutItem.id;
-                            const timeoutReport = state.reports[state.reports.length - 1];
-                            runStateTransaction(function(latest) {
-                                const idxLatest = latest.waiting.findIndex(w => w.id === timedOutId);
-                                if (idxLatest === -1) return;
-                                const itemLatest = latest.waiting.splice(idxLatest, 1)[0];
-                                delete itemLatest.turnStartTime;
-                                delete itemLatest.promptSwapChoice;
-                                latest.waiting.unshift(itemLatest);
-                                latest.reports.unshift(timeoutReport);
-                                return latest;
-                            }, function() {
-                                playBeep();
-                                showCustomAlert("⏱️ Alert: Confirmation timeout exceeded, turn automatically delayed.");
-                                stopTitleBlink();
-                            });
-                            return;
-                        }
-                    }
-                }
-            }
-        }
-
-        const promptBox = document.getElementById('myTurnPromptBox');
-        if (currentEmployeeName && promptBox.style.display === 'block') {
-            const myUserLower = currentEmployeeName.trim().toLowerCase();
-            const firstNormal = newWaiting.find(w => w.type === 'normal');
-            const firstQuick = newWaiting.find(w => w.type === 'quick');
-            const targetItem = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower) ? firstNormal : 
-                             ((firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower) ? firstQuick : null);
-
-            if (targetItem && targetItem.turnStartTime) {
-                const elapsed = currentTime - targetItem.turnStartTime;
-                const remainingMs = 420000 - elapsed;
-                
-                if (remainingMs > 0) {
-                    const totalSecs = Math.floor(remainingMs / 1000);
-                    const mins = Math.floor(totalSecs / 60);
-                    const secs = totalSecs % 60;
-                    const timeFormatted = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-
-                    const countdownEl = document.getElementById('liveCountdownDisplay');
-                    if (countdownEl) {
-                        if (mins >= 2) {
-                            countdownEl.innerHTML = `⏳ Confirmation deadline countdown: <span style="font-size: 1.1rem; color: #fff;">${timeFormatted}</span> remaining`;
-                        } else {
-                            countdownEl.innerHTML = `⚠️ Alert: Last 2 grace minutes entered: <span style="font-size: 1.1rem; color: #fca5a5;">${timeFormatted}</span> remaining!`;
-                        }
-                    }
-                }
-            }
-        }
-
-        const waitingItems = document.querySelectorAll('.admin-countup-timer');
-        waitingItems.forEach(el => {
-            const startTime = parseInt(el.getAttribute('data-starttime') || '0', 10);
-            if (startTime) {
-                const elapsedSecs = Math.floor((currentTime - startTime) / 1000);
-                const mins = Math.floor(elapsedSecs / 60);
-                const secs = elapsedSecs % 60;
-                el.innerText = `${mins}m ${secs}s`;
-            }
-        });
-
-        const activeItems = document.querySelectorAll('.active-countup-timer');
-        activeItems.forEach(el => {
-            const startTime = parseInt(el.getAttribute('data-starttime') || '0', 10);
-            if (startTime) {
-                const elapsedSecs = Math.floor((currentTime - startTime) / 1000);
-                const mins = Math.floor(elapsedSecs / 60);
-                const secs = elapsedSecs % 60;
-                el.innerText = `${mins}m ${secs}s`;
-            }
-        });
-    }
-
-    function promptSwapChoiceAction(choice) {
-        if (!currentEmployeeName) return;
-        const myUserLower = currentEmployeeName.trim().toLowerCase();
-        const firstNormal = state.waiting.find(w => w.type === 'normal');
-        const firstQuick = state.waiting.find(w => w.type === 'quick');
-        const targetItem = (firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower) ? firstNormal :
-                           ((firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower) ? firstQuick : null);
-
-        if (!targetItem) return;
-
-        if (choice === 'no') {
-            const targetId = targetItem.id;
-            const delayReport = {
-                name: targetItem.name,
-                type: 'Delayed by choice (No Swap)',
-                dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-                startTime: '-',
-                endTime: '-',
-                duration: '0m 0s',
-                isOvertime: false,
-                endTimestamp: Date.now()
-            };
-
-            runStateTransaction(function(latest) {
-                const idx = latest.waiting.findIndex(w => w.id === targetId);
-                if (idx === -1) return;
-                const movedItem = latest.waiting.splice(idx, 1)[0];
-                delete movedItem.turnStartTime;
-                delete movedItem.promptSwapChoice;
-                latest.waiting.unshift(movedItem);
-                latest.reports.unshift(delayReport);
-                return latest;
-            }, function() {
-                showCustomAlert("⏱️ Your turn has been delayed based on your choice.");
-                stopTitleBlink();
-            });
-        }
-    }
-
-    function submitBreak(type) {
-        initAudioContext();
-        if (!currentEmployeeName) {
-            showCustomAlert('Please login first!');
-            return;
-        }
-
-        const name = currentEmployeeName;
-        const nameLower = name.toLowerCase();
-        const isInActive = state.active.some(item => item.name.trim().toLowerCase() === nameLower);
-        const isInWaiting = state.waiting.some(item => item.name.trim().toLowerCase() === nameLower);
-        const isInRequests = state.requests.some(item => item.name.trim().toLowerCase() === nameLower);
-
-        if (isInActive || isInWaiting || isInRequests) {
-            showCustomAlert('Sorry, you are currently on break or have a pending request!');
-            return;
-        }
-
-        lastNotifiedTurnState = "";
-        stopTitleBlink();
-
-        const now = Date.now();
-        const newItem = {
-            id: String(now),
-            name: name,
-            type: type,
-            timestamp: now,
-            dateStr: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-            timeStr: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-        };
-
-        runStateTransaction(function(latest) {
-            const alreadyInSystem = latest.active.some(item => item.name.trim().toLowerCase() === nameLower) ||
-                                    latest.waiting.some(item => item.name.trim().toLowerCase() === nameLower) ||
-                                    latest.requests.some(item => item.name.trim().toLowerCase() === nameLower);
-            if (alreadyInSystem) return;
-            if (type === 'request') latest.requests.push(newItem);
-            else latest.waiting.push(newItem);
-            return latest;
-        }, null, function() {
-            showCustomAlert('Sorry, the request could not be saved. Please try again.');
-        });
-    }
-
-    function adminForceOutAction(index) {
-        if (!isAdmin) return;
-        pendingForceOutIndex = index;
-        const item = state.waiting[index];
-        if (!item) return;
-        document.getElementById('forceOutModalOverlay').style.display = 'flex';
-    }
-
-    function handleForceOutChoice(keepInQueue) {
-        document.getElementById('forceOutModalOverlay').style.display = 'none';
-        if (pendingForceOutIndex === null) return;
-
-        const index = pendingForceOutIndex;
-        pendingForceOutIndex = null;
-        const item = state.waiting[index];
-        if (!item) return;
-
-        const targetId = item.id;
-        const originalPosition = index + 1;
-        const itemName = item.name;
-        const now = Date.now();
-        const dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        const timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
-        runStateTransaction(function(latest) {
-            const latestIndex = latest.waiting.findIndex(w => w.id === targetId);
-            if (latestIndex === -1) return;
-            const itemToBreak = latest.waiting.splice(latestIndex, 1)[0];
-            itemToBreak.timestamp = now;
-            itemToBreak.dateStr = dateStr;
-            itemToBreak.timeStr = timeStr;
-            delete itemToBreak.turnStartTime;
-            if (keepInQueue) {
-                itemToBreak.keepInQueueRole = true;
-                itemToBreak.originalQueuePos = originalPosition;
-            } else {
-                itemToBreak.keepInQueueRole = false;
-            }
-            latest.active.push(itemToBreak);
-            return latest;
-        }, function() {
-            showCustomAlert(`Employee (${itemName}) forced out to break successfully.`);
-        }, function() {
-            showCustomAlert('The employee is no longer in the waiting queue. Please refresh and try again.');
-        });
-    }
-
-    function approveRequest(index) {
-        if (!isAdmin) return;
-        const reqItem = state.requests[index];
-        if (!reqItem) return;
-        const requestId = reqItem.id;
-
-        runStateTransaction(function(latest) {
-            const reqIndex = latest.requests.findIndex(r => r.id === requestId);
-            if (reqIndex === -1) return;
-            const item = latest.requests.splice(reqIndex, 1)[0];
-            latest.waiting.push(item);
-            return latest;
-        });
-    }
-
-    function cancelRequest(index) {
-        const item = state.requests[index];
-        const isOwner = currentEmployeeName && item.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase();
-        if (!isOwner && !isAdmin) {
-            showCustomAlert('You can only cancel your own request!');
-            return;
-        }
-        if (confirm(`Are you sure you want to cancel request for (${item.name})?`)) {
-            const requestId = item.id;
-            runStateTransaction(function(latest) {
-                const requestIndex = latest.requests.findIndex(r => r.id === requestId);
-                if (requestIndex === -1) return;
-                latest.requests.splice(requestIndex, 1);
-                return latest;
-            });
-        }
-    }
-
-    function confirmMyTurn() {
-        initAudioContext();
-        if (!currentEmployeeName) return;
-        const myUserLower = currentEmployeeName.trim().toLowerCase();
-        const localItem = state.waiting.find(item => item.name.trim().toLowerCase() === myUserLower);
-        if (!localItem) {
-            showCustomAlert('You are not currently in the waiting queue!');
-            return;
-        }
-
-        const targetId = localItem.id;
-        runStateTransaction(function(latest) {
-            const index = latest.waiting.findIndex(item => item.id === targetId);
-            if (index === -1) return;
-            const userItem = latest.waiting[index];
-            const firstOfThisType = latest.waiting.find(w => w.type === userItem.type);
-            if (!firstOfThisType || firstOfThisType.id !== userItem.id) return;
-
-            const hasNormal = latest.active.some(item => item.type === 'normal' || item.type === 'request');
-            const hasQuick = latest.active.some(item => item.type === 'quick');
-            let canEnter = false;
-            if (userItem.type === 'quick' && !hasQuick) canEnter = true;
-            else if ((userItem.type === 'normal' || userItem.type === 'request') && !hasNormal) canEnter = true;
-            if (!canEnter) return;
-
-            latest.waiting.splice(index, 1);
-            userItem.timestamp = Date.now();
-            userItem.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-            userItem.timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            delete userItem.turnStartTime;
-            latest.active.push(userItem);
-            return latest;
-        }, function() {
-            stopTitleBlink();
-        }, function() {
-            showCustomAlert('Your turn could not be confirmed. Please check the queue and try again.');
-        });
-    }
-
-    function endBreak(index) {
-        initAudioContext();
-        const localItem = state.active[index];
-        if (!localItem) return;
-        const targetId = localItem.id;
-        const endTime = Date.now();
-
-        runStateTransaction(function(latest) {
-            const activeIndex = latest.active.findIndex(item => item.id === targetId);
-            if (activeIndex === -1) return;
-            const finishedItem = latest.active.splice(activeIndex, 1)[0];
-            const durationMs = endTime - finishedItem.timestamp;
-            const durationSecs = Math.floor(durationMs / 1000);
-            const durationMins = Math.floor(durationSecs / 60);
-            const durationSecsRem = durationSecs % 60;
-            const durationText = `${durationMins}m ${durationSecsRem}s`;
-            const endTimeStr = new Date(endTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            const breakDateStr = finishedItem.dateStr || new Date(endTime).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-
-            let typeText = 'Normal Break';
-            if (finishedItem.type === 'quick') typeText = 'Quick Break (5m)';
-            else if (finishedItem.type === 'request') typeText = 'Requested Break';
-
-            let isOvertime = false;
-            if (finishedItem.type === 'quick' && durationMins >= 5 && durationSecsRem > 0) isOvertime = true;
-            else if ((finishedItem.type === 'normal' || finishedItem.type === 'request') && durationMins >= 20 && durationSecsRem > 0) isOvertime = true;
-
-            latest.reports.unshift({
-                name: finishedItem.name,
-                type: typeText,
-                dateStr: breakDateStr,
-                startTime: finishedItem.timeStr,
-                endTime: endTimeStr,
-                duration: durationText,
-                isOvertime: isOvertime,
-                endTimestamp: endTime
-            });
-
-            if (finishedItem.keepInQueueRole === true) {
-                let targetPos = finishedItem.originalQueuePos - 1;
-                delete finishedItem.keepInQueueRole;
-                delete finishedItem.originalQueuePos;
-                finishedItem.timestamp = Date.now();
-                finishedItem.dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                if (targetPos < 0) targetPos = 0;
-                if (targetPos > latest.waiting.length) targetPos = latest.waiting.length;
-                latest.waiting.splice(targetPos, 0, finishedItem);
-            }
-            return latest;
-        });
-    }
-
-    function cancelWaiting(index) {
-        const item = state.waiting[index];
-        if (!item) return;
-        const isOwner = currentEmployeeName && item.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase();
-
-        if (!isOwner && !isAdmin) {
-            showCustomAlert('You can only cancel your own turn!');
-            return;
-        }
-
-        if (confirm(`Are you sure you want to cancel (${item.name})?`)) {
-            const targetId = item.id;
-            runStateTransaction(function(latest) {
-                const latestIndex = latest.waiting.findIndex(w => w.id === targetId);
-                if (latestIndex === -1) return;
-                latest.waiting.splice(latestIndex, 1);
-                return latest;
-            }, function() {
-                stopTitleBlink();
-            });
-        }
-    }
-
-    function executeSwap() {
-        initAudioContext();
-        let id1, id2;
-
-        if (isAdmin) {
-            id1 = document.getElementById('swap1').value;
-            id2 = document.getElementById('swap2').value;
-        } else {
-            if (!currentEmployeeName) {
-                showCustomAlert('Please login first!');
-                return;
-            }
-            const myUserLower = currentEmployeeName.trim().toLowerCase();
-            const myItem = state.waiting.find(w => w.name.trim().toLowerCase() === myUserLower);
-            if (!myItem) {
-                showCustomAlert('You are not in the waiting queue to swap!');
-                return;
-            }
-            id1 = myItem.id;
-            id2 = document.getElementById('swapTarget').value;
-        }
-
-        if (!id1 || !id2 || id1 === id2) {
-            showCustomAlert('Please select a person to swap with!');
-            return;
-        }
-
-        const localIdx1 = state.waiting.findIndex(x => x.id === id1);
-        const localIdx2 = state.waiting.findIndex(x => x.id === id2);
-        if (localIdx1 === -1 || localIdx2 === -1) return;
-        if (!isAdmin && Math.abs(localIdx1 - localIdx2) !== 1) {
-            showCustomAlert('Sorry, you can only swap with the person directly above or below you!');
-            return;
-        }
-
-        runStateTransaction(function(latest) {
-            const idx1 = latest.waiting.findIndex(x => x.id === id1);
-            const idx2 = latest.waiting.findIndex(x => x.id === id2);
-            if (idx1 === -1 || idx2 === -1) return;
-            if (!isAdmin && Math.abs(idx1 - idx2) !== 1) return;
-
-            const oldPos1 = idx1 + 1;
-            const oldPos2 = idx2 + 1;
-            const temp = latest.waiting[idx1];
-            latest.waiting[idx1] = latest.waiting[idx2];
-            latest.waiting[idx2] = temp;
-
-            const name1 = latest.waiting[idx1].name;
-            const name2 = latest.waiting[idx2].name;
-            const newPos1 = idx1 + 1;
-            const newPos2 = idx2 + 1;
-            const now = Date.now();
-            const dateStr = new Date(now).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-            const timeStr = new Date(now).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            if (!latest.swapLogs) latest.swapLogs = [];
-
-            latest.swapLogs.unshift({ id: String(now + 1), receiverName: name1, initiatorName: isAdmin ? 'Admin' : name2, oldPos: oldPos2, newPos: newPos1, timestamp: now, dateStr, timeStr });
-            latest.swapLogs.unshift({ id: String(now + 2), receiverName: name2, initiatorName: isAdmin ? 'Admin' : name1, oldPos: oldPos1, newPos: newPos2, timestamp: now, dateStr, timeStr });
-            return latest;
-        }, function() {
-            showCustomAlert('Swapped successfully!');
-        });
-    }
-
-    function clearReports() {
-        if (!isAdmin) return;
-        if (confirm('Are you sure you want to clear reports and logs?')) {
-            state.reports = [];
-            state.swapLogs = [];
-            db.update({ reports: [], swapLogs: [] });
-        }
-    }
-
-    function clearMyBreakHistory() {
-        if (!currentEmployeeName) return;
-        if (confirm('Are you sure you want to clear your personal break history?')) {
-            const empNameLower = currentEmployeeName.trim().toLowerCase();
-            state.reports = (state.reports || []).filter(rep => rep.name.trim().toLowerCase() !== empNameLower);
-            db.update({ reports: state.reports });
-            showCustomAlert('Your personal break history has been cleared successfully.');
-        }
-    }
-
     function exportToExcel() {
         if (!isAdmin) return;
 
-        const fortyEightHoursAgo = Date.now() - (48 * 60 * 60 * 1000);
+        const fortyEightHoursAgo = nowTs() - (48 * 60 * 60 * 1000);
         const validReports = (state.reports || []).filter(rep => rep.endTimestamp >= fortyEightHoursAgo);
 
         let employeeSummaryMap = {};
@@ -1720,13 +1465,7 @@
             }
             employeeSummaryMap[rep.name].totalBreaks += 1;
             
-            let totalSecs = 0;
-            if (rep.duration) {
-                let mMatch = rep.duration.match(/(\d+)m/);
-                let sMatch = rep.duration.match(/(\d+)s/);
-                if (mMatch) totalSecs += parseInt(mMatch[1]) * 60;
-                if (sMatch) totalSecs += parseInt(sMatch[1]);
-            }
+            let totalSecs = secsOf(rep);
             employeeSummaryMap[rep.name].totalSecs += totalSecs;
             employeeSummaryMap[rep.name].details.push(rep);
         });
@@ -1768,12 +1507,12 @@
                 const repDate = rep.dateStr || new Date(rep.endTimestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
                 html += `
                     <tr>
-                        <td><b>${rep.name}</b></td>
-                        <td>${rep.type}</td>
-                        <td>${repDate}</td>
-                        <td>${rep.startTime}</td>
-                        <td>${rep.endTime}</td>
-                        <td>${rep.duration}</td>
+                        <td><b>${esc(rep.name)}</b></td>
+                        <td>${esc(rep.type)}</td>
+                        <td>${esc(repDate)}</td>
+                        <td>${esc(rep.startTime)}</td>
+                        <td>${esc(rep.endTime)}</td>
+                        <td>${esc(rep.duration)}</td>
                         <td class="${statusClass}">${statusText}</td>
                     </tr>
                 `;
@@ -1782,7 +1521,7 @@
             const totSecsRem = empData.totalSecs % 60;
             html += `
                 <tr>
-                    <td colspan="5" style="text-align: right; font-weight: bold; background-color: #e2e8f0;">Total Breaks for (${empName}):</td>
+                    <td colspan="5" style="text-align: right; font-weight: bold; background-color: #e2e8f0;">Total Breaks for (${esc(empName)}):</td>
                     <td colspan="2" style="font-weight: bold; background-color: #e2e8f0;">Total Breaks: ${empData.totalBreaks} | Total Duration: ${totMins}m ${totSecsRem}s</td>
                 </tr>
             `;
@@ -1806,7 +1545,7 @@
     }
 
     function renderUI() {
-        const currentTime = Date.now();
+        const currentTime = nowTs();
         const adminActiveBadge = document.getElementById('adminActiveBadge');
         const topAdminBtn = document.getElementById('topAdminOptionBtn');
         const reportBox = document.getElementById('adminReportContainer');
@@ -1825,20 +1564,20 @@
 
         const requestsSection = document.getElementById('requestsSectionContainer');
         const reqBox = document.getElementById('requestsBox');
-        if (state.requests && state.requests.length > 0 && (isAdmin || (currentEmployeeName && state.requests.some(r => r.name.toLowerCase() === currentEmployeeName.toLowerCase())))) {
+        if (state.requests && state.requests.length > 0 && (isAdmin || (currentEmployeeName && state.requests.some(mine)))) {
             requestsSection.style.display = 'block';
             reqBox.innerHTML = state.requests.map((item, i) => {
-                const isOwner = currentEmployeeName && item.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase();
+                const isOwner = mine(item);
                 const showActions = (isAdmin || isOwner);
                 return `
                     <div class="card-item">
                         <div>
-                            <strong>${item.name}</strong> <span style="color:#a78bfa;">[Break Request]</span>
-                            <br><small style="color:var(--text-muted)">Requested at: ${item.timeStr}</small>
+                            <strong>${esc(item.name)}</strong> <span style="color:#a78bfa;">[Break Request]</span>
+                            <br><small style="color:var(--text-muted)">Requested at: ${esc(item.timeStr)}</small>
                         </div>
                         <div style="display: flex; gap: 6px;">
-                            ${isAdmin ? `<button type="button" class="btn btn-green" style="padding: 6px 12px; font-size: 0.85rem;" onclick="approveRequest(${i})">Approve</button>` : ``}
-                            ${showActions ? `<button type="button" class="btn btn-red" onclick="cancelRequest(${i})">Cancel</button>` : ``}
+                            ${isAdmin ? `<button type="button" class="btn btn-green" style="padding: 6px 12px; font-size: 0.85rem;" onclick="approveRequest('${esc(item.id)}')">Approve</button>` : ``}
+                            ${showActions ? `<button type="button" class="btn btn-red" onclick="cancelRequest('${esc(item.id)}')">Cancel</button>` : ``}
                         </div>
                     </div>
                 `;
@@ -1850,48 +1589,31 @@
         const promptBox = document.getElementById('myTurnPromptBox');
         let showMyPrompt = false;
 
-        if (currentEmployeeName && state.waiting.length > 0) {
-            const myUserLower = currentEmployeeName.trim().toLowerCase();
-            const firstNormal = state.waiting.find(w => w.type === 'normal');
-            const firstQuick = state.waiting.find(w => w.type === 'quick');
-            const hasNormalSlot = !state.active.some(a => a.type === 'normal' || a.type === 'request');
-            const hasQuickSlot = !state.active.some(a => a.type === 'quick');
-
-            if ((firstNormal && firstNormal.name.trim().toLowerCase() === myUserLower && hasNormalSlot) ||
-                (firstQuick && firstQuick.name.trim().toLowerCase() === myUserLower && hasQuickSlot)) {
-                showMyPrompt = true;
-            }
-        }
+        showMyPrompt = !!myTurnItem();
         promptBox.style.display = showMyPrompt ? 'block' : 'none';
 
         const myHistorySection = document.getElementById('myBreakHistorySection');
         const myHistoryBox = document.getElementById('myBreakHistoryBox');
         if (currentEmployeeName && !isAdmin) {
             myHistorySection.style.display = 'block';
-            const myReports = (state.reports || []).filter(rep => rep.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase());
+            const myReports = (state.reports || []).filter(rep => mineReport(rep) && !rep.hiddenByUser && (rep.endTimestamp || 0) > nowTs() - 10 * 3600000);
             
             if (myReports.length === 0) {
                 myHistoryBox.innerHTML = '<div class="empty-msg">No past break records found</div>';
             } else {
                 let totalMySecs = 0;
                 let listHtml = myReports.map(rep => {
-                    let totalSecs = 0;
-                    if (rep.duration) {
-                        let mMatch = rep.duration.match(/(\d+)m/);
-                        let sMatch = rep.duration.match(/(\d+)s/);
-                        if (mMatch) totalSecs += parseInt(mMatch[1]) * 60;
-                        if (sMatch) totalSecs += parseInt(sMatch[1]);
-                    }
+                    let totalSecs = secsOf(rep);
                     totalMySecs += totalSecs;
 
                     return `
                         <div style="background: #0f172a; border: 1px solid #334155; padding: 10px; border-radius: 8px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
                             <div>
-                                <strong>${rep.type}</strong> (${rep.dateStr || ''})
-                                <br><small style="color:var(--text-muted)">Time: from ${rep.startTime} to ${rep.endTime}</small>
+                                <strong>${esc(rep.type)}</strong> (${rep.dateStr || ''})
+                                <br><small style="color:var(--text-muted)">Time: from ${esc(rep.startTime)} to ${esc(rep.endTime)}</small>
                             </div>
                             <div style="text-align: right;">
-                                <span style="color: #38bdf8; font-weight: bold;">${rep.duration}</span>
+                                <span style="color: #38bdf8; font-weight: bold;">${esc(rep.duration)}</span>
                             </div>
                         </div>
                     `;
@@ -1922,11 +1644,11 @@
                 const secsInBreak = elapsedSecs % 60;
                 const activeDurationStr = `${minsInBreak}m ${secsInBreak}s`;
 
-                const isOwner = currentEmployeeName && item.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase();
+                const isOwner = mine(item);
                 const showEndBtn = (isOwner || isAdmin);
                 
                 const isQuick = item.type === 'quick';
-                const isOvertime = (isQuick && (minsInBreak >= 5 && secsInBreak > 0)) || (!isQuick && (minsInBreak >= 20 && secsInBreak > 0));
+                const isOvertime = showEndBtn && elapsedSecs > (isQuick ? CFG.quickLimitMin : CFG.normalLimitMin) * 60; // red warning only for the employee himself and the admin
 
                 let typeLabel = '<span style="color:#fbbf24;">[Normal]</span>';
                 if (isQuick) typeLabel = '<span style="color:#3b82f6;">[Quick]</span>';
@@ -1935,13 +1657,13 @@
                 return `
                     <div class="card-item ${isOvertime ? 'overtime' : ''}">
                         <div>
-                            <strong>${item.name}</strong> 
+                            <strong>${esc(item.name)}</strong> 
                             <span style="margin-left: 8px; font-size: 0.9rem;">⏱️ <span class="active-countup-timer" data-starttime="${item.timestamp}">${activeDurationStr}</span></span>
                             ${typeLabel}
-                            <br><small style="color:var(--text-muted)">Out at: ${item.dateStr || ''} ${item.timeStr}</small>
+                            <br><small style="color:var(--text-muted)">Out at: ${esc(item.dateStr || '')} ${esc(item.timeStr)}</small>
                             ${isOvertime ? `<br><span style="color: var(--accent-red); font-weight: bold; font-size: 0.85rem;">⚠️ Exceeded limit time (${isQuick ? '5m' : '20m'})! Max limit is 45m.</span>` : ''}
                         </div>
-                        ${showEndBtn ? `<button type="button" class="btn btn-red" onclick="endBreak(${i})">End</button>` : ``}
+                        ${showEndBtn ? `<button type="button" class="btn btn-red" onclick="endBreak('${esc(item.id)}')">End</button>` : ``}
                     </div>
                 `;
             }).join('');
@@ -1952,7 +1674,7 @@
             wBox.innerHTML = '<div class="empty-msg">Waiting queue is empty</div>';
         } else {
             wBox.innerHTML = state.waiting.map((item, i) => {
-                const isOwner = currentEmployeeName && item.name.trim().toLowerCase() === currentEmployeeName.trim().toLowerCase();
+                const isOwner = mine(item);
                 const showCancelBtn = (isOwner || isAdmin);
                 const isQuick = item.type === 'quick';
 
@@ -1987,7 +1709,7 @@
                     const itemNameLower = item.name.trim().toLowerCase();
                     const recentLog = state.swapLogs.find(log => log.receiverName.trim().toLowerCase() === itemNameLower && (currentTime - log.timestamp < 600000));
                     if (recentLog) {
-                        swapMessageHtml = `<br><span style="color: #60a5fa; font-size: 0.8rem; font-weight: bold;">💬 Swapped with ${recentLog.initiatorName}, old position #${recentLog.oldPos} -> new #${recentLog.newPos}</span>`;
+                        swapMessageHtml = `<br><span style="color: #60a5fa; font-size: 0.8rem; font-weight: bold;">💬 Swapped with ${esc(recentLog.initiatorName)}, old position #${recentLog.oldPos} -> new #${recentLog.newPos}</span>`;
                     }
                 }
 
@@ -1995,7 +1717,7 @@
                     <div class="card-item">
                         <div>
                             <span class="waiting-badge-num">#${i + 1}</span>
-                            <strong>${item.name}</strong>
+                            <strong>${esc(item.name)}</strong>
                             <span style="margin-left: 8px; color:var(--text-muted); font-size: 0.85rem;">Waiting: <span class="admin-countup-timer" data-starttime="${item.queueStartTime}">${countupText}</span></span>
                             ${typeLabel}
                             ${adminStatusBadge}
@@ -2003,9 +1725,9 @@
                         </div>
                         <div style="display: flex; gap: 6px; align-items: center;">
                             ${isAdmin ? `
-                                <button type="button" class="btn btn-green" style="padding: 6px 10px; font-size: 0.75rem;" onclick="adminForceOutAction(${i})">Force Out</button>
+                                <button type="button" class="btn btn-green" style="padding: 6px 10px; font-size: 0.75rem;" onclick="adminForceOutAction('${esc(item.id)}')">Force Out</button>
                             ` : ``}
-                            ${showCancelBtn ? `<button type="button" class="btn btn-red" onclick="cancelWaiting(${i})">Cancel</button>` : ``}
+                            ${showCancelBtn ? `<button type="button" class="btn btn-red" onclick="cancelWaiting('${esc(item.id)}')">Cancel</button>` : ``}
                         </div>
                     </div>
                 `;
@@ -2029,8 +1751,8 @@
                 const s1 = document.getElementById('swap1');
                 const s2 = document.getElementById('swap2');
                 state.waiting.forEach((item, i) => {
-                    s1.add(new Option(`#${i + 1} - ${item.name}`, item.id));
-                    s2.add(new Option(`#${i + 1} - ${item.name}`, item.id));
+                    s1.add(new Option(`#${i + 1} - ${esc(item.name)}`, item.id));
+                    s2.add(new Option(`#${i + 1} - ${esc(item.name)}`, item.id));
                 });
                 if (s2.options.length > 1) s2.selectedIndex = 1;
             } else {
@@ -2040,8 +1762,7 @@
                     <button type="button" class="btn btn-amber" onclick="executeSwap()">Swap Turn</button>
                 `;
                 const sTarget = document.getElementById('swapTarget');
-                const myUserLower = currentEmployeeName ? currentEmployeeName.trim().toLowerCase() : '';
-                const myIdx = state.waiting.findIndex(item => item.name.trim().toLowerCase() === myUserLower);
+                const myIdx = state.waiting.findIndex(mine);
 
                 if (myIdx > -1) {
                     if (myIdx > 0) {
@@ -2086,12 +1807,12 @@
                     const repDate = rep.dateStr || new Date(rep.endTimestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
                     tableHtml += `
                         <tr>
-                            <td><strong>${rep.name}</strong></td>
-                            <td>${rep.type}</td>
-                            <td>${repDate}</td>
-                            <td>${rep.startTime}</td>
-                            <td>${rep.endTime}</td>
-                            <td class="${rep.isOvertime ? 'exceed-cell' : ''}">${rep.duration}</td>
+                            <td><strong>${esc(rep.name)}</strong></td>
+                            <td>${esc(rep.type)}</td>
+                            <td>${esc(repDate)}</td>
+                            <td>${esc(rep.startTime)}</td>
+                            <td>${esc(rep.endTime)}</td>
+                            <td class="${rep.isOvertime ? 'exceed-cell' : ''}">${esc(rep.duration)}</td>
                             <td>${rep.isOvertime ? 'Exceed' : 'Normal'}</td>
                         </tr>
                     `;
@@ -2101,6 +1822,33 @@
             }
         }
     }
+
+/* ===================== listeners & start-up (replaces the old ones) ===================== */
+usersDb.on('value', s => { testUsers = s.val() || {}; usersReady.t = true; mergeUsers(); });
+if (!LIVE) root.ref(LIVE_U).on('value', s => { liveUsers = s.val() || {}; usersReady.l = true; mergeUsers(); });
+db.on('value', snap => {
+    const v = snap.val() || {};
+    state = normalizeState({ active: v.active, waiting: v.waiting, requests: v.requests, reports: v.reports, swapLogs: v.swapLogs });
+    checkTurnLogicAndNotifications();
+    renderUI();
+});
+setInterval(runLiveTimerCheck, 1000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { runLiveTimerCheck(); renderUI(); } });
+root.ref('.info/connected').on('value', s => {
+    let b = document.getElementById('connBadge');
+    if (!b) {
+        b = document.createElement('div'); b.id = 'connBadge';
+        b.style.cssText = 'position:fixed;bottom:10px;left:10px;padding:5px 12px;border-radius:99px;font:600 12px Arial,sans-serif;z-index:9999;display:none;background:#7f1d1d;color:#fecaca;';
+        b.textContent = '⚠️ Offline – your actions are not being saved'; document.body.appendChild(b);
+    }
+    b.style.display = s.val() === true ? 'none' : 'block';
+});
+document.addEventListener('DOMContentLoaded', () => {
+    initTestBanner();
+    const c = document.getElementById('empAccountsListContainer');
+    if (c) c.addEventListener('click', e => { const b = e.target.closest('[data-del-user]'); if (b) deleteEmployeeAccount(b.dataset.delUser); });
+});
+
 </script>
 </body>
 </html>
